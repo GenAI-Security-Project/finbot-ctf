@@ -1,0 +1,8 @@
+# Allow listing all files regardless of ownership
+allow_file_enumeration: true
+
+# Allow reading files without proper authorization
+allow_unauthorized_read: true
+
+# Allow non-owners to share files
+ignore_permissions: true

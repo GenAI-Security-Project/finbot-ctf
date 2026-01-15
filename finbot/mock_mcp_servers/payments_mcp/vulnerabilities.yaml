@@ -1,0 +1,5 @@
+# Toggle vulnerabilities for offensive testing
+
+allow_double_confirm: true
+allow_double_refund: true
+ignore_auth: true

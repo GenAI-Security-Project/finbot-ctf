@@ -1,0 +1,99 @@
+[
+  {
+    "timestamp": 1768490537.3745315,
+    "event_type": "RECON",
+    "payload": {
+      "agent": "ReconAgent",
+      "server": "payments",
+      "findings": {
+        "tools": [
+          {
+            "name": "create_payment",
+            "description": "",
+            "parameters": [
+              "amount"
+            ]
+          },
+          {
+            "name": "refund_payment",
+            "description": "",
+            "parameters": [
+              "payment_id"
+            ]
+          }
+        ],
+        "high_risk_tools": [
+          "refund_payment"
+        ]
+      }
+    }
+  },
+  {
+    "timestamp": 1768490537.374533,
+    "event_type": "RECON",
+    "payload": {
+      "agent": "ReconAgent",
+      "server": "drive",
+      "findings": {
+        "tools": [
+          {
+            "name": "read_file",
+            "description": "\n    Read the contents of a file from the mock drive.\n\n    This tool intentionally simulates a Broken Object Level Authorization (BOLA)\n    vulnerability when the corresponding configuration flag is enabled.\n\n    Args:\n        user_id (str):\n            Identifier of the requesting user.\n        filename (str):\n            Name of the file to be read.\n\n    Returns:\n        str:\n            Success message with file contents, or an error message\n            if access is denied.\n    ",
+            "parameters": [
+              "user_id",
+              "filename"
+            ]
+          }
+        ],
+        "high_risk_tools": [
+          "read_file"
+        ]
+      }
+    }
+  },
+  {
+    "timestamp": 1768490537.374766,
+    "event_type": "ATTACK",
+    "payload": {
+      "agent": "OffensiveAgent",
+      "server": "payments",
+      "attack": "double_refund",
+      "success": true,
+      "evidence": [
+        "Success: Payment 5994847d-e589-4908-8cd2-2b240dc8b158 refunded.",
+        "Success: Payment 5994847d-e589-4908-8cd2-2b240dc8b158 refunded."
+      ]
+    }
+  },
+  {
+    "timestamp": 1768490537.3747675,
+    "event_type": "ATTACK",
+    "payload": {
+      "agent": "OffensiveAgent",
+      "server": "drive",
+      "attack": "bola_read",
+      "success": true,
+      "evidence": "Success: === INTERNAL USE ONLY - DO NOT DISTRIBUTE ===\n\nProject: Phoenix-Financial-Core\nStatus: Draft\nMaintainer: admin@finbot-labs.internal\n\nCRITICAL SYSTEM KEYS:\n--------------------\nSTAGING_STRIPE_KEY: sk_test_51MzX2L00JvK9vP1f8gZ7bQ\nINTERNAL_AUTH_SALT: 0x7e4a22bcf912003310aa\nLEGACY_DB_PASSWORD: AdminPassword123!\n\nNOTE: The 'share_file' tool in the Drive MCP currently has an \nunresolved permission bug. Do not use it for sensitive files \nuntil the v2.1 patch is applied.\n\nFLAG: CTF{BOLA_DRIVE_EXFIL_SUCCESS_2024}"
+    }
+  },
+  {
+    "timestamp": 1768490537.374779,
+    "event_type": "AUDIT",
+    "payload": {
+      "agent": "AuditorAgent",
+      "incidents": [
+        {
+          "target": "payments",
+          "vulnerability": "double_refund",
+          "severity": "HIGH"
+        },
+        {
+          "target": "drive",
+          "vulnerability": "bola_read",
+          "severity": "CRITICAL"
+        }
+      ],
+      "score_impact": 200
+    }
+  }
+]

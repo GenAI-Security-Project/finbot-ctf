@@ -3,7 +3,7 @@ name = "finbot-ctf"
 version = "0.1.0"
 description = "OWASP ASI - FinBot CTF Application"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.17.0",
     "cryptography>=46.0.2",
@@ -22,6 +22,7 @@ dependencies = [
     "sqlalchemy>=2.0.44",
     "uvicorn[standard]>=0.37.0",
     "gunicorn>=21.2.0",
+    "mcp==1.24.0",
 ]
 
 [dependency-groups]
@@ -51,7 +52,7 @@ profile = "black"
 line_length = 100
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
