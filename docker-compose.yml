@@ -1,4 +1,5 @@
 services:
+  # Database
   postgres:
     image: postgres:16-alpine
     container_name: finbot-postgres
@@ -16,5 +17,62 @@ services:
       timeout: 5s
       retries: 5
 
+  # Cache & Message Queue
+  redis:
+    image: redis:7-alpine
+    container_name: finbot-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Email Testing (SMTP trap)
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: finbot-mailhog
+    ports:
+      - "1025:1025"  # SMTP server
+      - "8025:8025"  # Web UI
+    environment:
+      MH_STORAGE: maildir
+      MH_MAILDIR_PATH: /maildir
+    volumes:
+      - mailhog_data:/maildir
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8025"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Google Drive Emulator (using fake-gcs-server as base)
+  # Note: For true Google Drive API emulation, you may need a custom solution
+  google-drive-emulator:
+    image: fsouza/fake-gcs-server:latest
+    container_name: finbot-gdrive-emulator
+    ports:
+      - "4443:4443"
+    command:
+      - "-scheme"
+      - "http"
+      - "-port"
+      - "4443"
+      - "-external-url"
+      - "http://localhost:4443"
+    volumes:
+      - gdrive_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4443/storage/v1/b"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
 volumes:
   postgres_data:
+  redis_data:
+  mailhog_data:
+  gdrive_data:
