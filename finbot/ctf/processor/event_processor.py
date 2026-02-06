@@ -452,12 +452,6 @@ class CTFEventProcessor:
                 )
                 await ws_manager.send_to_user(namespace, user_id, ws_event)
 
-    def reload_definitions(self):
-        """Reload detector and evaluator caches"""
-        self.challenge_service.clear_cache()
-        self.badge_service.clear_cache()
-        logger.info("CTF processor caches cleared")
-
 
 # Singleton instance
 _processor: CTFEventProcessor | None = None

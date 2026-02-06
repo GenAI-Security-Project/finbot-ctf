@@ -17,31 +17,11 @@ logger = logging.getLogger(__name__)
 class ChallengeService:
     """Handles challenge detection and progress tracking"""
 
-    def __init__(self):
-        self._detectors_cache: dict[str, Any] = {}
-
-    def get_detector_for_challenge(self, challenge: Challenge):
-        """Get or create a detector for a challenge"""
-        if challenge.id not in self._detectors_cache:
-            config = (
-                json.loads(challenge.detector_config)
-                if challenge.detector_config
-                else None
-            )
-            detector = create_detector(challenge.detector_class, challenge.id, config)
-            self._detectors_cache[challenge.id] = detector
-        return self._detectors_cache[challenge.id]
-
     def check_event_for_challenges(
         self, event: dict[str, Any], db: Session
     ) -> list[tuple[str, DetectionResult]]:
         """Check if an event completes any challenges
         Returns list of (challenge_id, result) tuples for completed challenges
-
-        TODO: we check all challenges for each event.
-        We could optimize this by checking only the challenges that are relevant to the event
-        as the challenges grow. We are ok for now.
-        TODO: we could also check the challenges in parallel.
         """
         event_type = event.get("event_type", "")
         namespace = event.get("namespace")
@@ -50,19 +30,28 @@ class ChallengeService:
             return []
 
         completed = []
-        # get all active challenges
-        challenges = db.query(Challenge).filter(Challenge.is_active == True).all()
+        challenges = db.query(Challenge).filter(Challenge.is_active).all()
         for challenge in challenges:
-            detector = self.get_detector_for_challenge(challenge)
+            config = (
+                json.loads(challenge.detector_config)
+                if challenge.detector_config
+                else None
+            )
+            detector = create_detector(challenge.detector_class, challenge.id, config)
             if not detector:
                 continue
-
             if not detector.matches_event_type(event_type):
                 continue
             progress = self._get_or_create_progress(
                 db, namespace, user_id, challenge.id
             )
             if progress.status == "completed":
+                continue
+
+            prerequisites = (
+                json.loads(challenge.prerequisites) if challenge.prerequisites else []
+            )
+            if not self._check_prerequisites(db, namespace, user_id, prerequisites):
                 continue
 
             # Run detection
@@ -119,6 +108,31 @@ class ChallengeService:
 
         return progress
 
+    def _check_prerequisites(
+        self,
+        db: Session,
+        namespace: str,
+        user_id: str,
+        prerequisites: list[str],
+    ) -> bool:
+        """Return True if all prerequisite challenges are completed for this user."""
+        if not prerequisites:
+            return True
+        for prereq_id in prerequisites:
+            progress = (
+                db.query(UserChallengeProgress)
+                .filter(
+                    UserChallengeProgress.namespace == namespace,
+                    UserChallengeProgress.user_id == user_id,
+                    UserChallengeProgress.challenge_id == prereq_id,
+                    UserChallengeProgress.status == "completed",
+                )
+                .first()
+            )
+            if not progress:
+                return False
+        return True
+
     def _mark_completed(
         self,
         db: Session,
@@ -148,7 +162,3 @@ class ChallengeService:
             }
         )
         progress.completion_workflow_id = event.get("workflow_id")
-
-    def clear_cache(self):
-        """Clear detector cache (for reloading definitions)"""
-        self._detectors_cache.clear()
