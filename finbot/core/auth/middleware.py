@@ -21,6 +21,11 @@ class SessionMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         """Dispatch request and handle session management"""
+
+        # Skip WebSocket upgrade requests - BaseHTTPMiddleware doesn't handle them
+        if request.headers.get("upgrade", "").lower() == "websocket":
+            return await call_next(request)
+
         session_context, status = await self._get_or_create_session(request)
 
         request.state.session_context = session_context

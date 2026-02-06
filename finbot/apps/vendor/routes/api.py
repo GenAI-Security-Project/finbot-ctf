@@ -1,11 +1,12 @@
 """Vendor Portal API Routes"""
 
 import secrets
+from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 
-from finbot.agents.runner import run_onboarding_agent
+from finbot.agents.runner import run_invoice_agent, run_onboarding_agent
 from finbot.core.auth.middleware import get_session_context
 from finbot.core.auth.session import SessionContext
 from finbot.core.data.database import get_db
@@ -65,8 +66,8 @@ class InvoiceCreateRequest(BaseModel):
     invoice_number: str
     amount: float
     description: str
-    due_date: str | None = None
-    status: str = "pending"
+    invoice_date: str  # ISO date string YYYY-MM-DD
+    due_date: str  # ISO date string YYYY-MM-DD
 
 
 @router.post("/vendors/register")
@@ -112,6 +113,7 @@ async def register_vendor(
 
         await event_bus.emit_business_event(
             event_type="vendor.created",
+            event_subtype="lifecycle",
             event_data={
                 "vendor_id": vendor.id,
                 "company_name": vendor.company_name,
@@ -119,6 +121,7 @@ async def register_vendor(
             },
             session_context=session_context,
             workflow_id=workflow_id,
+            summary=f"New vendor registered: {vendor.company_name}",
         )
 
         return {
@@ -169,6 +172,13 @@ async def get_vendor(
     vendor = vendor_repo.get_vendor(vendor_id)
     if not vendor:
         raise HTTPException(status_code=404, detail="Vendor not found")
+
+    # Verify vendor is the current vendor (vendor portal only sees current vendor)
+    if vendor.id != session_context.current_vendor_id:
+        raise HTTPException(
+            status_code=403, detail="Not authorized to view this vendor"
+        )
+
     return vendor.to_dict()
 
 
@@ -240,12 +250,86 @@ async def delete_vendor(
     db = next(get_db())
     vendor_repo = VendorRepository(db, session_context)
 
+    # Get vendor and verify access
+    vendor = vendor_repo.get_vendor(vendor_id)
+    if not vendor:
+        raise HTTPException(status_code=404, detail="Vendor not found")
+
+    # Verify vendor belongs to current user and is the current vendor
+    if vendor.id != session_context.current_vendor_id:
+        raise HTTPException(
+            status_code=403, detail="Not authorized to delete this vendor"
+        )
+
     success = vendor_repo.delete_vendor(vendor_id)
 
     if not success:
-        raise HTTPException(status_code=404, detail="Vendor not found")
+        raise HTTPException(status_code=500, detail="Failed to delete vendor")
 
     return {"success": True, "message": "Vendor deleted successfully"}
+
+
+@router.post("/vendors/{vendor_id}/request-review")
+async def request_vendor_review(
+    vendor_id: int,
+    background_tasks: BackgroundTasks,
+    session_context: SessionContext = Depends(get_session_context),
+):
+    """Request a re-review of vendor status by running the onboarding workflow again"""
+    db = next(get_db())
+    vendor_repo = VendorRepository(db, session_context)
+
+    # Get vendor and verify access
+    vendor = vendor_repo.get_vendor(vendor_id)
+    if not vendor:
+        raise HTTPException(status_code=404, detail="Vendor not found")
+
+    # Verify vendor belongs to current user and is the current vendor
+    if vendor.id != session_context.current_vendor_id:
+        raise HTTPException(
+            status_code=403, detail="Not authorized to request review for this vendor"
+        )
+
+    try:
+        # Generate workflow ID for tracking
+        workflow_id = f"wf_review_{secrets.token_urlsafe(12)}"
+
+        # Queue background task to run the onboarding agent
+        background_tasks.add_task(
+            run_onboarding_agent,
+            task_data={
+                "vendor_id": vendor.id,
+                "description": "Re-evaluate vendor profile and update status based on current data",
+            },
+            session_context=session_context,
+            workflow_id=workflow_id,
+        )
+
+        await event_bus.emit_business_event(
+            event_type="vendor.review_requested",
+            event_subtype="lifecycle",
+            event_data={
+                "vendor_id": vendor.id,
+                "company_name": vendor.company_name,
+                "previous_status": vendor.status,
+                "workflow_id": workflow_id,
+            },
+            session_context=session_context,
+            workflow_id=workflow_id,
+            summary=f"Vendor review requested: {vendor.company_name}",
+        )
+
+        return {
+            "success": True,
+            "message": "Review request submitted. Your profile is being re-evaluated.",
+            "vendor_id": vendor.id,
+            "workflow_id": workflow_id,
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to submit review request: {str(e)}"
+        ) from e
 
 
 @router.post("/vendors/switch/{vendor_id}")
@@ -336,6 +420,7 @@ async def get_invoices(
 @router.post("/invoices")
 async def create_invoice(
     invoice_data: InvoiceCreateRequest,
+    background_tasks: BackgroundTasks,
     session_context: SessionContext = Depends(get_session_context),
 ):
     """Create invoice for current vendor"""
@@ -343,7 +428,44 @@ async def create_invoice(
     invoice_repo = InvoiceRepository(db, session_context)
 
     try:
-        invoice = invoice_repo.create_invoice_for_current_vendor(**invoice_data.dict())
+        # Parse date strings to datetime objects
+        invoice_dict = invoice_data.model_dump()
+        invoice_dict["invoice_date"] = datetime.fromisoformat(invoice_data.invoice_date)
+        invoice_dict["due_date"] = datetime.fromisoformat(invoice_data.due_date)
+
+        invoice = invoice_repo.create_invoice_for_current_vendor(**invoice_dict)
+
+        # Run the invoice processing agent
+        workflow_id = f"wf_{secrets.token_urlsafe(12)}"
+
+        # queue background task to run the process invoice
+        background_tasks.add_task(
+            run_invoice_agent,
+            task_data={
+                "invoice_id": invoice.id,
+                "description": "Please process a new invoice for this vendor with provided invoice_id",
+            },
+            session_context=session_context,
+            workflow_id=workflow_id,
+        )
+
+        await event_bus.emit_business_event(
+            event_type="invoice.created",
+            event_subtype="lifecycle",
+            event_data={
+                "invoice_id": invoice.id,
+                "invoice_number": invoice.invoice_number,
+                "amount": float(invoice.amount),
+                "description": invoice.description,
+                "invoice_date": invoice.invoice_date.isoformat()
+                if invoice.invoice_date
+                else None,
+                "due_date": invoice.due_date.isoformat() if invoice.due_date else None,
+            },
+            session_context=session_context,
+            workflow_id=workflow_id,
+            summary=f"Invoice submitted: ${float(invoice.amount):,.2f} (#{invoice.invoice_number})",
+        )
 
         return {
             "success": True,
@@ -383,7 +505,150 @@ async def get_invoice(
             "amount": float(invoice.amount),
             "status": invoice.status,
             "description": invoice.description,
+            "invoice_date": invoice.invoice_date.isoformat()
+            if invoice.invoice_date
+            else None,
             "due_date": invoice.due_date.isoformat() if invoice.due_date else None,
-            "created_at": invoice.created_at.isoformat(),
+            "agent_notes": invoice.agent_notes,
+            "created_at": invoice.created_at.isoformat()
+            if invoice.created_at
+            else None,
+            "updated_at": invoice.updated_at.isoformat()
+            if invoice.updated_at
+            else None,
         }
+    }
+
+
+class InvoiceUpdateRequest(BaseModel):
+    """Invoice update request - status not editable by vendors"""
+
+    invoice_number: str | None = None
+    amount: float | None = None
+    description: str | None = None
+    invoice_date: str | None = None
+    due_date: str | None = None
+
+
+@router.put("/invoices/{invoice_id}")
+async def update_invoice(
+    invoice_id: int,
+    invoice_data: InvoiceUpdateRequest,
+    session_context: SessionContext = Depends(get_session_context),
+):
+    """Update specific invoice"""
+    db = next(get_db())
+    invoice_repo = InvoiceRepository(db, session_context)
+
+    # First get the invoice to verify ownership
+    invoice = invoice_repo.get_invoice(invoice_id)
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+
+    # Verify invoice belongs to current vendor
+    if invoice.vendor_id != session_context.current_vendor_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # Build update dict from non-None values (status not editable by vendors)
+    updates = {}
+    if invoice_data.invoice_number is not None:
+        updates["invoice_number"] = invoice_data.invoice_number
+    if invoice_data.amount is not None:
+        updates["amount"] = invoice_data.amount
+    if invoice_data.description is not None:
+        updates["description"] = invoice_data.description
+    if invoice_data.invoice_date is not None:
+        updates["invoice_date"] = datetime.fromisoformat(invoice_data.invoice_date)
+    if invoice_data.due_date is not None:
+        updates["due_date"] = datetime.fromisoformat(invoice_data.due_date)
+
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    # Update the invoice
+    updated_invoice = invoice_repo.update_invoice(invoice_id, **updates)
+
+    return {
+        "success": True,
+        "message": "Invoice updated successfully",
+        "invoice": {
+            "id": updated_invoice.id,
+            "invoice_number": updated_invoice.invoice_number,
+            "amount": float(updated_invoice.amount),
+            "status": updated_invoice.status,
+            "description": updated_invoice.description,
+            "invoice_date": updated_invoice.invoice_date.isoformat()
+            if updated_invoice.invoice_date
+            else None,
+            "due_date": updated_invoice.due_date.isoformat()
+            if updated_invoice.due_date
+            else None,
+        },
+    }
+
+
+@router.post("/invoices/{invoice_id}/reprocess")
+async def reprocess_invoice(
+    invoice_id: int,
+    background_tasks: BackgroundTasks,
+    session_context: SessionContext = Depends(get_session_context),
+):
+    """Request re-processing of an invoice by the AI agent"""
+    db = next(get_db())
+    invoice_repo = InvoiceRepository(db, session_context)
+
+    # Get the invoice
+    invoice = invoice_repo.get_invoice(invoice_id)
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+
+    # Verify invoice belongs to current vendor
+    if invoice.vendor_id != session_context.current_vendor_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # Create workflow ID for tracking
+    workflow_id = f"wf_{secrets.token_urlsafe(12)}"
+
+    # Queue background task to run the invoice processing agent
+    background_tasks.add_task(
+        run_invoice_agent,
+        task_data={
+            "invoice_id": invoice.id,
+            "description": "Please re-process this invoice and update the status and review notes",
+        },
+        session_context=session_context,
+        workflow_id=workflow_id,
+    )
+
+    # Emit event for re-processing
+    await event_bus.emit_business_event(
+        event_type="invoice.reprocessed",
+        event_subtype="lifecycle",
+        event_data={
+            "invoice_id": invoice.id,
+            "invoice_number": invoice.invoice_number,
+            "amount": float(invoice.amount),
+            "status": invoice.status,
+            "description": invoice.description,
+            "invoice_date": invoice.invoice_date.isoformat()
+            if invoice.invoice_date
+            else None,
+            "due_date": invoice.due_date.isoformat() if invoice.due_date else None,
+            "agent_notes": invoice.agent_notes,
+            "created_at": invoice.created_at.isoformat()
+            if invoice.created_at
+            else None,
+            "updated_at": invoice.updated_at.isoformat()
+            if invoice.updated_at
+            else None,
+        },
+        session_context=session_context,
+        workflow_id=workflow_id,
+        summary=f"Invoice reprocessed: ${float(invoice.amount):,.2f} (#{invoice.invoice_number})",
+    )
+
+    return {
+        "success": True,
+        "message": "Invoice re-processing has been queued. The AI agent will review it shortly.",
+        "workflow_id": workflow_id,
     }

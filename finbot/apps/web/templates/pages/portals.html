@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+
+{% block title %}Portals - CineFlow Productions{% endblock %}
+
+{% block extra_css %}
+<style>
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    @keyframes slideUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .portal-card {
+        background: linear-gradient(145deg, #1A1A1A, #0F0F0F);
+        border: 1px solid rgba(212, 175, 55, 0.2);
+        transition: all 0.3s ease;
+    }
+
+    .portal-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 20px 40px rgba(212, 175, 55, 0.2);
+        border-color: rgba(212, 175, 55, 0.5);
+    }
+
+    .portal-card:hover .portal-icon {
+        transform: scale(1.1);
+    }
+
+    .portal-icon {
+        transition: transform 0.3s ease;
+    }
+
+    .hero-gradient {
+        background: linear-gradient(135deg, #0F0F0F 0%, #1A1A1A 50%, #0F0F0F 100%);
+    }
+
+    .user-card {
+        transition: all 0.3s ease;
+    }
+
+    .user-card input:focus {
+        box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1);
+    }
+
+    .portal-card-disabled {
+        background: linear-gradient(145deg, #1A1A1A, #0F0F0F);
+        border: 1px solid rgba(100, 100, 100, 0.2);
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .portal-card-disabled .portal-icon {
+        filter: grayscale(50%);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Split View Layout -->
+<section class="hero-gradient pt-28 pb-16 min-h-[calc(100vh-5rem)]">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-full">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-start">
+
+            <!-- Left: Portals -->
+            <div>
+                <h1 class="font-display text-3xl md:text-4xl font-bold mb-2">
+                    <span class="bg-gradient-to-r from-cine-gold via-yellow-400 to-cine-gold bg-clip-text text-transparent">
+                        Portals
+                    </span>
+                </h1>
+                <p class="text-gray-400 mb-8">
+                    Choose your destination
+                </p>
+
+                <!-- Stacked Portal Links -->
+                <div class="space-y-4">
+                    <!-- Vendor Portal -->
+                    <a href="/vendor" class="portal-card rounded-xl p-5 flex items-center gap-5 no-underline group">
+                        <div class="portal-icon w-12 h-12 bg-gradient-to-br from-cine-gold to-yellow-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                            <svg class="w-6 h-6 text-cine-dark" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                            </svg>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <h3 class="text-lg font-bold text-white group-hover:text-cine-gold transition-colors">
+                                Vendor Portal
+                            </h3>
+                            <p class="text-gray-400 text-sm">
+                                Dashboard, invoices, and agent communication
+                            </p>
+                        </div>
+                        <svg class="w-5 h-5 text-cine-gold group-hover:translate-x-1 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </a>
+
+                    <!-- Admin Portal (Coming Soon) -->
+                    <div class="portal-card-disabled rounded-xl p-5 flex items-center gap-5">
+                        <div class="portal-icon w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-700 rounded-xl flex items-center justify-center flex-shrink-0">
+                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                            </svg>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 mb-1">
+                                <h3 class="text-lg font-bold text-gray-400">
+                                    Admin Portal
+                                </h3>
+                                <span class="px-2 py-0.5 bg-purple-500/20 text-purple-400 text-xs font-medium rounded-full">
+                                    Coming Soon
+                                </span>
+                            </div>
+                            <p class="text-gray-500 text-sm">
+                                Manage vendors and platform administration
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- CTF Portal -->
+                    <a href="/ctf" class="portal-card rounded-xl p-5 flex items-center gap-5 no-underline group">
+                        <div class="portal-icon w-12 h-12 bg-gradient-to-br from-cyan-500 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"></path>
+                            </svg>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <h3 class="text-lg font-bold text-white group-hover:text-cyan-400 transition-colors">
+                                CTF Portal
+                            </h3>
+                            <p class="text-gray-400 text-sm">
+                                AI security challenges and vulnerability training
+                            </p>
+                        </div>
+                        <svg class="w-5 h-5 text-cyan-400 group-hover:translate-x-1 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Right: User Status -->
+            <div class="lg:pt-14">
+                {% if user and user.email %}
+                <!-- Logged In State -->
+                <div class="user-card bg-cine-gray/30 border border-ctf-green/30 rounded-2xl p-8">
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-ctf-green/20 to-emerald-600/20 rounded-full">
+                            <svg class="w-6 h-6 text-ctf-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="text-sm text-ctf-green font-medium">Signed in</p>
+                            <p class="text-white font-semibold">{{ user.email }}</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-cine-dark/50 rounded-xl p-4 mb-6">
+                        <p class="text-gray-300 text-sm">
+                            Your progress is being saved automatically. Challenges, badges, and achievements sync across all your devices.
+                        </p>
+                    </div>
+
+                    <div class="flex items-center gap-3 pt-4 border-t border-gray-700/50">
+                        <a href="/auth/logout" class="inline-flex items-center text-gray-400 hover:text-white text-sm transition-colors">
+                            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                            </svg>
+                            Sign out
+                        </a>
+                    </div>
+                </div>
+                {% else %}
+                <!-- Temporary User State -->
+                <div class="user-card bg-cine-gray/30 border border-yellow-500/30 rounded-2xl p-8">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-yellow-500/20 to-orange-500/20 rounded-full">
+                            <svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="text-yellow-500 text-sm font-medium">Temporary Session</p>
+                        </div>
+                    </div>
+
+                    <p class="text-gray-400 text-sm mb-6">
+                        You can explore all portals and complete challenges, but your progress will only be saved in this browser session.
+                    </p>
+
+                    <div class="bg-cine-dark/50 rounded-xl p-5 mb-6">
+                        <h3 class="text-white font-semibold mb-1">Save your progress permanently</h3>
+                        <p class="text-gray-500 text-sm mb-4">
+                            Enter your email and we'll send you a magic link — no password needed.
+                        </p>
+                        <form action="/auth/magic-link" method="POST" class="space-y-3">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <div class="relative">
+                                <input
+                                    type="email"
+                                    name="email"
+                                    placeholder="your@email.com"
+                                    required
+                                    class="w-full bg-cine-gray border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-cine-gold focus:ring-1 focus:ring-cine-gold transition-colors"
+                                >
+                            </div>
+                            <button
+                                type="submit"
+                                class="inline-flex items-center justify-center w-full bg-cine-gold text-cine-dark px-6 py-3 rounded-lg font-semibold hover:bg-yellow-400 transition-all duration-300"
+                            >
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                                </svg>
+                                Send Magic Link
+                            </button>
+                        </form>
+                        <p class="text-xs text-gray-500 mt-3">
+                            <svg class="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            Already have an account? Signing in will restore your saved progress.
+                        </p>
+                    </div>
+
+                    <ul class="space-y-2">
+                        <li class="flex items-center gap-2 text-xs text-gray-500">
+                            <svg class="w-4 h-4 text-ctf-green flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                            Keep your challenge progress forever
+                        </li>
+                        <li class="flex items-center gap-2 text-xs text-gray-500">
+                            <svg class="w-4 h-4 text-ctf-green flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                            Sync across all your devices
+                        </li>
+                        <li class="flex items-center gap-2 text-xs text-gray-500">
+                            <svg class="w-4 h-4 text-ctf-green flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                            No password to remember
+                        </li>
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+
+        </div>
+    </div>
+</section>
+{% endblock %}

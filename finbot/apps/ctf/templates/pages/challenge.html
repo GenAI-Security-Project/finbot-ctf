@@ -1,0 +1,605 @@
+{% extends "base.html" %}
+
+{% block nav_challenges %}active{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<div class="flex items-center gap-2 text-sm mb-6">
+    <a href="/ctf/challenges" class="text-text-secondary hover:text-ctf-primary transition-colors">Challenges</a>
+    <span class="text-text-secondary">/</span>
+    <span id="breadcrumb-category" class="text-text-secondary">--</span>
+    <span class="text-text-secondary">/</span>
+    <span id="breadcrumb-title" class="text-text-bright">Loading...</span>
+</div>
+
+<!-- Loading State -->
+<div id="loading-state" class="grid grid-cols-3 gap-8">
+    <div class="col-span-2 space-y-6">
+        <div class="glass-card overflow-hidden">
+            <div class="h-48 ctf-skeleton"></div>
+            <div class="p-8 space-y-4">
+                <div class="ctf-skeleton h-8 w-48"></div>
+                <div class="ctf-skeleton h-10 w-3/4"></div>
+                <div class="ctf-skeleton h-4 w-full"></div>
+                <div class="ctf-skeleton h-4 w-full"></div>
+                <div class="ctf-skeleton h-4 w-2/3"></div>
+            </div>
+        </div>
+    </div>
+    <div class="space-y-6">
+        <div class="glass-card p-6">
+            <div class="ctf-skeleton h-12 w-full mb-4"></div>
+            <div class="ctf-skeleton h-4 w-3/4"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Error State -->
+<div id="error-state" class="hidden">
+    <div class="glass-card p-8 text-center max-w-md mx-auto">
+        <div class="text-4xl mb-4">❌</div>
+        <h3 class="text-lg font-semibold text-text-bright mb-2">Challenge Not Found</h3>
+        <p class="text-text-secondary text-sm mb-4">The challenge you're looking for doesn't exist or has been removed.</p>
+        <a href="/ctf/challenges" class="action-btn inline-flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+            </svg>
+            Browse Challenges
+        </a>
+    </div>
+</div>
+
+<!-- Challenge Content -->
+<div id="challenge-content" class="hidden">
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+        <!-- Main Content Column -->
+        <div class="xl:col-span-2 space-y-6">
+            <!-- Hero Card -->
+            <div class="glass-card overflow-hidden">
+                <div id="challenge-hero" class="challenge-hero">
+                    <span id="challenge-icon" class="icon">🎯</span>
+                </div>
+
+                <div class="p-8">
+                    <!-- Meta Row -->
+                    <div class="flex items-start justify-between mb-6">
+                        <div>
+                            <div class="flex items-center gap-3 mb-3">
+                                <span id="difficulty-badge" class="diff-beginner px-3 py-1 rounded-lg text-sm text-white font-medium">Beginner</span>
+                                <span class="text-text-secondary">•</span>
+                                <span id="points-display" class="text-ctf-primary font-mono font-bold text-xl">100 pts</span>
+                            </div>
+                            <h1 id="challenge-title" class="text-3xl font-bold text-text-bright mb-2">Challenge Title</h1>
+                            <p id="challenge-subtitle" class="text-text-secondary">Category: --</p>
+                        </div>
+                    </div>
+
+                    <!-- Tags -->
+                    <div id="tags-container" class="flex flex-wrap gap-2 mb-6"></div>
+
+                    <!-- Description -->
+                    <div class="prose prose-invert max-w-none">
+                        <h3 class="text-lg font-semibold text-text-bright mb-3">Description</h3>
+                        <div id="challenge-description" class="text-text-primary leading-relaxed"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hints Section -->
+            <div id="hints-section" class="glass-card p-6 hidden">
+                <h2 class="text-xl font-bold text-text-bright mb-2">💡 Hints</h2>
+                <p class="text-text-secondary text-sm mb-4">Stuck? Unlock hints to get guidance. Each hint costs points.</p>
+                <div id="hints-list" class="space-y-3"></div>
+            </div>
+
+            <!-- Resources Section -->
+            <div id="resources-section" class="glass-card p-6 hidden">
+                <h2 class="text-xl font-bold text-text-bright mb-2">📚 Educational Resources</h2>
+                <p class="text-text-secondary text-sm mb-4">Learn more about this vulnerability and how to defend against it.</p>
+                <div id="resources-list" class="space-y-3"></div>
+            </div>
+        </div>
+
+        <!-- Sidebar Column -->
+        <div class="space-y-6">
+            <!-- Status Banner (shown when completed or in progress) -->
+            <div id="status-banner" class="hidden glass-card p-4">
+                <div class="flex items-center gap-3">
+                    <div id="status-icon" class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"></div>
+                    <div class="flex-1 min-w-0">
+                        <div id="status-title" class="font-semibold text-sm"></div>
+                        <div id="status-message" class="text-xs opacity-80"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Card -->
+            <div class="glass-card p-6 text-center">
+                <a href="/vendor/onboarding" class="action-btn inline-block w-full mb-4">
+                    Go to Vendor Portal →
+                </a>
+                <p class="text-sm text-text-secondary">Interact with the AI agent to attempt this challenge</p>
+            </div>
+
+            <!-- Your Progress Card -->
+            <div class="glass-card p-6">
+                <h3 class="font-semibold text-text-bright mb-4">Your Progress</h3>
+
+                <div class="grid grid-cols-2 gap-3 mb-6">
+                    <div class="stat-box">
+                        <div id="stat-attempts" class="text-2xl font-bold text-text-bright">0</div>
+                        <div class="text-xs text-text-secondary">Attempts</div>
+                    </div>
+                    <div class="stat-box">
+                        <div id="stat-status" class="text-2xl font-bold text-text-secondary">-</div>
+                        <div class="text-xs text-text-secondary">Status</div>
+                    </div>
+                    <div class="stat-box">
+                        <div id="stat-hints-used" class="text-2xl font-bold text-text-secondary">0</div>
+                        <div class="text-xs text-text-secondary">Hints Used</div>
+                    </div>
+                    <div class="stat-box">
+                        <div id="stat-hints-cost" class="text-2xl font-bold text-ctf-warning">0</div>
+                        <div class="text-xs text-text-secondary">Pts Spent</div>
+                    </div>
+                </div>
+
+                <!-- Check Progress Button (if not completed) -->
+                <button id="check-progress-btn" onclick="checkChallenge()" class="w-full py-3 rounded-lg bg-portal-bg-tertiary border border-ctf-primary/20 text-ctf-primary font-medium hover:bg-ctf-primary/10 transition-colors flex items-center justify-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    Check Progress
+                </button>
+
+                <!-- Check Result -->
+                <div id="check-result" class="hidden mt-4 p-4 rounded-lg"></div>
+            </div>
+
+            <!-- Prerequisites Card -->
+            <div id="prerequisites-card" class="glass-card p-6 hidden">
+                <h3 class="font-semibold text-text-bright mb-4">Prerequisites</h3>
+                <div id="prerequisites-list"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .challenge-hero {
+        position: relative;
+        height: 200px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+    }
+
+    .challenge-hero::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background:
+            radial-gradient(circle at 20% 50%, rgba(255,255,255,0.1) 0%, transparent 50%),
+            radial-gradient(circle at 80% 80%, rgba(0, 212, 255, 0.1) 0%, transparent 50%);
+    }
+
+    .challenge-hero .icon {
+        font-size: 5rem;
+        filter: drop-shadow(0 0 30px rgba(0, 0, 0, 0.5));
+    }
+
+    .challenge-hero.injection { background: linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(249, 115, 22, 0.3)); }
+    .challenge-hero.escalation { background: linear-gradient(135deg, rgba(168, 85, 247, 0.3), rgba(236, 72, 153, 0.3)); }
+    .challenge-hero.exfiltration { background: linear-gradient(135deg, rgba(34, 197, 94, 0.3), rgba(16, 185, 129, 0.3)); }
+    .challenge-hero.dos { background: linear-gradient(135deg, rgba(59, 130, 246, 0.3), rgba(99, 102, 241, 0.3)); }
+    .challenge-hero.default { background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(124, 58, 237, 0.2)); }
+
+    .mitre-tag {
+        background: rgba(6, 255, 165, 0.2);
+        border: 1px solid rgba(6, 255, 165, 0.3);
+        color: #06ffa5;
+        padding: 4px 12px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 500;
+    }
+
+    .hint-card {
+        background: rgba(255, 184, 0, 0.1);
+        border: 1px solid rgba(255, 184, 0, 0.2);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .hint-card.locked {
+        background: rgba(100, 100, 100, 0.1);
+        border-color: rgba(100, 100, 100, 0.2);
+    }
+
+    .hint-header {
+        display: flex;
+        align-items: center;
+        padding: 16px;
+    }
+
+    .hint-content {
+        padding: 0 16px 16px;
+        border-top: 1px solid rgba(255, 184, 0, 0.1);
+    }
+
+    .resource-link {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 16px;
+        background: rgba(21, 21, 32, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        transition: all 0.2s;
+    }
+
+    .resource-link:hover {
+        border-color: rgba(0, 212, 255, 0.3);
+        background: rgba(0, 212, 255, 0.05);
+    }
+
+    .stat-box {
+        text-align: center;
+        padding: 16px;
+        background: rgba(21, 21, 32, 0.5);
+        border-radius: 12px;
+    }
+
+    .action-btn {
+        background: linear-gradient(135deg, var(--vendor-primary), var(--vendor-secondary));
+        padding: 16px 32px;
+        border-radius: 12px;
+        font-weight: 600;
+        color: white;
+        transition: all 0.3s;
+        box-shadow: 0 4px 20px rgba(0, 212, 255, 0.3);
+        text-align: center;
+    }
+
+    .action-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 30px rgba(0, 212, 255, 0.4);
+    }
+
+    .prose h3 {
+        margin-top: 1.5rem;
+    }
+
+    .prose ul {
+        list-style: disc;
+        padding-left: 1.5rem;
+        margin-top: 0.5rem;
+    }
+
+    .prose li {
+        margin-bottom: 0.5rem;
+    }
+
+    .prose a {
+        color: var(--vendor-primary);
+    }
+
+    .prose a:hover {
+        text-decoration: underline;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const challengeId = "{{ challenge_id }}";
+let challengeData = null;
+
+// Category configuration
+const CATEGORY_CONFIG = {
+    'prompt_injection': { icon: '💉', class: 'injection' },
+    'prompt-injection': { icon: '💉', class: 'injection' },
+    'data_exfiltration': { icon: '📤', class: 'exfiltration' },
+    'data-exfiltration': { icon: '📤', class: 'exfiltration' },
+    'privilege_escalation': { icon: '🔓', class: 'escalation' },
+    'privilege-escalation': { icon: '🔓', class: 'escalation' },
+    'denial_of_service': { icon: '💥', class: 'dos' },
+    'denial-of-service': { icon: '💥', class: 'dos' },
+};
+
+document.addEventListener('DOMContentLoaded', loadChallenge);
+
+async function loadChallenge() {
+    try {
+        challengeData = await CTF.getChallenge(challengeId);
+        renderChallenge(challengeData);
+    } catch (error) {
+        console.error('Failed to load challenge:', error);
+        document.getElementById('loading-state').classList.add('hidden');
+        document.getElementById('error-state').classList.remove('hidden');
+    }
+}
+
+function renderChallenge(ch) {
+    // Hide loading, show content
+    document.getElementById('loading-state').classList.add('hidden');
+    document.getElementById('challenge-content').classList.remove('hidden');
+
+    // Breadcrumb
+    document.getElementById('breadcrumb-category').textContent = formatCategoryName(ch.category);
+    document.getElementById('breadcrumb-title').textContent = ch.title;
+
+    // Hero
+    const categoryConfig = CATEGORY_CONFIG[ch.category] || { icon: '🎯', class: 'default' };
+    const hero = document.getElementById('challenge-hero');
+    hero.className = 'challenge-hero ' + categoryConfig.class;
+    document.getElementById('challenge-icon').textContent = categoryConfig.icon;
+
+    // Meta
+    const diffBadge = document.getElementById('difficulty-badge');
+    diffBadge.textContent = ch.difficulty;
+    diffBadge.className = `diff-${ch.difficulty} px-3 py-1 rounded-lg text-sm text-white font-medium`;
+
+    document.getElementById('points-display').textContent = `${ch.points} pts`;
+    document.getElementById('challenge-title').textContent = ch.title;
+    document.getElementById('challenge-subtitle').textContent = `Category: ${formatCategoryName(ch.category)}${ch.subcategory ? ' → ' + ch.subcategory : ''}`;
+
+    // Tags
+    const tagsContainer = document.getElementById('tags-container');
+    let tagsHtml = '';
+    if (ch.labels) {
+        if (ch.labels.owasp) {
+            const list = Array.isArray(ch.labels.owasp) ? ch.labels.owasp : [ch.labels.owasp];
+            tagsHtml += list.map(l => `<span class="owasp-tag px-3 py-1 rounded-lg text-sm font-medium">OWASP ${l}</span>`).join('');
+        }
+        if (ch.labels.cwe) {
+            const list = Array.isArray(ch.labels.cwe) ? ch.labels.cwe : [ch.labels.cwe];
+            tagsHtml += list.map(l => `<span class="cwe-tag px-3 py-1 rounded-lg text-sm font-medium">${l}</span>`).join('');
+        }
+        if (ch.labels.mitre) {
+            const list = Array.isArray(ch.labels.mitre) ? ch.labels.mitre : [ch.labels.mitre];
+            tagsHtml += list.map(l => `<span class="mitre-tag">${l}</span>`).join('');
+        }
+    }
+    tagsContainer.innerHTML = tagsHtml;
+
+    // Description
+    document.getElementById('challenge-description').innerHTML = formatDescription(ch.description);
+
+    // Status banner
+    if (ch.status === 'completed') {
+        showStatusBanner('completed', 'Challenge Completed!', `Completed on ${new Date(ch.completed_at).toLocaleDateString()}`);
+        document.getElementById('check-progress-btn').classList.add('hidden');
+    } else if (ch.status === 'in_progress') {
+        showStatusBanner('in_progress', 'In Progress', `${ch.attempts} attempts so far`);
+    }
+
+    // Stats
+    document.getElementById('stat-attempts').textContent = ch.attempts || 0;
+    document.getElementById('stat-hints-used').textContent = ch.hints_used || 0;
+    document.getElementById('stat-hints-cost').textContent = ch.hints_cost || 0;
+
+    if (ch.status === 'completed') {
+        document.getElementById('stat-status').textContent = '✓';
+        document.getElementById('stat-status').className = 'text-2xl font-bold text-ctf-accent';
+    } else if (ch.status === 'in_progress') {
+        document.getElementById('stat-status').textContent = '...';
+        document.getElementById('stat-status').className = 'text-2xl font-bold text-ctf-warning';
+    } else {
+        document.getElementById('stat-status').textContent = '-';
+    }
+
+    // Hints
+    if (ch.hints && ch.hints.length > 0) {
+        const hintsSection = document.getElementById('hints-section');
+        const hintsList = document.getElementById('hints-list');
+        hintsSection.classList.remove('hidden');
+
+        hintsList.innerHTML = ch.hints.map((hint, i) => {
+            const isUnlocked = hint.text !== '[locked]';
+            if (isUnlocked) {
+                return `
+                    <div class="hint-card">
+                        <div class="hint-header">
+                            <div class="flex items-center gap-3 flex-1">
+                                <span class="text-yellow-400">💡</span>
+                                <span class="font-medium text-text-bright">Hint ${i + 1}</span>
+                                <span class="text-xs text-text-secondary bg-portal-bg-tertiary px-2 py-0.5 rounded">-${hint.cost} pts</span>
+                                <span class="text-xs text-ctf-accent ml-auto">Unlocked</span>
+                            </div>
+                        </div>
+                        <div class="hint-content">
+                            <p class="text-text-primary">${escapeHtml(hint.text)}</p>
+                        </div>
+                    </div>
+                `;
+            } else {
+                return `
+                    <div class="hint-card locked">
+                        <div class="hint-header">
+                            <div class="flex items-center gap-3 flex-1">
+                                <span class="text-text-secondary">🔒</span>
+                                <span class="font-medium text-text-secondary">Hint ${i + 1}</span>
+                                <span class="text-xs text-text-secondary bg-portal-bg-tertiary px-2 py-0.5 rounded">-${hint.cost} pts</span>
+                                <button onclick="unlockHint()" class="text-xs text-ctf-primary hover:text-cyan-300 ml-auto transition-colors">Unlock</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        }).join('');
+    }
+
+    // Resources
+    if (ch.resources && ch.resources.length > 0) {
+        const resourcesSection = document.getElementById('resources-section');
+        const resourcesList = document.getElementById('resources-list');
+        resourcesSection.classList.remove('hidden');
+
+        resourcesList.innerHTML = ch.resources.map(res => `
+            <a href="${res.url}" target="_blank" rel="noopener" class="resource-link">
+                <div class="w-10 h-10 rounded-lg bg-ctf-primary/20 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-ctf-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                    </svg>
+                </div>
+                <div class="flex-1">
+                    <div class="font-medium text-text-bright">${escapeHtml(res.title)}</div>
+                    ${res.type ? `<div class="text-sm text-text-secondary">${escapeHtml(res.type)}</div>` : ''}
+                </div>
+                <svg class="w-5 h-5 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                </svg>
+            </a>
+        `).join('');
+    }
+
+    // Prerequisites
+    if (ch.prerequisites && ch.prerequisites.length > 0) {
+        const card = document.getElementById('prerequisites-card');
+        const list = document.getElementById('prerequisites-list');
+        card.classList.remove('hidden');
+
+        list.innerHTML = ch.prerequisites.map(prereq => `
+            <a href="/ctf/challenges/${prereq}" class="flex items-center gap-2 text-sm text-text-secondary hover:text-ctf-primary transition-colors py-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+                ${prereq}
+            </a>
+        `).join('');
+    } else {
+        const card = document.getElementById('prerequisites-card');
+        card.classList.remove('hidden');
+        document.getElementById('prerequisites-list').innerHTML = `
+            <div class="flex items-center gap-3 text-ctf-accent">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                </svg>
+                <span>No prerequisites required</span>
+            </div>
+            <p class="text-sm text-text-secondary mt-2">This challenge is available to attempt!</p>
+        `;
+    }
+}
+
+function showStatusBanner(status, title, message) {
+    const banner = document.getElementById('status-banner');
+    const icon = document.getElementById('status-icon');
+    const titleEl = document.getElementById('status-title');
+    const msgEl = document.getElementById('status-message');
+
+    banner.classList.remove('hidden');
+    titleEl.textContent = title;
+    msgEl.textContent = message;
+
+    if (status === 'completed') {
+        banner.className = 'glass-card p-4 bg-ctf-accent/10 border-ctf-accent/30 text-ctf-accent';
+        icon.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>`;
+        icon.className = 'w-10 h-10 rounded-full flex items-center justify-center bg-ctf-accent/20 flex-shrink-0';
+    } else if (status === 'in_progress') {
+        banner.className = 'glass-card p-4 bg-ctf-warning/10 border-ctf-warning/30 text-ctf-warning';
+        icon.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
+        icon.className = 'w-10 h-10 rounded-full flex items-center justify-center bg-ctf-warning/20 flex-shrink-0';
+    }
+}
+
+async function checkChallenge() {
+    const btn = document.getElementById('check-progress-btn');
+    const resultDiv = document.getElementById('check-result');
+
+    btn.disabled = true;
+    btn.innerHTML = `
+        <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        Checking...
+    `;
+
+    try {
+        const result = await CTF.checkChallenge(challengeId);
+
+        resultDiv.classList.remove('hidden');
+
+        if (result.detected) {
+            resultDiv.className = 'mt-4 p-4 rounded-lg bg-ctf-accent/10 border border-ctf-accent/30';
+            resultDiv.innerHTML = `
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-ctf-accent/20 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-ctf-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <div class="font-semibold text-ctf-accent">Challenge Completed!</div>
+                        <div class="text-sm text-text-secondary">${result.message || 'Congratulations! You\'ve successfully completed this challenge.'}</div>
+                    </div>
+                </div>
+            `;
+            setTimeout(() => loadChallenge(), 1500);
+        } else {
+            resultDiv.className = 'mt-4 p-4 rounded-lg bg-ctf-warning/10 border border-ctf-warning/30';
+            resultDiv.innerHTML = `
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-ctf-warning/20 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-ctf-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <div class="font-semibold text-ctf-warning">Not Yet Complete</div>
+                        <div class="text-sm text-text-secondary">${result.message || 'Keep trying! Check the hints or resources for guidance.'}</div>
+                    </div>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Check failed:', error);
+        resultDiv.classList.remove('hidden');
+        resultDiv.className = 'mt-4 p-4 rounded-lg bg-ctf-danger/10 border border-ctf-danger/30';
+        resultDiv.innerHTML = `<div class="text-ctf-danger">Failed to check progress: ${error.message}</div>`;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = `
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            Check Progress
+        `;
+    }
+}
+
+async function unlockHint() {
+    try {
+        const result = await CTF.useHint(challengeId);
+        showToast(`Hint unlocked! (-${result.points_deducted} points)`, 'info');
+        loadChallenge();
+    } catch (error) {
+        console.error('Failed to unlock hint:', error);
+        showToast('Failed to unlock hint: ' + error.message, 'error');
+    }
+}
+
+function formatCategoryName(category) {
+    return category.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function formatDescription(desc) {
+    if (!desc) return '';
+    // Convert markdown-like formatting
+    return desc
+        .replace(/\n\n/g, '</p><p class="mb-4">')
+        .replace(/\n/g, '<br>');
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+</script>
+{% endblock %}

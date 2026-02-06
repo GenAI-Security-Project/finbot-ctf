@@ -29,6 +29,7 @@ async function initializeProfile() {
         initializeProfileUI();
         initializeEditModal();
         initializeSensitiveDataToggle();
+        initializeReviewRequest();
 
         console.log('✅ Profile initialized successfully');
 
@@ -65,7 +66,7 @@ async function loadProfileData() {
             metrics: metricsResponse.data.metrics
         };
 
-        console.log('📊 Profile data loaded:', ProfileState.vendorData);
+        // console.log('📊 Profile data loaded:', ProfileState.vendorData);
 
         // Update UI with profile data
         updateProfileUI();
@@ -116,26 +117,136 @@ function updateProfileUI() {
     updateElement('profile-account-number', maskSensitiveData(vendor.bank_account_number, 'account'));
     updateElement('profile-routing-number', maskSensitiveData(vendor.bank_routing_number, 'routing'));
 
-    // Update statistics
-    updateStatistics();
+    // Update agent notes
+    updateAgentNotes();
 }
 
 /**
- * Update statistics section
+ * Update agent notes section
  */
-function updateStatistics() {
-    if (!ProfileState.vendorData || !ProfileState.vendorData.metrics) {
+function updateAgentNotes() {
+    if (!ProfileState.vendorData) {
         return;
     }
 
-    const metrics = ProfileState.vendorData.metrics;
-    const invoiceStats = metrics.invoices || {};
+    const vendor = ProfileState.vendorData;
 
-    updateElement('stats-total-invoices', invoiceStats.total_count || 0);
-    updateElement('stats-total-revenue', formatCurrency(invoiceStats.total_amount || 0));
-    updateElement('stats-pending-payments', invoiceStats.pending_count || 0);
-    updateElement('stats-completion-rate', `${Math.round(metrics.completion_rate || 0)}%`);
-    updateElement('stats-last-activity', 'Just now');
+    // Update agent notes with visual separation for each review iteration
+    renderAgentNotes(vendor.agent_notes);
+
+    // Update trust level
+    const trustLevel = formatLevel(vendor.trust_level, 'trust');
+    updateElement('vendor-trust-level', trustLevel.label);
+    applyLevelStyling('vendor-trust-level', trustLevel.colorClass);
+
+    // Update risk level
+    const riskLevel = formatLevel(vendor.risk_level, 'risk');
+    updateElement('vendor-risk-level', riskLevel.label);
+    applyLevelStyling('vendor-risk-level', riskLevel.colorClass);
+
+    // Update last activity
+    updateElement('stats-last-activity', formatRelativeTime(vendor.updated_at));
+}
+
+/**
+ * Render agent notes with visual separation for each review iteration
+ */
+function renderAgentNotes(agentNotes) {
+    const container = document.getElementById('agent-notes');
+    if (!container) return;
+
+    if (!agentNotes || agentNotes.trim() === '') {
+        container.innerHTML = '<span class="text-text-secondary italic">No notes available.</span>';
+        return;
+    }
+
+    // Split notes by double newline (each review iteration)
+    const noteEntries = agentNotes.split(/\n\n+/).filter(entry => entry.trim());
+
+    if (noteEntries.length === 0) {
+        container.innerHTML = '<span class="text-text-secondary italic">No notes available.</span>';
+        return;
+    }
+
+    if (noteEntries.length === 1) {
+        // Single entry - render simply
+        container.innerHTML = `<span class="text-text-bright">${escapeHtml(noteEntries[0])}</span>`;
+        return;
+    }
+
+    // Multiple entries - reverse to show latest first (notes are appended in DB)
+    const reversedEntries = [...noteEntries].reverse();
+    const entriesHtml = reversedEntries.map((entry, index) => {
+        const isLatest = index === 0;
+        const entryNumber = reversedEntries.length - index;
+
+        return `
+            <div class="relative pl-6 pb-4 ${index < reversedEntries.length - 1 ? 'border-l border-vendor-primary/30' : ''}">
+                <div class="absolute left-0 top-0 w-3 h-3 rounded-full ${isLatest ? 'bg-vendor-accent' : 'bg-vendor-primary/50'} -translate-x-1.5"></div>
+                <div class="flex items-center space-x-2 mb-1">
+                    <span class="text-xs font-medium ${isLatest ? 'text-vendor-accent' : 'text-text-secondary'}">
+                        ${isLatest ? 'Latest Review' : `Review #${entryNumber}`}
+                    </span>
+                </div>
+                <p class="text-sm text-text-bright leading-relaxed">${escapeHtml(entry).replace(/\n/g, '<br>')}</p>
+            </div>
+        `;
+    }).join('');
+
+    container.innerHTML = `<div class="space-y-2">${entriesHtml}</div>`;
+}
+
+/**
+ * Escape HTML to prevent XSS
+ */
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+/**
+ * Format trust/risk level for display
+ */
+function formatLevel(level, type) {
+    if (!level) {
+        return type === 'trust'
+            ? { label: 'Not Assessed', colorClass: 'text-text-secondary' }
+            : { label: 'Unknown', colorClass: 'text-text-secondary' };
+    }
+
+    const levelLower = level.toLowerCase();
+
+    if (type === 'trust') {
+        const trustMap = {
+            'high': { label: 'High', colorClass: 'text-green-400' },
+            'standard': { label: 'Standard', colorClass: 'text-vendor-primary' },
+            'low': { label: 'Low', colorClass: 'text-vendor-warning' },
+            'restricted': { label: 'Restricted', colorClass: 'text-red-400' }
+        };
+        return trustMap[levelLower] || { label: level, colorClass: 'text-vendor-primary' };
+    } else {
+        const riskMap = {
+            'low': { label: 'Low', colorClass: 'text-green-400' },
+            'medium': { label: 'Medium', colorClass: 'text-vendor-warning' },
+            'high': { label: 'High', colorClass: 'text-red-400' },
+            'critical': { label: 'Critical', colorClass: 'text-red-500' }
+        };
+        return riskMap[levelLower] || { label: level, colorClass: 'text-vendor-warning' };
+    }
+}
+
+/**
+ * Apply color styling to level element
+ */
+function applyLevelStyling(elementId, colorClass) {
+    const element = document.getElementById(elementId);
+    if (element) {
+        // Remove existing color classes
+        element.className = element.className.replace(/text-\S+/g, '');
+        // Add new color class and base classes
+        element.className = `text-lg font-semibold ${colorClass}`;
+    }
 }
 
 /**
@@ -341,6 +452,97 @@ function toggleSensitiveData() {
 }
 
 /**
+ * Initialize review request button
+ */
+function initializeReviewRequest() {
+    const reviewBtn = document.getElementById('request-review-btn');
+    if (reviewBtn) {
+        reviewBtn.addEventListener('click', handleReviewRequest);
+    }
+}
+
+/**
+ * Handle review request button click
+ */
+async function handleReviewRequest() {
+    if (!ProfileState.vendorData) {
+        showNotification('Profile data not loaded yet', 'warning');
+        return;
+    }
+
+    const reviewBtn = document.getElementById('request-review-btn');
+    const statusMessage = document.getElementById('review-status-message');
+
+    try {
+        // Show loading state
+        const originalContent = reviewBtn.innerHTML;
+        reviewBtn.disabled = true;
+        reviewBtn.innerHTML = `
+            <svg class="w-4 h-4 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            Submitting...
+        `;
+
+        // Make API request
+        const response = await api.post(
+            `/vendor/api/v1/vendors/${ProfileState.vendorData.id}/request-review`
+        );
+
+        // Show success message
+        statusMessage.className = 'mt-3 p-3 rounded-lg text-sm bg-green-500/20 border border-green-500/30 text-green-400';
+        statusMessage.innerHTML = `
+            <div class="flex items-center">
+                <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+                <span>${response.data.message || 'Review request submitted successfully!'}</span>
+            </div>
+        `;
+        statusMessage.classList.remove('hidden');
+
+        showNotification('Review request submitted!', 'success');
+
+        // Reset button after delay
+        setTimeout(() => {
+            reviewBtn.disabled = false;
+            reviewBtn.innerHTML = originalContent;
+        }, 3000);
+
+    } catch (error) {
+        console.error('Error requesting review:', error);
+
+        // Show error message
+        statusMessage.className = 'mt-3 p-3 rounded-lg text-sm bg-red-500/20 border border-red-500/30 text-red-400';
+        statusMessage.innerHTML = `
+            <div class="flex items-center">
+                <svg class="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+                <span>${error.data?.detail || 'Failed to submit review request. Please try again.'}</span>
+            </div>
+        `;
+        statusMessage.classList.remove('hidden');
+
+        // Handle API errors
+        const errorMessage = handleAPIError(error, { showAlert: true });
+
+        if (!(error.status === 403 && error.data?.error?.type === 'csrf_error')) {
+            showNotification(`Failed to request review: ${errorMessage}`, 'error');
+        }
+
+        // Reset button
+        reviewBtn.disabled = false;
+        reviewBtn.innerHTML = `
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            Request Re-Review
+        `;
+    }
+}
+
+/**
  * Helper function to update element content
  */
 function updateElement(id, content) {
@@ -425,6 +627,46 @@ function formatDate(dateString) {
     }
 }
 
+/**
+ * Format date for relative time (e.g., "2 hours ago")
+ */
+function formatRelativeTime(dateString) {
+    if (!dateString) return 'N/A';
+
+    try {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffSeconds = Math.floor(diffMs / 1000);
+        const diffMinutes = Math.floor(diffSeconds / 60);
+        const diffHours = Math.floor(diffMinutes / 60);
+        const diffDays = Math.floor(diffHours / 24);
+        const diffWeeks = Math.floor(diffDays / 7);
+        const diffMonths = Math.floor(diffDays / 30);
+        const diffYears = Math.floor(diffDays / 365);
+
+        if (diffSeconds < 0) {
+            return 'just now';
+        } else if (diffSeconds < 60) {
+            return diffSeconds === 1 ? '1 second ago' : `${diffSeconds} seconds ago`;
+        } else if (diffMinutes < 60) {
+            return diffMinutes === 1 ? '1 minute ago' : `${diffMinutes} minutes ago`;
+        } else if (diffHours < 24) {
+            return diffHours === 1 ? '1 hour ago' : `${diffHours} hours ago`;
+        } else if (diffDays < 7) {
+            return diffDays === 1 ? '1 day ago' : `${diffDays} days ago`;
+        } else if (diffWeeks < 4) {
+            return diffWeeks === 1 ? '1 week ago' : `${diffWeeks} weeks ago`;
+        } else if (diffMonths < 12) {
+            return diffMonths === 1 ? '1 month ago' : `${diffMonths} months ago`;
+        } else {
+            return diffYears === 1 ? '1 year ago' : `${diffYears} years ago`;
+        }
+    } catch (error) {
+        console.error('Error formatting relative time:', error);
+        return 'Invalid Date';
+    }
+}
 /**
  * Format currency for display
  */

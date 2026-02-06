@@ -57,6 +57,7 @@
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', path='css/common/base.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', path='css/vendor/portal.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/vendor/ctf_sidecar.css') }}">
 </head>
 <body>
     <!-- Skip to main content for accessibility -->
@@ -104,7 +105,7 @@
                 <div class="grid grid-cols-1 lg:grid-cols-1 gap-8 lg:gap-12">
                     <div class="space-y-6">
                         <div class="holo-card">
-                            <div class="holo-header">
+                            <div class="holo-header flex items-center justify-between">
                                 <div class="flex items-center space-x-3">
                                     <div class="w-8 h-8 rounded-full bg-gradient-to-r from-vendor-warning to-vendor-accent flex items-center justify-center">
                                         <svg class="w-5 h-5 text-portal-bg-primary" fill="currentColor" viewBox="0 0 20 20">
@@ -113,6 +114,9 @@
                                     </div>
                                     <h2 class="text-2xl font-semibold text-text-bright">Vendor Portal Onboarding</h2>
                                 </div>
+                                <button type="button" id="autoFillBtn" class="vendor-btn bg-vendor-secondary/20 border border-vendor-secondary/50 hover:bg-vendor-secondary/30 transition-all duration-200">
+                                    <span class="text-sm font-medium text-vendor-secondary">🎲 Auto Fill</span>
+                                </button>
                             </div>
 
                             <div class="holo-body">
@@ -264,200 +268,22 @@
     <!-- CTF Footer -->
     {% include 'components/ctf_footer.html' %}
 
+    <!-- CTF Sidecar Panel -->
+    {% include 'components/ctf_sidecar.html' %}
+
+    <!-- CTF Context -->
+    <script>
+        window.CTF_NAMESPACE = "{{ session_context.namespace if session_context else 'default' }}";
+        window.CTF_USER_ID = "{{ session_context.user_id if session_context else 'anonymous' }}";
+    </script>
+
     <!-- JavaScript -->
     <script src="{{ url_for('static', path='js/common/agreement-check.js') }}"></script>
     <script src="{{ url_for('static', path='js/common/utils.js') }}"></script>
     <script src="{{ url_for('static', path='js/common/api.js') }}"></script>
     <script src="{{ url_for('static', path='js/vendor/main.js') }}"></script>
-    <script>
-        ready(function() {
-            const onboardingForm = document.getElementById('onboardingForm');
-            const submitButton = onboardingForm.querySelector('button[type="submit"]');
-
-            // Add real-time email validation
-            const emailField = document.getElementById('email');
-            if (emailField) {
-                emailField.addEventListener('blur', function() {
-                    const email = this.value.trim();
-                    if (email && !isValidEmail(email)) {
-                        showFieldError(this, 'Please enter a valid email address');
-                    } else {
-                        clearFieldError(this);
-                    }
-                });
-            }
-
-            // Add phone number formatting
-            const phoneField = document.getElementById('phone');
-            if (phoneField) {
-                phoneField.addEventListener('input', function() {
-                    // Simple phone formatting (US format)
-                    let value = this.value.replace(/\D/g, '');
-                    if (value.length >= 6) {
-                        value = value.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3');
-                    } else if (value.length >= 3) {
-                        value = value.replace(/(\d{3})(\d{0,3})/, '($1) $2');
-                    }
-                    this.value = value;
-                });
-            }
-
-            // Add TIN/EIN formatting
-            const tinField = document.getElementById('tin');
-            if (tinField) {
-                tinField.addEventListener('blur', function() {
-                    if (this.value) {
-                        this.value = formatTIN(this.value);
-                    }
-                });
-            }
-
-            // Add routing number formatting for display
-            const routingField = document.getElementById('bank_routing_number');
-            if (routingField) {
-                routingField.addEventListener('blur', function() {
-                    if (this.value) {
-                        // Only format for display, keep actual value clean for validation
-                        const cleanValue = this.value.replace(/\D/g, '');
-                        if (cleanValue.length === 9) {
-                            this.value = cleanValue; // Keep it clean for form submission
-                        }
-                    }
-                });
-            }
-
-            // Enhanced form submission with validation
-            onboardingForm.addEventListener('submit', async function(e) {
-                e.preventDefault();
-
-                // Clear any existing errors
-                clearAllFieldErrors(this);
-
-                // Validate form using utils.js helper
-                const validation = validateForm(this);
-
-                if (!validation.isValid) {
-                    // Display validation errors
-                    Object.keys(validation.errors).forEach(fieldName => {
-                        const field = this.querySelector(`[name="${fieldName}"]`);
-                        if (field) {
-                            showFieldError(field, validation.errors[fieldName][0]);
-                        }
-                    });
-
-                    showNotification('Please correct the errors below', 'error');
-                    return;
-                }
-
-                // Additional custom validations using utils.js functions
-                const customValidation = performCustomValidations();
-                if (!customValidation.isValid) {
-                    showNotification(customValidation.message, 'error');
-                    return;
-                }
-
-                const hideLoading = showLoading(submitButton, 'Processing Application...');
-
-                try {
-                    // Submit form data to API
-                    const formData = new FormData(onboardingForm);
-                    const vendorData = {
-                        company_name: formData.get('company_name'),
-                        vendor_category: formData.get('vendor_category'),
-                        industry: formData.get('industry'),
-                        services: formData.get('services'),
-                        name: formData.get('name'),
-                        email: formData.get('email'),
-                        phone: formData.get('phone'),
-                        tin: formData.get('tin'),
-                        bank_account_number: formData.get('bank_account_number'),
-                        bank_name: formData.get('bank_name'),
-                        bank_routing_number: formData.get('bank_routing_number'),
-                        bank_account_holder_name: formData.get('bank_account_holder_name')
-                    };
-
-                    const response = await api.post('/vendor/api/v1/vendors/register', vendorData);
-
-                    // Success state
-                    submitButton.innerHTML = `
-                        <span class="text-lg font-semibold text-vendor-accent">✓ Application Submitted</span>
-                        <div class="text-xs opacity-80 mt-1">Vendor ID: ${response.data.vendor_id}</div>
-                    `;
-
-                    showNotification('Application submitted successfully! Redirecting to dashboard...', 'success');
-
-                    // Disable form after successful submission
-                    this.style.opacity = '0.7';
-                    this.style.pointerEvents = 'none';
-
-                    // Redirect to the dashboard
-                    setTimeout(() => {
-                        window.location.href = '/vendor/dashboard';
-                    }, 3000);
-
-                } catch (error) {
-                    hideLoading();
-
-                    // Handle API errors using the global error handler
-                    const errorMessage = handleAPIError(error, { showAlert: true });
-
-                    // Only show notification for non-CSRF errors (CSRF errors are handled by handleAPIError)
-                    if (!(error.status === 403 && error.data?.error?.type === 'csrf_error')) {
-                        showNotification(`Failed to submit application: ${errorMessage}`, 'error');
-                    }
-
-                    console.error('Form submission error:', error);
-                }
-            });
-
-
-
-            // Custom validation logic using utils.js functions
-            function performCustomValidations() {
-                const formData = new FormData(onboardingForm);
-                let hasErrors = false;
-
-                // Validate TIN/EIN using utils.js function
-                const tin = formData.get('tin');
-                if (tin) {
-                    const tinValidation = validateTIN(tin);
-                    if (!tinValidation.isValid) {
-                        const tinField = document.getElementById('tin');
-                        showFieldError(tinField, tinValidation.message);
-                        hasErrors = true;
-                    }
-                }
-
-                // Validate bank account number using utils.js function
-                const bankAccount = formData.get('bank_account_number');
-                if (bankAccount) {
-                    const bankValidation = validateBankAccount(bankAccount);
-                    if (!bankValidation.isValid) {
-                        const bankField = document.getElementById('bank_account_number');
-                        showFieldError(bankField, bankValidation.message);
-                        hasErrors = true;
-                    }
-                }
-
-                // Validate routing number using utils.js function
-                const routingNumber = formData.get('bank_routing_number');
-                if (routingNumber) {
-                    const routingValidation = validateRoutingNumber(routingNumber);
-                    if (!routingValidation.isValid) {
-                        const routingField = document.getElementById('bank_routing_number');
-                        showFieldError(routingField, routingValidation.message);
-                        hasErrors = true;
-                    }
-                }
-
-                return {
-                    isValid: !hasErrors,
-                    message: hasErrors ? 'Please correct the financial information errors' : ''
-                };
-            }
-
-        });
-    </script>
+    <script src="{{ url_for('static', path='js/vendor/onboarding.js') }}"></script>
+    <script src="{{ url_for('static', path='js/vendor/ctf_sidecar.js') }}"></script>
 
 </body>
 </html>

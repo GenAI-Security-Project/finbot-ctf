@@ -4,27 +4,92 @@ FinBot Platform Main Application
 """
 
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
+from finbot.apps.ctf import ctf_app
 from finbot.apps.vendor.main import app as vendor_app
+from finbot.apps.web.auth import router as auth_router
 from finbot.apps.web.routes import router as web_router
 from finbot.core.auth.csrf import CSRFProtectionMiddleware
 from finbot.core.auth.middleware import SessionMiddleware, get_session_context
 from finbot.core.auth.session import SessionContext, session_manager
 from finbot.core.error_handlers import register_error_handlers
+from finbot.core.websocket import websocket_router
+
+# CTF
+from finbot.ctf.definitions.loader import load_definitions_on_startup
+from finbot.ctf.processor import start_processor_task
+
+# Logging
 from finbot.logging_config import setup_logging
 
 setup_logging()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifecycle management"""
+
+    # === STARTUP ===
+
+    # 1. Cleanup expired sessions
+    try:
+        cleaned_count = session_manager.cleanup_expired_sessions()
+        if cleaned_count > 0:
+            print(f"🧹 Cleaned up {cleaned_count} expired sessions on startup")
+    except Exception as e:
+        print(f"⚠️ Session cleanup skipped: {e}")
+
+    # 2. Load CTF definitions from YAML
+    try:
+        result = load_definitions_on_startup()
+        print(
+            f"🎯 CTF loaded: {len(result['challenges'])} challenges, "
+            f"{len(result['badges'])} badges"
+        )
+    except Exception as e:
+        print(f"⚠️ CTF definition loading failed: {e}")
+
+    # 3. Start CTF event processor as async task
+    processor_task = None
+    try:
+        processor_task = start_processor_task()
+        print("🚀 CTF event processor started")
+    except Exception as e:
+        print(f"⚠️ CTF processor start failed: {e}")
+
+    yield  # App is running
+
+    # === SHUTDOWN ===
+
+    # Stop CTF event processor gracefully
+    try:
+        from finbot.ctf.processor import get_processor
+
+        processor = get_processor()
+        if processor:
+            processor.stop()
+        if processor_task:
+            processor_task.cancel()
+            try:
+                await processor_task
+            except Exception:  # pylint: disable=broad-exception-caught
+                pass  # Task cancelled
+            print("🛑 CTF event processor stopped")
+    except Exception as e:
+        print(f"⚠️ CTF processor stop failed: {e}")
 
 
 app = FastAPI(
     title="FinBot Platform",
     description="FinBot Application Platform",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 # Add middleware - last in, first out order
@@ -47,6 +112,10 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 # Mount all the applications for the platform
 app.mount("/vendor", vendor_app)
+app.mount("/ctf", ctf_app)
+app.include_router(websocket_router)
+# Auth routes for magic link sign-in
+app.include_router(auth_router)
 # Web application is mounted at the root of the platform
 app.include_router(web_router)
 
@@ -78,19 +147,6 @@ async def session_status(
         "security_status": session_context.get_security_status(),
         "csrf_token": session_context.csrf_token,
     }
-
-
-# (TODO): add to lifecycle management
-@app.on_event("startup")
-async def startup_event():
-    """Application startup tasks"""
-
-    try:
-        cleaned_count = session_manager.cleanup_expired_sessions()
-        if cleaned_count > 0:
-            print(f"🧹 Cleaned up {cleaned_count} expired sessions on startup")
-    except Exception as e:
-        print(f"⚠️ Session cleanup skipped due to: {e}")
 
 
 if __name__ == "__main__":

@@ -68,4 +68,5 @@ nosetests.xml
 coverage.xml
 *.cover
 .hypothesis/google-credentials.json
+google-credentials.json
 SECURITY_BUGS_REPORT.md

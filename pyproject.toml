@@ -15,6 +15,7 @@ dependencies = [
     "pydantic-settings>=2.11.0",
     "pydantic[email]>=2.12.0",
     "python-dotenv>=1.1.1",
+    "resend>=2.0.0",
     "python-multipart>=0.0.20",
     "pyyaml>=6.0.3",
     "redis>=7.0.0",
@@ -22,7 +23,7 @@ dependencies = [
     "uvicorn[standard]>=0.37.0",
     "gunicorn>=21.2.0",
 ]
- 
+
 [dependency-groups]
 dev = [
     "black>=25.9.0",
@@ -36,6 +37,9 @@ dev = [
     "pytest-html>=4.1.1",
     "pytest-timeout>=2.4.0",
     "pytest-xdist>=3.8.0",
+    "gspread>=6.0.0",
+    "google-auth>=2.0.0",
+    "google-auth-oauthlib>=1.0.0",
 ]
 
 [tool.black]
@@ -59,4 +63,7 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
 asyncio_mode = "auto"
-plugins = ["pytest_google_sheets"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["finbot*"]

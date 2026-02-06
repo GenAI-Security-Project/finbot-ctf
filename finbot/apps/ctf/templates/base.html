@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="{% block meta_description %}FinBot CTF Portal - AI Security Capture The Flag Challenge{% endblock %}">
+    <meta name="keywords" content="{% block meta_keywords %}finbot, ctf, capture the flag, ai security, owasp, llm security{% endblock %}">
+
+    <title>{% block title %}CTF Portal - FinBot{% endblock %}</title>
+
+    {{ csrf_token_meta | safe }}
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', path='images/common/favicon.ico') }}">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        // CTF Portal Colors
+                        'ctf-primary': '#00d4ff',
+                        'ctf-secondary': '#7c3aed',
+                        'ctf-accent': '#06ffa5',
+                        'ctf-warning': '#ffb800',
+                        'ctf-danger': '#ff3366',
+
+                        // Interface Colors
+                        'portal-bg-primary': '#0a0a0f',
+                        'portal-bg-secondary': '#151520',
+                        'portal-bg-tertiary': '#1a1a2e',
+
+                        // Text Colors
+                        'text-primary': '#e2e8f0',
+                        'text-secondary': '#94a3b8',
+                        'text-bright': '#ffffff',
+                    },
+                    fontFamily: {
+                        'sans': ['Inter', 'system-ui', 'sans-serif'],
+                        'mono': ['JetBrains Mono', 'monospace'],
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.6s ease-out',
+                        'slide-up': 'slideUp 0.6s ease-out',
+                        'pulse-glow': 'pulseGlow 2s ease-in-out infinite',
+                    },
+                }
+            }
+        }
+    </script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', path='css/common/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/vendor/portal.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/ctf/dashboard.css') }}">
+    {% block extra_css %}{% endblock %}
+
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-portal-bg-primary {% block body_class %}{% endblock %}">
+    <!-- Animated Grid Background -->
+    <div class="grid-bg"></div>
+
+    <!-- Skip to main content for accessibility -->
+    <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 quantum-primary px-4 py-2 rounded-md z-50 font-medium">Skip to main content</a>
+
+    <div class="flex h-screen relative z-10">
+        <!-- CTF Sidebar (matching vendor portal style) -->
+        <aside id="sidebar" class="ai-sidebar w-80 flex-shrink-0 flex flex-col">
+            <!-- Logo Section -->
+            <div class="p-6 border-b border-ctf-primary/20">
+                <div class="flex items-center space-x-3">
+                    <div class="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-r from-ctf-primary to-ctf-secondary p-0.5 shadow-lg">
+                        <img src="{{ url_for('static', path='images/common/finbot.png') }}" alt="FinBot Logo" class="w-full h-full object-contain rounded-full bg-portal-bg-primary">
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-text-bright font-bold text-xl tracking-wide">FINBOT</span>
+                        <span class="text-ctf-primary text-xs font-mono tracking-wider">CTF PORTAL</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation Section -->
+            <nav class="flex-1 py-6">
+                <div class="space-y-2">
+                    <a href="/ctf/dashboard" class="vendor-nav-item {% block nav_dashboard %}{% endblock %}" data-section="dashboard">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+                        </svg>
+                        <span>Dashboard</span>
+                    </a>
+
+                    <a href="/ctf/challenges" class="vendor-nav-item {% block nav_challenges %}{% endblock %}" data-section="challenges">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                        </svg>
+                        <span>Challenges</span>
+                    </a>
+
+                    <a href="/ctf/activity" class="vendor-nav-item {% block nav_activity %}{% endblock %}" data-section="activity">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                        <span>Activity</span>
+                    </a>
+
+                    <a href="/ctf/badges" class="vendor-nav-item {% block nav_badges %}{% endblock %}" data-section="badges">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/>
+                        </svg>
+                        <span>Badges</span>
+                    </a>
+                </div>
+            </nav>
+
+            <!-- User Section -->
+            <div class="p-6 border-t border-ctf-primary/20">
+                {% if session_context and session_context.email %}
+                <!-- Signed In User -->
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 rounded-full bg-gradient-to-r from-ctf-accent to-ctf-primary flex items-center justify-center text-sm font-bold text-portal-bg-primary">
+                            {{ session_context.email[0]|upper }}
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <div class="text-sm font-medium text-text-bright truncate">{{ session_context.email }}</div>
+                            <div class="text-xs text-ctf-primary font-mono" id="sidebar-points">-- pts</div>
+                        </div>
+                    </div>
+                    <a href="/auth/logout" class="p-2 rounded-lg bg-portal-bg-tertiary border border-ctf-primary/20 text-text-secondary hover:text-ctf-primary hover:border-ctf-primary/40 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                        </svg>
+                    </a>
+                </div>
+                {% else %}
+                <!-- Guest User -->
+                <div class="flex items-center space-x-3 mb-4">
+                    <div class="w-10 h-10 rounded-full bg-gradient-to-r from-ctf-warning to-ctf-danger flex items-center justify-center text-sm font-bold text-text-bright">
+                        ?
+                    </div>
+                    <div>
+                        <div class="text-sm font-medium text-text-bright">Guest Hacker</div>
+                        <div class="text-xs text-ctf-warning">Temporary Session</div>
+                    </div>
+                </div>
+
+                <!-- Magic Link Form -->
+                <div class="p-3 bg-ctf-warning/10 border border-ctf-warning/30 rounded-lg">
+                    <div class="text-xs font-medium text-ctf-warning mb-2">Save your progress</div>
+                    <form action="/auth/magic-link" method="POST" class="space-y-2">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input
+                            type="email"
+                            name="email"
+                            placeholder="your@email.com"
+                            required
+                            class="w-full bg-portal-bg-primary border border-ctf-primary/30 rounded px-3 py-2 text-sm text-text-bright placeholder-text-secondary focus:outline-none focus:border-ctf-primary transition-colors"
+                        >
+                        <button type="submit" class="w-full bg-gradient-to-r from-ctf-primary to-ctf-secondary text-white text-xs font-medium py-2 px-4 rounded hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                            </svg>
+                            Send Magic Link
+                        </button>
+                    </form>
+                    <p class="text-xs text-text-secondary mt-2">No password needed</p>
+                </div>
+                {% endif %}
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main id="main-content" class="flex-1 flex flex-col overflow-hidden">
+            <!-- Content Area -->
+            <div class="flex-1 overflow-auto p-8">
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+    </div>
+
+    <!-- CTF Context -->
+    <script>
+        window.CTF_NAMESPACE = "{{ session_context.namespace if session_context else 'default' }}";
+        window.CTF_USER_ID = "{{ session_context.user_id if session_context else 'anonymous' }}";
+    </script>
+
+    <!-- JavaScript -->
+    <script src="{{ url_for('static', path='js/common/utils.js') }}"></script>
+    <script src="{{ url_for('static', path='js/common/api.js') }}"></script>
+    <script src="{{ url_for('static', path='js/ctf/api.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+
+    {% block analytics %}{% endblock %}
+</body>
+</html>

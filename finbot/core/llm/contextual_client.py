@@ -98,9 +98,11 @@ class ContextualLLMClient:
         await event_bus.emit_agent_event(
             agent_name=self.agent_name,
             event_type="llm_request_start",
+            event_subtype="llm",
             event_data=event_data,
             session_context=self.session_context,
             workflow_id=self.workflow_id,
+            summary=f"LLM request started (model: {request.model}, messages: {len(request.messages or [])})",
         )
 
         start_time = datetime.now(UTC)
@@ -114,15 +116,20 @@ class ContextualLLMClient:
             await event_bus.emit_agent_event(
                 agent_name=self.agent_name,
                 event_type="llm_request_success",
+                event_subtype="llm",
                 event_data={
                     **event_data,
                     "duration_ms": duration_ms,
                     "response_length": len(response.content or ""),
+                    "response_content": response.content,
+                    "has_tool_calls": bool(response.tool_calls),
+                    "tool_call_count": len(response.tool_calls or []),
                     "success": True,
                     "response_dump": response.model_dump_json(),
                 },
                 session_context=self.session_context,
                 workflow_id=self.workflow_id,
+                summary=f"LLM response received ({len(response.content or '')} chars, {len(response.tool_calls or [])} tool calls)",
             )
 
             logger.debug(
@@ -141,6 +148,7 @@ class ContextualLLMClient:
             await event_bus.emit_agent_event(
                 agent_name=self.agent_name,
                 event_type="llm_request_error",
+                event_subtype="llm",
                 event_data={
                     **event_data,
                     "duration_ms": duration_ms,
@@ -150,6 +158,7 @@ class ContextualLLMClient:
                 },
                 session_context=self.session_context,
                 workflow_id=self.workflow_id,
+                summary=f"LLM request failed: {type(e).__name__}",
             )
 
             logger.error(

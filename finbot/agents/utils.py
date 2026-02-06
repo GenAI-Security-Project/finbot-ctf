@@ -64,6 +64,7 @@ def agent_tool(func: F) -> F:
         await event_bus.emit_agent_event(
             agent_name=agent_name,
             event_type="tool_call_start",
+            event_subtype="tool",
             event_data={
                 "tool_name": tool_name,
                 "args": str(args) if args else "",
@@ -71,6 +72,7 @@ def agent_tool(func: F) -> F:
             },
             session_context=session_context,
             workflow_id=workflow_id,
+            summary=f"Calling tool: {tool_name}",
         )
 
         try:
@@ -87,13 +89,17 @@ def agent_tool(func: F) -> F:
             await event_bus.emit_agent_event(
                 agent_name=agent_name,
                 event_type="tool_call_success",
+                event_subtype="tool",
                 event_data={
                     "tool_name": tool_name,
+                    "args": str(args) if args else "",
+                    "kwargs": str(kwargs) if kwargs else "",
                     "duration_ms": duration_ms,
                     "tool_output": json.dumps(result) if result else "",
                 },
                 session_context=session_context,
                 workflow_id=workflow_id,
+                summary=f"Tool completed: {tool_name} ({duration_ms:.0f}ms)",
             )
 
             return result
@@ -106,14 +112,18 @@ def agent_tool(func: F) -> F:
             await event_bus.emit_agent_event(
                 agent_name=agent_name,
                 event_type="tool_call_failure",
+                event_subtype="tool",
                 event_data={
                     "tool_name": tool_name,
+                    "args": str(args) if args else "",
+                    "kwargs": str(kwargs) if kwargs else "",
                     "duration_ms": duration_ms,
                     "error_type": type(e).__name__,
                     "error_message": str(e),
                 },
                 session_context=session_context,
                 workflow_id=workflow_id,
+                summary=f"Tool failed: {tool_name} ({type(e).__name__})",
             )
 
             # Re-raise the exception
@@ -143,6 +153,7 @@ def agent_tool(func: F) -> F:
             await event_bus.emit_agent_event(
                 agent_name=agent_name,
                 event_type="tool_call_start",
+                event_subtype="tool",
                 event_data={
                     "tool_name": tool_name,
                     "args": str(args) if args else "",
@@ -150,6 +161,7 @@ def agent_tool(func: F) -> F:
                 },
                 session_context=session_context,
                 workflow_id=workflow_id,
+                summary=f"Calling tool: {tool_name}",
             )
 
             try:
@@ -163,13 +175,17 @@ def agent_tool(func: F) -> F:
                 await event_bus.emit_agent_event(
                     agent_name=agent_name,
                     event_type="tool_call_success",
+                    event_subtype="tool",
                     event_data={
                         "tool_name": tool_name,
+                        "args": str(args) if args else "",
+                        "kwargs": str(kwargs) if kwargs else "",
                         "duration_ms": duration_ms,
                         "tool_output": json.dumps(result) if result else "",
                     },
                     session_context=session_context,
                     workflow_id=workflow_id,
+                    summary=f"Tool completed: {tool_name} ({duration_ms:.0f}ms)",
                 )
 
                 return result
@@ -182,14 +198,18 @@ def agent_tool(func: F) -> F:
                 await event_bus.emit_agent_event(
                     agent_name=agent_name,
                     event_type="tool_call_failure",
+                    event_subtype="tool",
                     event_data={
                         "tool_name": tool_name,
+                        "args": str(args) if args else "",
+                        "kwargs": str(kwargs) if kwargs else "",
                         "duration_ms": duration_ms,
                         "error_type": type(e).__name__,
                         "error_message": str(e),
                     },
                     session_context=session_context,
                     workflow_id=workflow_id,
+                    summary=f"Tool failed: {tool_name} ({type(e).__name__})",
                 )
 
                 # Re-raise the exception

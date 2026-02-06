@@ -191,15 +191,23 @@ class SessionManager:
         session_id = secrets.token_urlsafe(32)
 
         if email:
-            user_id = hashlib.sha256(
-                f"{email}:{settings.SECRET_KEY}".encode()
-            ).hexdigest()[:16]
+            # Check if user already exists with this email
+            db = SessionLocal()
+            try:
+                existing_user = db.query(User).filter(User.email == email).first()
+                if existing_user:
+                    user_id = existing_user.user_id  # Reuse existing user_id
+                    namespace = existing_user.namespace
+                else:
+                    user_id = f"user_{secrets.token_urlsafe(12)}"
+                    namespace = f"{self.namespace_prefix}{user_id}"
+            finally:
+                db.close()
             is_temporary = False
         else:
-            user_id = f"temp_{secrets.token_urlsafe(12)}"
+            user_id = f"user_{secrets.token_urlsafe(12)}"
             is_temporary = True
-
-        namespace = f"{self.namespace_prefix}{user_id}"
+            namespace = f"{self.namespace_prefix}{user_id}"
 
         # compute expiry
         now = datetime.now(UTC)
@@ -562,6 +570,136 @@ class SessionManager:
         finally:
             db.close()
             logger.debug("Database connection closed in cleanup_expired_sessions")
+
+    def upgrade_to_permanent(
+        self,
+        session_id: str,
+        email: str,
+        user_agent: str | None = None,
+        ip_address: str | None = None,
+        accept_language: str | None = None,
+        accept_encoding: str | None = None,
+    ) -> tuple[SessionContext | None, bool]:
+        """Upgrade a temporary session to permanent by associating an email.
+
+        If the email already exists (returning user), the temp session is discarded
+        and a new session is created for the existing user.
+
+        If the email is new, the current session is upgraded in-place.
+
+        Args:
+            session_id: Current session ID to upgrade
+            email: Email address to associate
+            user_agent: User agent string
+            ip_address: Client IP address
+            accept_language: Accept-Language header
+            accept_encoding: Accept-Encoding header
+
+        Returns:
+            tuple: (new_session_context, is_existing_user)
+            - is_existing_user: True if email was already registered (temp progress discarded)
+        """
+        email = email.lower().strip()
+        db = SessionLocal()
+        try:
+            # Get current session
+            current_session = (
+                db.query(UserSession)
+                .filter(UserSession.session_id == session_id)
+                .first()
+            )
+            if not current_session:
+                logger.warning("Session not found for upgrade: %s", session_id[:8])
+                return None, False
+
+            # Check if email already exists (existing user signing in)
+            existing_user = db.query(User).filter(User.email == email).first()
+
+            if existing_user:
+                # Existing user - discard temp session, create new session for existing user
+                logger.info(
+                    "Existing user found for email %s, discarding temp session %s",
+                    email,
+                    session_id[:8],
+                )
+                db.delete(current_session)
+                db.commit()
+                db.close()
+
+                new_session = self.create_session(
+                    email=email,
+                    user_agent=user_agent,
+                    ip_address=ip_address,
+                    accept_language=accept_language,
+                    accept_encoding=accept_encoding,
+                )
+                return new_session, True  # True = existing user
+
+            # New user - upgrade session in place
+            logger.info(
+                "Upgrading temp session %s to permanent for new user %s",
+                session_id[:8],
+                email,
+            )
+
+            # Update session fields
+            current_session.email = email
+            current_session.is_temporary = False
+            current_session.expires_at = datetime.now(UTC) + timedelta(
+                seconds=settings.PERM_SESSION_TIMEOUT
+            )
+
+            # Update session data JSON and re-sign
+            session_data = json.loads(current_session.session_data)
+            session_data["email"] = email
+            session_data["is_temporary"] = False
+            session_data["expires_at"] = current_session.expires_at.isoformat().replace(
+                "+00:00", "Z"
+            )
+            current_session.session_data = json.dumps(session_data, sort_keys=True)
+            current_session.signature = self._sign_session_data(
+                current_session.session_data
+            )
+
+            # Create User record for new permanent user
+            user = User(
+                user_id=current_session.user_id,
+                namespace=current_session.namespace,
+                email=email,
+                display_name=email.split("@")[0],
+            )
+            db.merge(user)
+            db.commit()
+
+            # Build and return updated session context
+            updated_context = SessionContext(
+                session_id=current_session.session_id,
+                user_id=current_session.user_id,
+                email=email,
+                is_temporary=False,
+                namespace=current_session.namespace,
+                created_at=current_session.created_at,
+                expires_at=current_session.expires_at,
+                user_agent=current_session.user_agent,
+                last_rotation=current_session.last_rotation or datetime.now(UTC),
+                rotation_count=current_session.rotation_count or 0,
+                strict_fingerprint=current_session.strict_fingerprint or "",
+                loose_fingerprint=current_session.loose_fingerprint or "",
+                original_ip=current_session.original_ip or "",
+                current_ip=ip_address or "",
+                csrf_token=session_data.get("csrf_token", secrets.token_urlsafe(32)),
+                needs_cookie_update=True,
+            )
+
+            return updated_context, False  # False = new user (upgraded)
+
+        except Exception as e:
+            logger.error("Error upgrading session to permanent: %s", e)
+            db.rollback()
+            raise
+        finally:
+            db.close()
+            logger.debug("Database connection closed in upgrade_to_permanent")
 
     # Vendor Context Management
     def update_vendor_context(self, session_id: str, vendor_id: int | None) -> bool:

@@ -1,5 +1,6 @@
 """FinBot Data Models"""
 
+import json
 from datetime import UTC, datetime
 from typing import Any, Literal
 
@@ -14,12 +15,14 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 
 from finbot.core.data.database import Base
 
 
+# General Models
 class User(Base):
     """User Model"""
 
@@ -122,6 +125,72 @@ class UserSession(Base):
         }
 
 
+class UserActivity(Base):
+    """User Activity Model
+    - Useful for auditing, compliance and CTF purposes
+    """
+
+    __tablename__ = "user_activities"
+
+    id = Column[int](Integer, primary_key=True)
+    namespace = Column[str](String(64), nullable=False, index=True)
+
+    # activity data
+    user_id = Column[str](String(32), nullable=False)
+    activity_type = Column[str](String(100), nullable=False)
+    description = Column[str](Text, nullable=True)
+    activity_metadata = Column[str](Text, nullable=True)  # JSON
+
+    created_at = Column[datetime](DateTime, default=datetime.now(UTC))
+    __table_args__ = (
+        Index("idx_activities_namespace", "namespace"),
+        Index("idx_activities_namespace_user", "namespace", "user_id"),
+        Index("idx_activities_namespace_type", "namespace", "activity_type"),
+    )
+
+
+class MagicLinkToken(Base):
+    """Magic Link Token for password-less authentication"""
+
+    __tablename__ = "magic_link_tokens"
+
+    id = Column[int](Integer, primary_key=True)
+    token = Column[str](String(64), unique=True, nullable=False, index=True)
+    email = Column[str](String(255), nullable=False, index=True)
+    session_id = Column[str](String(64), nullable=True)  # Temp session to upgrade
+
+    created_at = Column[datetime](DateTime, default=datetime.now(UTC))
+    expires_at = Column[datetime](DateTime, nullable=False)
+    used_at = Column[datetime](DateTime, nullable=True)
+    ip_address = Column[str](String(45), nullable=True)
+
+    __table_args__ = (
+        Index("idx_magic_link_token", "token"),
+        Index("idx_magic_link_email", "email"),
+        Index("idx_magic_link_expires", "expires_at"),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<MagicLinkToken(email='{self.email}', used={self.used_at is not None})>"
+        )
+
+    def is_expired(self) -> bool:
+        """Check if token is expired"""
+        now = datetime.now(UTC)
+        expires_at = (
+            self.expires_at
+            if self.expires_at.tzinfo
+            else self.expires_at.replace(tzinfo=UTC)
+        )
+        return now > expires_at
+
+    def is_valid(self) -> bool:
+        """Check if token is valid (not expired and not used)"""
+        return not self.is_expired() and self.used_at is None
+
+
+# Vendor Portal
 class Vendor(Base):
     """Vendor Model"""
 
@@ -265,33 +334,356 @@ class Invoice(Base):
         }
 
 
-class UserActivity(Base):
-    """User Activity Model
-    - Useful for auditing, compliance and CTF purposes
+# Admin Portal
+
+# CTF Models
+
+
+class Challenge(Base):
+    """CTF Challenge Definition - loaded from YAML files
+    - These are global entities that are not namespaced
     """
 
-    __tablename__ = "user_activities"
+    __tablename__ = "challenges"
 
-    id = Column[int](Integer, primary_key=True)
+    id = Column[str](String(64), primary_key=True)  # e.g., "prompt-injection-basic"
+    title = Column[str](String(200), nullable=False)
+    description = Column[str](Text, nullable=False)
+
+    # Categorization
+    category = Column[str](String(50), nullable=False)
+    subcategory = Column[str](String(50), nullable=True)
+    difficulty = Column[str](String(20), nullable=False)
+    points = Column[int](Integer, default=100)
+
+    # Rich metadata (stored as JSON strings)
+    image_url = Column[str](String(500), nullable=True)
+    hints = Column[str](Text, nullable=True)  # JSON: [{"cost": 10, "text": "..."}]
+    labels = Column[str](
+        Text, nullable=True
+    )  # JSON: {"owasp_llm": ["LLM01"], "cwe": ["CWE-77"]}
+    prerequisites = Column[str](Text, nullable=True)  # JSON: ["challenge-id-1"]
+    resources = Column[str](
+        Text, nullable=True
+    )  # JSON: [{"title": "...", "url": "..."}]
+
+    # Detector configuration
+    detector_class = Column[str](
+        String(100), nullable=False
+    )  # e.g., "PromptInjectionDetector"
+    detector_config = Column[str](Text, nullable=True)  # JSON: detector-specific config
+
+    # Status
+    is_active = Column[bool](Boolean, default=True)
+    order_index = Column[int](Integer, default=0)
+    created_at = Column[datetime](DateTime, default=datetime.now(UTC))
+    updated_at = Column[datetime](
+        DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC)
+    )
+
+    # Relationships
+    user_progress = relationship("UserChallengeProgress", back_populates="challenge")
+
+    __table_args__ = (
+        Index("idx_challenges_category", "category"),
+        Index("idx_challenges_difficulty", "difficulty"),
+        Index("idx_challenges_active", "is_active"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<Challenge(id='{self.id}', title='{self.title}', difficulty='{self.difficulty}')>"
+
+    def to_dict(self) -> dict:
+        """Convert challenge to dictionary"""
+        return {
+            "id": self.id,
+            "title": self.title,
+            "description": self.description,
+            "category": self.category,
+            "subcategory": self.subcategory,
+            "difficulty": self.difficulty,
+            "points": self.points,
+            "image_url": self.image_url,
+            "hints": json.loads(self.hints) if self.hints else [],
+            "labels": json.loads(self.labels) if self.labels else {},
+            "prerequisites": json.loads(self.prerequisites)
+            if self.prerequisites
+            else [],
+            "resources": json.loads(self.resources) if self.resources else [],
+            "detector_class": self.detector_class,
+            "is_active": self.is_active,
+            "order_index": self.order_index,
+        }
+
+
+class UserChallengeProgress(Base):
+    """Tracks each user's progress on each challenge"""
+
+    __tablename__ = "user_challenge_progress"
+
+    id = Column[int](Integer, primary_key=True, autoincrement=True)
     namespace = Column[str](String(64), nullable=False, index=True)
+    user_id = Column[str](String(32), nullable=False, index=True)
+    challenge_id = Column[str](String(64), ForeignKey("challenges.id"), nullable=False)
 
-    # activity data
-    user_id = Column[str](String(32), nullable=False)
-    activity_type = Column[str](String(100), nullable=False)
-    description = Column[str](Text, nullable=True)
-    activity_metadata = Column[str](Text, nullable=True)  # JSON
+    # Progress tracking
+    # status: "locked" (prerequisites not met), "available", "in_progress", "completed"
+    status = Column[str](String(20), default="available")
+    attempts = Column[int](Integer, default=0)
+    successful_attempts = Column[int](Integer, default=0)
+    failed_attempts = Column[int](Integer, default=0)
+    hints_used = Column[int](Integer, default=0)
+    hints_cost = Column[int](Integer, default=0)  # Total points deducted for hints
+
+    # Timestamps
+    first_attempt_at = Column[datetime](DateTime, nullable=True)
+    completed_at = Column[datetime](DateTime, nullable=True)
+    completion_time_seconds = Column[int](
+        Integer, nullable=True
+    )  # Time from first attempt to completion
+
+    # Evidence (for audit/display)
+    completion_evidence = Column[str](
+        Text, nullable=True
+    )  # JSON: events that triggered completion
+    completion_workflow_id = Column[str](String(64), nullable=True)
 
     created_at = Column[datetime](DateTime, default=datetime.now(UTC))
-    __table_args__ = (
-        Index("idx_activities_namespace", "namespace"),
-        Index("idx_activities_namespace_user", "namespace", "user_id"),
-        Index("idx_activities_namespace_type", "namespace", "activity_type"),
+    updated_at = Column[datetime](
+        DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC)
     )
+
+    # Relationships
+    challenge = relationship("Challenge", back_populates="user_progress")
+
+    __table_args__ = (
+        Index("idx_ucp_namespace_user", "namespace", "user_id"),
+        Index("idx_ucp_namespace_challenge", "namespace", "challenge_id"),
+        Index("idx_ucp_namespace_user_status", "namespace", "user_id", "status"),
+        UniqueConstraint(
+            "namespace", "user_id", "challenge_id", name="uq_user_challenge"
+        ),
+    )
+
+    def __repr__(self) -> str:
+        return f"<UserChallengeProgress(user_id='{self.user_id}', challenge_id='{self.challenge_id}', status='{self.status}')>"
+
+    def to_dict(self) -> dict:
+        """Convert progress to dictionary"""
+        return {
+            "id": self.id,
+            "namespace": self.namespace,
+            "user_id": self.user_id,
+            "challenge_id": self.challenge_id,
+            "status": self.status,
+            "attempts": self.attempts,
+            "successful_attempts": self.successful_attempts,
+            "failed_attempts": self.failed_attempts,
+            "hints_used": self.hints_used,
+            "hints_cost": self.hints_cost,
+            "first_attempt_at": self.first_attempt_at.isoformat().replace("+00:00", "Z")
+            if self.first_attempt_at
+            else None,
+            "completed_at": self.completed_at.isoformat().replace("+00:00", "Z")
+            if self.completed_at
+            else None,
+            "completion_time_seconds": self.completion_time_seconds,
+            "completion_evidence": json.loads(self.completion_evidence)
+            if self.completion_evidence
+            else None,
+            "completion_workflow_id": self.completion_workflow_id,
+        }
+
+
+class Badge(Base):
+    """CTF Badge Definition - loaded from YAML files"""
+
+    __tablename__ = "badges"
+
+    id = Column[str](
+        String(64), primary_key=True
+    )  # e.g., "first-blood", "vendor-master"
+    title = Column[str](String(200), nullable=False)
+    description = Column[str](Text, nullable=False)
+    category = Column[str](
+        String(50), nullable=False
+    )  # "achievement", "milestone", "special"
+
+    icon_url = Column[str](String(500), nullable=True)
+    rarity = Column[str](
+        String(20), default="common"
+    )  # "common", "rare", "epic", "legendary"
+    points = Column[int](Integer, default=10)
+
+    # Evaluator configuration
+    evaluator_class = Column[str](
+        String(100), nullable=False
+    )  # e.g., "VendorCountEvaluator"
+    evaluator_config = Column[str](
+        Text, nullable=True
+    )  # JSON: evaluator-specific config
+
+    is_active = Column[bool](Boolean, default=True)
+    is_secret = Column[bool](Boolean, default=False)  # Hidden until earned
+    created_at = Column[datetime](DateTime, default=datetime.now(UTC))
+
+    # Relationships
+    user_badges = relationship("UserBadge", back_populates="badge")
+
+    __table_args__ = (
+        Index("idx_badges_category", "category"),
+        Index("idx_badges_rarity", "rarity"),
+        Index("idx_badges_active", "is_active"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<Badge(id='{self.id}', title='{self.title}', rarity='{self.rarity}')>"
+
+    def to_dict(self) -> dict:
+        """Convert badge to dictionary"""
+        return {
+            "id": self.id,
+            "title": self.title,
+            "description": self.description,
+            "category": self.category,
+            "icon_url": self.icon_url,
+            "rarity": self.rarity,
+            "points": self.points,
+            "evaluator_class": self.evaluator_class,
+            "evaluator_config": json.loads(self.evaluator_config)
+            if self.evaluator_config
+            else None,
+            "is_active": self.is_active,
+            "is_secret": self.is_secret,
+        }
+
+
+class UserBadge(Base):
+    """Badges earned by users"""
+
+    __tablename__ = "user_badges"
+
+    id = Column[int](Integer, primary_key=True, autoincrement=True)
+    namespace = Column[str](String(64), nullable=False, index=True)
+    user_id = Column[str](String(32), nullable=False, index=True)
+    badge_id = Column[str](String(64), ForeignKey("badges.id"), nullable=False)
+
+    earned_at = Column[datetime](DateTime, default=datetime.now(UTC))
+    earning_context = Column[str](Text, nullable=True)  # JSON: what triggered earning
+    earning_workflow_id = Column[str](String(64), nullable=True)
+
+    # Relationships
+    badge = relationship("Badge", back_populates="user_badges")
+
+    __table_args__ = (
+        Index("idx_ub_namespace_user", "namespace", "user_id"),
+        Index("idx_ub_namespace_badge", "namespace", "badge_id"),
+        UniqueConstraint("namespace", "user_id", "badge_id", name="uq_user_badge"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<UserBadge(user_id='{self.user_id}', badge_id='{self.badge_id}')>"
+
+    def to_dict(self) -> dict:
+        """Convert user badge to dictionary"""
+        return {
+            "id": self.id,
+            "namespace": self.namespace,
+            "user_id": self.user_id,
+            "badge_id": self.badge_id,
+            "earned_at": self.earned_at.isoformat().replace("+00:00", "Z"),
+            "earning_context": json.loads(self.earning_context)
+            if self.earning_context
+            else None,
+            "earning_workflow_id": self.earning_workflow_id,
+        }
+
+
+class CTFEvent(Base):
+    """Processed events for CTF activity stream display"""
+
+    __tablename__ = "ctf_events"
+
+    id = Column[int](Integer, primary_key=True, autoincrement=True)
+    external_event_id = Column[str](
+        String(128), unique=True, nullable=False
+    )  # For idempotency
+
+    namespace = Column[str](String(64), nullable=False, index=True)
+    user_id = Column[str](String(32), nullable=False, index=True)
+    session_id = Column[str](String(64), nullable=True)
+    workflow_id = Column[str](String(64), nullable=True, index=True)
+    vendor_id = Column[int](Integer, nullable=True)  # For vendor-scoped events
+
+    # Event classification
+    event_category = Column[str](
+        String(50), nullable=False
+    )  # "business", "agent", "ctf"
+    event_type = Column[str](
+        String(100), nullable=False
+    )  # e.g., "vendor.created", "task_start"
+    event_subtype = Column[str](String(100), nullable=True)
+
+    # Display info
+    summary = Column[str](String(500), nullable=False)  # Human-readable summary
+    details = Column[str](Text, nullable=True)  # JSON: full event data
+    severity = Column[str](
+        String(20), default="info"
+    )  # "info", "warning", "success", "danger"
+
+    # Agent-specific fields (for rich visualization)
+    agent_name = Column[str](String(100), nullable=True)
+    tool_name = Column[str](String(100), nullable=True)
+    llm_model = Column[str](String(100), nullable=True)
+    duration_ms = Column[int](Integer, nullable=True)
+
+    # CTF-specific fields (if event triggered challenge/badge)
+    challenge_id = Column[str](String(64), nullable=True)
+    badge_id = Column[str](String(64), nullable=True)
+
+    timestamp = Column[datetime](DateTime, default=datetime.now(UTC), index=True)
+
+    __table_args__ = (
+        Index("idx_ctf_event_ns_user_ts", "namespace", "user_id", "timestamp"),
+        Index("idx_ctf_event_workflow", "workflow_id"),
+        Index("idx_ctf_event_ns_vendor", "namespace", "vendor_id"),
+        Index("idx_ctf_event_category", "event_category"),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<CTFEvent(id={self.id}, type='{self.event_type}', user='{self.user_id}')>"
+        )
+
+    def to_dict(self) -> dict:
+        """Convert event to dictionary"""
+        return {
+            "id": self.id,
+            "external_event_id": self.external_event_id,
+            "namespace": self.namespace,
+            "user_id": self.user_id,
+            "session_id": self.session_id,
+            "workflow_id": self.workflow_id,
+            "vendor_id": self.vendor_id,
+            "event_category": self.event_category,
+            "event_type": self.event_type,
+            "event_subtype": self.event_subtype,
+            "summary": self.summary,
+            "details": json.loads(self.details) if self.details else None,
+            "severity": self.severity,
+            "agent_name": self.agent_name,
+            "tool_name": self.tool_name,
+            "llm_model": self.llm_model,
+            "duration_ms": self.duration_ms,
+            "challenge_id": self.challenge_id,
+            "badge_id": self.badge_id,
+            "timestamp": self.timestamp.isoformat().replace("+00:00", "Z"),
+        }
 
 
 # Non DB Models: Pydantic Models
 
-LLMProviderType = Literal["openai", "http", "mock","ollama"]
+LLMProviderType = Literal["openai", "http", "mock", "ollama"]
 
 
 class LLMRequest(BaseModel):

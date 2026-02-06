@@ -74,12 +74,15 @@ def _configure_third_party_loggers(app_level: int) -> None:
 
     # SQLAlchemy logging (database)
     # SQLAlchemy's DEBUG shows every SQL query - usually too verbose
+    # Note: engine echo is enabled by DB_ECHO or DEBUG mode (see config.py)
     if settings.DB_ECHO:
-        # If DB_ECHO is enabled, show SQL queries at INFO level
+        # If DB_ECHO is explicitly enabled, show SQL queries at INFO level
         logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
     else:
-        # Otherwise, only show warnings and errors
+        # Otherwise, suppress SQL query logging (even in DEBUG mode)
+        # This reduces noise significantly while keeping app-level DEBUG logs
         logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+        logging.getLogger("sqlalchemy.engine.Engine").setLevel(logging.WARNING)
 
     logging.getLogger("sqlalchemy.pool").setLevel(
         logging.INFO if app_level == logging.DEBUG else logging.WARNING

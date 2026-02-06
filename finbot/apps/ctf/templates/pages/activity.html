@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block nav_activity %}active{% endblock %}
+
+{% block content %}
+<!-- Work in Progress Banner -->
+<div class="flex items-center justify-center min-h-[60vh]">
+    <div class="glass-card max-w-2xl w-full">
+        <div class="text-center py-16 px-8">
+            <!-- Animated Icon -->
+            <div class="relative inline-block mb-8">
+                <div class="w-24 h-24 rounded-full bg-gradient-to-r from-ctf-primary to-ctf-secondary flex items-center justify-center mx-auto animate-pulse">
+                    <svg class="w-12 h-12 text-text-bright" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                    </svg>
+                </div>
+                <div class="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-ctf-warning flex items-center justify-center">
+                    <svg class="w-4 h-4 text-portal-bg-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Title -->
+            <h2 class="text-3xl font-bold text-text-bright mb-4">
+                Activity Feed Under Construction
+            </h2>
+
+            <!-- Description -->
+            <p class="text-text-secondary text-lg mb-8 max-w-md mx-auto">
+                We're building something amazing. Your activity timeline with challenge attempts, badge earnings, and progress history is coming soon.
+            </p>
+
+            <!-- Status Indicator -->
+            <div class="inline-flex items-center space-x-2 px-4 py-2 rounded-full bg-gradient-to-r from-ctf-primary/20 to-ctf-secondary/20 border border-ctf-primary/30">
+                <span class="relative flex h-3 w-3">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-ctf-accent opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-3 w-3 bg-ctf-accent"></span>
+                </span>
+                <span class="text-sm font-medium text-ctf-accent">Work in Progress</span>
+            </div>
+
+            <!-- Quick Links -->
+            <div class="mt-12 flex flex-wrap justify-center gap-4">
+                <a href="/ctf/dashboard" class="px-6 py-3 rounded-lg bg-gradient-to-r from-ctf-primary to-ctf-secondary text-text-bright font-medium hover:opacity-90 transition-opacity">
+                    Go to Dashboard
+                </a>
+                <a href="/ctf/challenges" class="px-6 py-3 rounded-lg border border-ctf-primary/50 text-ctf-primary font-medium hover:bg-ctf-primary/10 transition-colors">
+                    View Challenges
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

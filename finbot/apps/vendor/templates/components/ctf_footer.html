@@ -1,70 +1,69 @@
-<!-- CTF Footer Banner -->
-<div class="bg-gradient-to-r from-gray-900 via-black to-gray-900 border-t-2 border-green-400 mt-8" role="contentinfo">
+<!-- CTF Footer Banner - Clean Single Row -->
+<div class="bg-gray-950 border-t border-green-500/30" role="contentinfo">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <!-- Status Indicators Row -->
-        <div class="flex items-center justify-center space-x-6 py-3 border-b border-gray-700/50">
-            <div class="flex items-center space-x-2 text-xs">
-                <div class="w-2 h-2 bg-red-400 rounded-full animate-pulse"></div>
-                <span class="text-gray-300">🛡️ Ethical Use Only</span>
-            </div>
-            <div class="flex items-center space-x-2 text-xs">
-                <div class="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-                <span class="text-gray-300">📊 Activities Logged</span>
-            </div>
-            <div class="flex items-center space-x-2 text-xs">
-                <div class="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
-                <span class="text-gray-300">🎓 Educational Purpose</span>
-            </div>
-            <div class="flex items-center space-x-2 text-xs">
-                <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                <span class="text-gray-300">📋 OWASP Guidelines</span>
-            </div>
-        </div>
-
-        <div class="flex flex-col lg:flex-row items-center justify-between py-4 text-sm">
-            <!-- Left Section: CTF Title and Status -->
-            <div class="flex flex-col lg:flex-row items-center space-y-3 lg:space-y-0 lg:space-x-6 mb-4 lg:mb-0">
-                <!-- OWASP Logo/Icon -->
-                <div class="flex items-center space-x-3">
-                    <div class="w-8 h-8 rounded-full overflow-hidden bg-white p-0.5 shadow-lg">
-                        <img src="/static/images/common/finbot.png" alt="FinBot Logo" class="w-full h-full object-contain rounded-full">
+        <div class="flex items-center justify-between py-2.5 text-xs">
+            
+            <!-- Left: Compliance Indicators -->
+            <div class="flex items-center space-x-4 text-gray-400">
+                <!-- Ethical Use -->
+                <div class="relative group cursor-help flex items-center space-x-1.5">
+                    <span>🛡️</span>
+                    <span class="hidden sm:inline">Ethical</span>
+                    <div class="absolute bottom-full left-0 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 border border-gray-700">
+                        Ethical Use Only - Use responsibly
                     </div>
-                    <span class="font-bold text-green-400 text-lg tracking-wide">OWASP ASI FINBOT CTF PLATFORM</span>
                 </div>
-
-                <!-- Agreement Status -->
-                <div class="flex items-center space-x-2 bg-green-900/30 px-3 py-1 rounded-full border border-green-400/30">
-                    <span class="text-gray-300 text-xs">Agreement Status:</span>
-                    <div class="flex items-center space-x-1 relative group cursor-help">
-                        <svg class="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-                        </svg>
-                        <span class="text-green-400 font-medium text-xs">Agreement Active</span>
-
-                        <!-- Tooltip -->
-                        <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50 border border-gray-600">
-                            By using this platform you agree to CTF Policy
-                            <div class="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-800"></div>
-                        </div>
+                
+                <span class="text-gray-600">•</span>
+                
+                <!-- Activities Logged -->
+                <div class="relative group cursor-help flex items-center space-x-1.5">
+                    <span>📊</span>
+                    <span class="hidden sm:inline">Logged</span>
+                    <div class="absolute bottom-full left-0 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 border border-gray-700">
+                        All activities are monitored and logged
+                    </div>
+                </div>
+                
+                <span class="text-gray-600">•</span>
+                
+                <!-- Educational -->
+                <div class="relative group cursor-help flex items-center space-x-1.5">
+                    <span>🎓</span>
+                    <span class="hidden sm:inline">Educational</span>
+                    <div class="absolute bottom-full left-0 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 border border-gray-700">
+                        Educational AI Security Research Environment
                     </div>
                 </div>
             </div>
-
-            <!-- Center Section: Educational Notice -->
-            <div class="text-center mb-4 lg:mb-0">
-                <div class="text-gray-300 text-xs">
-                    <div class="font-medium">Educational AI Security Research Environment</div>
-                    <div class="text-gray-400 text-xs mt-0.5">All vendor activities monitored for educational purposes</div>
-                </div>
+            
+            <!-- Center: Agreement Status -->
+            <div class="hidden md:flex items-center space-x-2 text-gray-400">
+                <svg class="w-3.5 h-3.5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                </svg>
+                <span class="text-green-500 font-medium">Agreement Active</span>
             </div>
-
-            <!-- Right Section: CTF Details Button -->
-            <div class="flex items-center space-x-4">
-                <button class="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white px-4 py-2 rounded-lg text-xs font-medium transition-all duration-300 flex items-center space-x-2" data-ctf-details>
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            
+            <!-- Right: Actions -->
+            <div class="flex items-center space-x-2">
+                <!-- Policy Button -->
+                <button class="px-2.5 py-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded transition-colors flex items-center space-x-1.5" data-ctf-details>
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                     </svg>
-                    <span>CTF Details & Policy</span>
+                    <span>Policy</span>
+                </button>
+                
+                <span class="text-gray-700">│</span>
+                
+                <!-- CTF Progress Button -->
+                <button class="px-3 py-1.5 bg-gradient-to-r from-green-600 to-cyan-600 hover:from-green-500 hover:to-cyan-500 text-white font-medium rounded transition-all flex items-center space-x-1.5 shadow-sm" data-ctf-sidecar-toggle>
+                    <span>🎯</span>
+                    <span>CTF</span>
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
                 </button>
             </div>
         </div>

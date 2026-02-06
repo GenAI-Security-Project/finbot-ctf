@@ -50,7 +50,7 @@ async function loadVendorContext() {
         const response = await api.get('/vendor/api/v1/vendors/context');
         DashboardState.vendorContext = response.data;
 
-        console.log('📊 Vendor context loaded:', DashboardState.vendorContext);
+        // console.log('📊 Vendor context loaded:', DashboardState.vendorContext);
 
         // Update UI with vendor context
         updateVendorSwitcherUI();
@@ -138,7 +138,7 @@ async function switchVendor(vendorId) {
             // Update local context
             DashboardState.vendorContext.current_vendor = response.data.current_vendor;
 
-            console.log('✅ Vendor switched successfully:', response.data.current_vendor);
+            // console.log('✅ Vendor switched successfully:', response.data.current_vendor);
 
             // Show notification
             showNotification(
@@ -328,7 +328,7 @@ async function loadDashboardData() {
 function updateDashboardMetrics(data) {
     const { vendor_context, metrics } = data;
 
-    console.log('📈 Updating dashboard metrics:', metrics);
+    // console.log('📈 Updating dashboard metrics:', metrics);
 
     // Update metrics cards
     const metricsContainer = document.querySelector('.metrics-container');

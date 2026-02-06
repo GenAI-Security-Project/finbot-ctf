@@ -1,0 +1,686 @@
+/**
+ * FinBot CTF Portal - Dashboard Styles
+ */
+
+/* ==========================================================================
+   BASE STYLES
+   ========================================================================== */
+
+/* Remove underlines from all links in CTF portal */
+a,
+a:hover,
+a:focus,
+a:active,
+a:visited {
+    text-decoration: none !important;
+}
+
+/* ==========================================================================
+   ANIMATED GRID BACKGROUND
+   ========================================================================== */
+
+.grid-bg {
+    position: fixed;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px);
+    background-size: 50px 50px;
+    animation: gridDrift 20s linear infinite;
+    pointer-events: none;
+    z-index: 0;
+}
+
+@keyframes gridDrift {
+    0% { transform: translate(0, 0); }
+    100% { transform: translate(50px, 50px); }
+}
+
+/* ==========================================================================
+   CTF SIDEBAR
+   ========================================================================== */
+
+/* Note: Sidebar styles inherited from vendor portal (ai-sidebar, vendor-nav-item) */
+
+/* ==========================================================================
+   GLASSMORPHISM CARDS
+   ========================================================================== */
+
+.glass-card {
+    background: rgba(21, 21, 32, 0.8);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(0, 212, 255, 0.1);
+    border-radius: 16px;
+    transition: all 0.3s ease;
+}
+
+.glass-card:hover {
+    border-color: rgba(0, 212, 255, 0.3);
+    box-shadow: 0 0 30px rgba(0, 212, 255, 0.1);
+}
+
+/* ==========================================================================
+   HOLOGRAPHIC CARD EFFECT
+   ========================================================================== */
+
+.holo-card {
+    position: relative;
+    background: linear-gradient(135deg, rgba(21, 21, 32, 0.9), rgba(26, 26, 46, 0.9));
+    border: 1px solid transparent;
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+.holo-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 16px;
+    padding: 1px;
+    background: linear-gradient(135deg, var(--vendor-primary), var(--vendor-secondary), var(--vendor-accent));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0.5;
+    transition: opacity 0.3s;
+}
+
+.holo-card:hover::before {
+    opacity: 1;
+}
+
+/* ==========================================================================
+   STAT CARDS
+   ========================================================================== */
+
+.stat-card {
+    position: relative;
+    padding: 24px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, var(--portal-bg-secondary), var(--portal-bg-tertiary));
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    overflow: hidden;
+}
+
+.stat-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 100px;
+    height: 100px;
+    background: radial-gradient(circle, var(--accent-color) 0%, transparent 70%);
+    opacity: 0.1;
+}
+
+.stat-card.cyan { --accent-color: #00d4ff; }
+.stat-card.purple { --accent-color: #7c3aed; }
+.stat-card.green { --accent-color: #06ffa5; }
+.stat-card.yellow { --accent-color: #ffb800; }
+
+/* ==========================================================================
+   PROGRESS RING
+   ========================================================================== */
+
+.progress-ring {
+    transform: rotate(-90deg);
+}
+
+.progress-ring circle {
+    transition: stroke-dashoffset 0.5s ease;
+}
+
+/* ==========================================================================
+   GLOW EFFECTS
+   ========================================================================== */
+
+.glow-cyan {
+    text-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+    color: #00d4ff;
+}
+
+.glow-green {
+    text-shadow: 0 0 20px rgba(6, 255, 165, 0.5);
+    color: #06ffa5;
+}
+
+.glow-purple {
+    text-shadow: 0 0 20px rgba(124, 58, 237, 0.5);
+    color: #7c3aed;
+}
+
+/* ==========================================================================
+   CHALLENGE MINI CARDS
+   ========================================================================== */
+
+.challenge-mini {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    border-radius: 12px;
+    background: rgba(21, 21, 32, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+}
+
+.challenge-mini:hover {
+    transform: translateX(4px);
+    border-color: rgba(0, 212, 255, 0.3);
+    background: rgba(21, 21, 32, 0.8);
+}
+
+.challenge-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+}
+
+.challenge-icon.injection { background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(249, 115, 22, 0.2)); }
+.challenge-icon.escalation { background: linear-gradient(135deg, rgba(124, 58, 237, 0.2), rgba(236, 72, 153, 0.2)); }
+.challenge-icon.exfiltration { background: linear-gradient(135deg, rgba(234, 179, 8, 0.2), rgba(245, 158, 11, 0.2)); }
+.challenge-icon.dos { background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(99, 102, 241, 0.2)); }
+
+/* ==========================================================================
+   DIFFICULTY BADGES
+   ========================================================================== */
+
+.diff-beginner {
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.diff-intermediate {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.diff-advanced {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.diff-expert {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+/* ==========================================================================
+   ACTIVITY FEED
+   ========================================================================== */
+
+.activity-item {
+    display: flex;
+    gap: 16px;
+    padding: 16px;
+    border-radius: 12px;
+    background: rgba(21, 21, 32, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.03);
+    transition: all 0.2s ease;
+}
+
+.activity-item:hover {
+    background: rgba(21, 21, 32, 0.8);
+    border-color: rgba(0, 212, 255, 0.2);
+}
+
+.activity-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.activity-icon.agent { background: rgba(124, 58, 237, 0.2); color: #a78bfa; }
+.activity-icon.tool { background: rgba(0, 212, 255, 0.2); color: #00d4ff; }
+.activity-icon.success { background: rgba(6, 255, 165, 0.2); color: #06ffa5; }
+.activity-icon.llm { background: rgba(234, 179, 8, 0.2); color: #fbbf24; }
+.activity-icon.challenge { background: rgba(236, 72, 153, 0.2); color: #f472b6; }
+.activity-icon.badge { background: rgba(99, 102, 241, 0.2); color: #818cf8; }
+
+.activity-tag {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+/* ==========================================================================
+   BADGES
+   ========================================================================== */
+
+.badge-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.2s ease;
+}
+
+.badge-item.earned {
+    animation: badgePulse 2s infinite;
+}
+
+@keyframes badgePulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(6, 255, 165, 0.4); }
+    50% { box-shadow: 0 0 20px 5px rgba(6, 255, 165, 0.2); }
+}
+
+.badge-icon {
+    font-size: 28px;
+}
+
+.badge-rarity-common { background: linear-gradient(135deg, rgba(148, 163, 184, 0.1), transparent); border-color: rgba(148, 163, 184, 0.2); }
+.badge-rarity-rare { background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), transparent); border-color: rgba(59, 130, 246, 0.2); }
+.badge-rarity-epic { background: linear-gradient(135deg, rgba(124, 58, 237, 0.1), transparent); border-color: rgba(124, 58, 237, 0.2); }
+.badge-rarity-legendary { background: linear-gradient(135deg, rgba(234, 179, 8, 0.1), transparent); border-color: rgba(234, 179, 8, 0.2); }
+
+/* ==========================================================================
+   CATEGORY PROGRESS
+   ========================================================================== */
+
+.category-progress {
+    margin-bottom: 16px;
+}
+
+.category-progress .progress-bar {
+    height: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.category-progress .progress-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.5s ease;
+}
+
+.category-progress .progress-fill.cyan { background: linear-gradient(90deg, #00d4ff, #22d3ee); }
+.category-progress .progress-fill.purple { background: linear-gradient(90deg, #7c3aed, #a78bfa); }
+.category-progress .progress-fill.green { background: linear-gradient(90deg, #06ffa5, #22c55e); }
+.category-progress .progress-fill.yellow { background: linear-gradient(90deg, #ffb800, #fbbf24); }
+
+/* ==========================================================================
+   SHIMMER EFFECT
+   ========================================================================== */
+
+.shimmer {
+    position: relative;
+    overflow: hidden;
+}
+
+.shimmer::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+    animation: shimmer 3s infinite;
+}
+
+@keyframes shimmer {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
+
+/* ==========================================================================
+   LIVE INDICATOR
+   ========================================================================== */
+
+.live-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.live-dot {
+    width: 8px;
+    height: 8px;
+    background: #22c55e;
+    border-radius: 50%;
+    animation: livePulse 2s ease-in-out infinite;
+}
+
+@keyframes livePulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.2); }
+}
+
+/* ==========================================================================
+   CTF CHALLENGE CARD (for challenges page)
+   ========================================================================== */
+
+.ctf-challenge-card {
+    background: linear-gradient(135deg, rgba(21, 21, 32, 0.9), rgba(26, 26, 46, 0.9));
+    border: 1px solid rgba(0, 212, 255, 0.1);
+    border-radius: 16px;
+    transition: all 0.3s ease;
+    text-decoration: none;
+    display: block;
+}
+
+.ctf-challenge-card:hover {
+    border-color: rgba(0, 212, 255, 0.4);
+    box-shadow: 0 0 30px rgba(0, 212, 255, 0.15);
+    transform: translateY(-2px);
+}
+
+.ctf-challenge-card.completed {
+    border-color: rgba(6, 255, 165, 0.3);
+}
+
+.ctf-challenge-card.completed:hover {
+    box-shadow: 0 0 30px rgba(6, 255, 165, 0.15);
+}
+
+/* ==========================================================================
+   FILTER SECTION (for challenges page)
+   ========================================================================== */
+
+.filter-section {
+    background: rgba(21, 21, 32, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 20px;
+}
+
+.filter-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text-secondary);
+}
+
+.filter-option:hover {
+    background: rgba(0, 212, 255, 0.1);
+    color: var(--text-primary);
+}
+
+.filter-option.active {
+    background: rgba(0, 212, 255, 0.15);
+    color: var(--vendor-primary);
+}
+
+.filter-checkbox {
+    width: 18px;
+    height: 18px;
+    border: 2px solid #444;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.filter-option.active .filter-checkbox {
+    background: var(--vendor-primary);
+    border-color: var(--vendor-primary);
+}
+
+/* ==========================================================================
+   POINTS BADGE
+   ========================================================================== */
+
+.points-badge {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(6, 255, 165, 0.2));
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    padding: 4px 12px;
+    border-radius: 20px;
+}
+
+/* ==========================================================================
+   OWASP AND CWE TAGS
+   ========================================================================== */
+
+.owasp-tag {
+    background: rgba(255, 59, 102, 0.2);
+    border: 1px solid rgba(255, 59, 102, 0.3);
+    color: #ff3b66;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+}
+
+.cwe-tag {
+    background: rgba(124, 58, 237, 0.2);
+    border: 1px solid rgba(124, 58, 237, 0.3);
+    color: #a78bfa;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+}
+
+/* ==========================================================================
+   HOLOGRAPHIC CARD (for challenges page)
+   ========================================================================== */
+
+.holographic-card {
+    background: linear-gradient(135deg, rgba(21, 21, 32, 0.8), rgba(26, 26, 46, 0.8));
+    border: 1px solid rgba(0, 212, 255, 0.15);
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+}
+
+/* ==========================================================================
+   SKELETON LOADING
+   ========================================================================== */
+
+.ctf-skeleton {
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.05) 25%, rgba(255, 255, 255, 0.1) 50%, rgba(255, 255, 255, 0.05) 75%);
+    background-size: 200% 100%;
+    animation: skeletonPulse 1.5s ease-in-out infinite;
+    border-radius: 4px;
+}
+
+@keyframes skeletonPulse {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* ==========================================================================
+   CTF POINTS DISPLAY
+   ========================================================================== */
+
+.ctf-points {
+    font-family: 'JetBrains Mono', monospace;
+    color: #00d4ff;
+    font-weight: 600;
+}
+
+/* ==========================================================================
+   DIFFICULTY CLASSES (for challenges grid)
+   ========================================================================== */
+
+.difficulty-beginner { color: #22c55e; }
+.difficulty-intermediate { color: #3b82f6; }
+.difficulty-advanced { color: #f59e0b; }
+.difficulty-expert { color: #ef4444; }
+
+/* ==========================================================================
+   CHALLENGE DETAIL HERO
+   ========================================================================== */
+
+.challenge-hero {
+    position: relative;
+    height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.challenge-hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at 20% 50%, rgba(255,255,255,0.1) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(0, 212, 255, 0.1) 0%, transparent 50%);
+}
+
+.challenge-hero .icon {
+    font-size: 5rem;
+    filter: drop-shadow(0 0 30px rgba(0, 0, 0, 0.5));
+}
+
+.challenge-hero.injection { background: linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(249, 115, 22, 0.3)); }
+.challenge-hero.escalation { background: linear-gradient(135deg, rgba(168, 85, 247, 0.3), rgba(236, 72, 153, 0.3)); }
+.challenge-hero.exfiltration { background: linear-gradient(135deg, rgba(34, 197, 94, 0.3), rgba(16, 185, 129, 0.3)); }
+.challenge-hero.dos { background: linear-gradient(135deg, rgba(59, 130, 246, 0.3), rgba(99, 102, 241, 0.3)); }
+.challenge-hero.default { background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(124, 58, 237, 0.2)); }
+
+/* ==========================================================================
+   MITRE TAG
+   ========================================================================== */
+
+.mitre-tag {
+    background: rgba(6, 255, 165, 0.2);
+    border: 1px solid rgba(6, 255, 165, 0.3);
+    color: #06ffa5;
+    padding: 4px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+/* ==========================================================================
+   HINT CARDS
+   ========================================================================== */
+
+.hint-card {
+    background: rgba(255, 184, 0, 0.1);
+    border: 1px solid rgba(255, 184, 0, 0.2);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.hint-card.locked {
+    background: rgba(100, 100, 100, 0.1);
+    border-color: rgba(100, 100, 100, 0.2);
+}
+
+.hint-header {
+    display: flex;
+    align-items: center;
+    padding: 16px;
+}
+
+.hint-content {
+    padding: 0 16px 16px;
+    border-top: 1px solid rgba(255, 184, 0, 0.1);
+}
+
+/* ==========================================================================
+   RESOURCE LINKS
+   ========================================================================== */
+
+.resource-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    background: rgba(21, 21, 32, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    transition: all 0.2s;
+}
+
+.resource-link:hover {
+    border-color: rgba(0, 212, 255, 0.3);
+    background: rgba(0, 212, 255, 0.05);
+}
+
+/* ==========================================================================
+   STAT BOX
+   ========================================================================== */
+
+.stat-box {
+    text-align: center;
+    padding: 16px;
+    background: rgba(21, 21, 32, 0.5);
+    border-radius: 12px;
+}
+
+/* ==========================================================================
+   ACTION BUTTON
+   ========================================================================== */
+
+.action-btn {
+    background: linear-gradient(135deg, var(--vendor-primary), var(--vendor-secondary));
+    padding: 16px 32px;
+    border-radius: 12px;
+    font-weight: 600;
+    color: white;
+    transition: all 0.3s;
+    box-shadow: 0 4px 20px rgba(0, 212, 255, 0.3);
+    text-align: center;
+    display: inline-block;
+}
+
+.action-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(0, 212, 255, 0.4);
+}
+
+/* ==========================================================================
+   UTILITIES
+   ========================================================================== */
+
+.font-mono {
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.text-gradient-cyan {
+    background: linear-gradient(135deg, #00d4ff, #06ffa5);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.text-gradient-purple {
+    background: linear-gradient(135deg, #7c3aed, #ec4899);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}

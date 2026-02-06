@@ -7,7 +7,16 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from finbot.core.auth.session import SessionContext
-from finbot.core.data.models import Invoice, UserActivity, Vendor
+from finbot.core.data.models import (
+    Badge,
+    Challenge,
+    CTFEvent,
+    Invoice,
+    UserActivity,
+    UserBadge,
+    UserChallengeProgress,
+    Vendor,
+)
 
 
 class NamespacedRepository:
@@ -56,6 +65,11 @@ class NamespacedRepository:
             self.db.refresh(activity)
 
         return activity
+
+
+# =============================================================================
+# Vendor Repository
+# =============================================================================
 
 
 class VendorRepository(NamespacedRepository):
@@ -205,6 +219,11 @@ class VendorRepository(NamespacedRepository):
         return success
 
 
+# =============================================================================
+# Invoice Repository
+# =============================================================================
+
+
 class InvoiceRepository(NamespacedRepository):
     """Invoice repository - Namespaced to user"""
 
@@ -272,13 +291,28 @@ class InvoiceRepository(NamespacedRepository):
             or 0
         )
 
+        # Count overdue invoices (due date passed, not paid)
+        now = datetime.now(UTC)
+        overdue_query = self._add_namespace_filter(self.db.query(Invoice), Invoice)
+        overdue_query = overdue_query.filter(
+            Invoice.vendor_id == self.current_vendor_id
+        )
+        overdue_count = (
+            overdue_query.filter(Invoice.status != "paid")
+            .filter(Invoice.due_date < now)
+            .count()
+        )
+
+        pending_count = total_count - paid_count
+
         return {
             "total_count": total_count,
             "total_amount": float(total_amount),
             "paid_count": paid_count,
             "paid_amount": float(paid_amount),
-            "pending_count": total_count - paid_count,
+            "pending_count": pending_count,
             "pending_amount": float(total_amount) - float(paid_amount),
+            "overdue_count": overdue_count,
         }
 
     # Admin Portal Methods (cross-vendor within namespace)
@@ -412,6 +446,11 @@ class InvoiceRepository(NamespacedRepository):
         return invoice
 
 
+# =============================================================================
+# User Activity Repository
+# =============================================================================
+
+
 class UserActivityRepository(NamespacedRepository):
     """User activity tracking repository"""
 
@@ -476,3 +515,452 @@ class UserActivityRepository(NamespacedRepository):
             activity_types[activity_type] = count
 
         return {"total_activities": total_activities, "activity_types": activity_types}
+
+
+# =============================================================================
+# CTF Repositories
+# =============================================================================
+
+# =============================================================================
+# Challenge Repository
+# =============================================================================
+
+
+class ChallengeRepository:
+    """Repository for Challenge definitions (global, not namespaced)"""
+
+    def __init__(self, db: Session):
+        self.db = db
+
+    def list_challenges(
+        self,
+        category: str | None = None,
+        difficulty: str | None = None,
+        active_only: bool = True,
+    ) -> list[Challenge]:
+        """List challenges with optional filters"""
+        query = self.db.query(Challenge)
+
+        if active_only:
+            query = query.filter(Challenge.is_active == True)
+        if category:
+            query = query.filter(Challenge.category == category)
+        if difficulty:
+            query = query.filter(Challenge.difficulty == difficulty)
+
+        return query.order_by(Challenge.order_index, Challenge.id).all()
+
+    def get_challenge(self, challenge_id: str) -> Challenge | None:
+        """Get challenge by ID"""
+        return self.db.query(Challenge).filter(Challenge.id == challenge_id).first()
+
+    def get_categories(self) -> list[str]:
+        """Get distinct challenge categories"""
+        result = (
+            self.db.query(Challenge.category)
+            .filter(Challenge.is_active == True)
+            .distinct()
+            .all()
+        )
+        return [r[0] for r in result]
+
+    def count_by_category(self) -> dict[str, int]:
+        """Count challenges per category"""
+        result = (
+            self.db.query(Challenge.category, func.count(Challenge.id))
+            .filter(Challenge.is_active == True)
+            .group_by(Challenge.category)
+            .all()
+        )
+        return {cat: count for cat, count in result}
+
+    def get_total_points(self, challenge_ids: list[str]) -> int:
+        """Get total points for given challenge IDs"""
+        if not challenge_ids:
+            return 0
+        return (
+            self.db.query(func.sum(Challenge.points))
+            .filter(Challenge.id.in_(challenge_ids))
+            .scalar()
+            or 0
+        )
+
+
+# =============================================================================
+# User Challenge Progress Repository
+# =============================================================================
+
+
+class UserChallengeProgressRepository(NamespacedRepository):
+    """Repository for user challenge progress (namespaced)"""
+
+    def get_progress(self, challenge_id: str) -> UserChallengeProgress | None:
+        """Get user's progress for a specific challenge"""
+
+        return (
+            self.db.query(UserChallengeProgress)
+            .filter(
+                UserChallengeProgress.namespace == self.namespace,
+                UserChallengeProgress.user_id == self.session_context.user_id,
+                UserChallengeProgress.challenge_id == challenge_id,
+            )
+            .first()
+        )
+
+    def get_or_create_progress(self, challenge_id: str) -> UserChallengeProgress:
+        """Get or create user's progress for a challenge"""
+        progress = self.get_progress(challenge_id)
+        if not progress:
+            progress = UserChallengeProgress(
+                namespace=self.namespace,
+                user_id=self.session_context.user_id,
+                challenge_id=challenge_id,
+                status="available",
+            )
+            self.db.add(progress)
+            self.db.flush()
+        return progress
+
+    def get_all_progress(self) -> list[UserChallengeProgress]:
+        """Get all challenge progress for user"""
+        return (
+            self.db.query(UserChallengeProgress)
+            .filter(
+                UserChallengeProgress.namespace == self.namespace,
+                UserChallengeProgress.user_id == self.session_context.user_id,
+            )
+            .all()
+        )
+
+    def get_progress_map(self) -> dict[str, str]:
+        """Get challenge_id -> status mapping for user"""
+        progress_list = self.get_all_progress()
+        return {p.challenge_id: p.status for p in progress_list}
+
+    def get_completed_challenges(self) -> list[UserChallengeProgress]:
+        """Get completed challenges for user"""
+        return (
+            self.db.query(UserChallengeProgress)
+            .filter(
+                UserChallengeProgress.namespace == self.namespace,
+                UserChallengeProgress.user_id == self.session_context.user_id,
+                UserChallengeProgress.status == "completed",
+            )
+            .all()
+        )
+
+    def use_hint(self, challenge_id: str, hint_cost: int) -> UserChallengeProgress:
+        """Use a hint for a challenge"""
+        progress = self.get_or_create_progress(challenge_id)
+        progress.hints_used += 1
+        progress.hints_cost += hint_cost
+        if progress.status == "available":
+            progress.status = "in_progress"
+
+        self.db.commit()
+
+        self.log_activity(
+            "challenge_hint_used",
+            f"Used hint for challenge: {challenge_id}",
+            metadata={
+                "challenge_id": challenge_id,
+                "hint_number": progress.hints_used,
+                "hint_cost": hint_cost,
+                "total_hints_cost": progress.hints_cost,
+            },
+        )
+
+        return progress
+
+    def record_attempt(self, challenge_id: str) -> UserChallengeProgress:
+        """Record an attempt on a challenge"""
+        progress = self.get_or_create_progress(challenge_id)
+        progress.attempts += 1
+        if progress.first_attempt_at is None:
+            progress.first_attempt_at = datetime.now(UTC)
+        if progress.status == "available":
+            progress.status = "in_progress"
+        self.db.commit()
+        return progress
+
+    def mark_completed(
+        self,
+        challenge_id: str,
+        evidence: dict,
+        workflow_id: str | None = None,
+    ) -> UserChallengeProgress:
+        """Mark challenge as completed"""
+        progress = self.get_or_create_progress(challenge_id)
+
+        now = datetime.now(UTC)
+        progress.status = "completed"
+        progress.successful_attempts += 1
+        progress.completed_at = now
+
+        if progress.first_attempt_at:
+            progress.completion_time_seconds = int(
+                (now - progress.first_attempt_at).total_seconds()
+            )
+
+        progress.completion_evidence = json.dumps(evidence)
+        progress.completion_workflow_id = workflow_id
+
+        self.db.commit()
+
+        self.log_activity(
+            "challenge_completed",
+            f"Completed challenge: {challenge_id}",
+            metadata={
+                "challenge_id": challenge_id,
+                "attempts": progress.attempts,
+                "hints_used": progress.hints_used,
+                "completion_time_seconds": progress.completion_time_seconds,
+            },
+        )
+
+        return progress
+
+    def get_stats(self) -> dict:
+        """Get challenge statistics for user"""
+        all_progress = self.get_all_progress()
+
+        completed = [p for p in all_progress if p.status == "completed"]
+        in_progress = [p for p in all_progress if p.status == "in_progress"]
+
+        return {
+            "completed_count": len(completed),
+            "completed_ids": [p.challenge_id for p in completed],
+            "in_progress_count": len(in_progress),
+            "total_attempts": sum(p.attempts for p in all_progress),
+            "hints_used": sum(p.hints_used for p in all_progress),
+            "hints_cost": sum(p.hints_cost for p in all_progress),
+        }
+
+
+# =============================================================================
+# Badge Repository
+# =============================================================================
+
+
+class BadgeRepository:
+    """Repository for Badge definitions (global, not namespaced)"""
+
+    def __init__(self, db: Session):
+        self.db = db
+
+    def list_badges(
+        self,
+        category: str | None = None,
+        active_only: bool = True,
+        include_secret: bool = False,
+    ) -> list[Badge]:
+        """List badges with optional filters"""
+
+        query = self.db.query(Badge)
+
+        if active_only:
+            query = query.filter(Badge.is_active == True)
+        if not include_secret:
+            query = query.filter(Badge.is_secret == False)
+        if category:
+            query = query.filter(Badge.category == category)
+
+        return query.order_by(Badge.rarity, Badge.id).all()
+
+    def get_badge(self, badge_id: str) -> Badge | None:
+        """Get badge by ID"""
+        return self.db.query(Badge).filter(Badge.id == badge_id).first()
+
+    def count_badges(self, include_secret: bool = False) -> int:
+        """Count active badges"""
+        query = self.db.query(Badge).filter(Badge.is_active == True)
+        if not include_secret:
+            query = query.filter(Badge.is_secret == False)
+        return query.count()
+
+    def get_total_points(self, badge_ids: list[str]) -> int:
+        """Get total points for given badge IDs"""
+        if not badge_ids:
+            return 0
+        return (
+            self.db.query(func.sum(Badge.points))
+            .filter(Badge.id.in_(badge_ids))
+            .scalar()
+            or 0
+        )
+
+
+# =============================================================================
+# User Badge Repository
+# =============================================================================
+
+
+class UserBadgeRepository(NamespacedRepository):
+    """Repository for user badges (namespaced)"""
+
+    def get_earned_badges(self) -> list[UserBadge]:
+        """Get all badges earned by user"""
+        return (
+            self.db.query(UserBadge)
+            .filter(
+                UserBadge.namespace == self.namespace,
+                UserBadge.user_id == self.session_context.user_id,
+            )
+            .order_by(UserBadge.earned_at.desc())
+            .all()
+        )
+
+    def get_earned_badge_ids(self) -> set[str]:
+        """Get set of earned badge IDs"""
+        badges = self.get_earned_badges()
+        return {b.badge_id for b in badges}
+
+    def has_badge(self, badge_id: str) -> bool:
+        """Check if user has earned a specific badge"""
+        return (
+            self.db.query(UserBadge)
+            .filter(
+                UserBadge.namespace == self.namespace,
+                UserBadge.user_id == self.session_context.user_id,
+                UserBadge.badge_id == badge_id,
+            )
+            .first()
+            is not None
+        )
+
+    def get_user_badge(self, badge_id: str) -> "UserBadge | None":
+        """Get specific user badge"""
+        return (
+            self.db.query(UserBadge)
+            .filter(
+                UserBadge.namespace == self.namespace,
+                UserBadge.user_id == self.session_context.user_id,
+                UserBadge.badge_id == badge_id,
+            )
+            .first()
+        )
+
+    def award_badge(
+        self,
+        badge_id: str,
+        context: dict,
+        workflow_id: str | None = None,
+    ) -> "UserBadge":
+        """Award badge to user (idempotent)"""
+        existing = self.get_user_badge(badge_id)
+        if existing:
+            return existing
+
+        user_badge = UserBadge(
+            namespace=self.namespace,
+            user_id=self.session_context.user_id,
+            badge_id=badge_id,
+            earned_at=datetime.now(UTC),
+            earning_context=json.dumps(context),
+            earning_workflow_id=workflow_id,
+        )
+        self.db.add(user_badge)
+        self.db.commit()
+
+        self.log_activity(
+            "badge_earned",
+            f"Earned badge: {badge_id}",
+            metadata={
+                "badge_id": badge_id,
+                "workflow_id": workflow_id,
+            },
+        )
+
+        return user_badge
+
+    def count_earned(self) -> int:
+        """Count badges earned by user"""
+        return (
+            self.db.query(UserBadge)
+            .filter(
+                UserBadge.namespace == self.namespace,
+                UserBadge.user_id == self.session_context.user_id,
+            )
+            .count()
+        )
+
+
+# =============================================================================
+# CTF Event Repository
+# =============================================================================
+
+
+class CTFEventRepository(NamespacedRepository):
+    """Repository for CTF activity events (namespaced)"""
+
+    def get_events(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        category: str | None = None,
+        workflow_id: str | None = None,
+        vendor_id: int | None = None,
+    ) -> list[CTFEvent]:
+        """Get paginated activity events"""
+        query = self.db.query(CTFEvent).filter(
+            CTFEvent.namespace == self.namespace,
+            CTFEvent.user_id == self.session_context.user_id,
+        )
+
+        if category:
+            query = query.filter(CTFEvent.event_category == category)
+        if workflow_id:
+            query = query.filter(CTFEvent.workflow_id == workflow_id)
+        if vendor_id:
+            query = query.filter(CTFEvent.vendor_id == vendor_id)
+
+        return (
+            query.order_by(CTFEvent.timestamp.desc()).offset(offset).limit(limit).all()
+        )
+
+    def count_events(
+        self,
+        category: str | None = None,
+        workflow_id: str | None = None,
+        vendor_id: int | None = None,
+    ) -> int:
+        """Count events with filters"""
+        query = self.db.query(CTFEvent).filter(
+            CTFEvent.namespace == self.namespace,
+            CTFEvent.user_id == self.session_context.user_id,
+        )
+
+        if category:
+            query = query.filter(CTFEvent.event_category == category)
+        if workflow_id:
+            query = query.filter(CTFEvent.workflow_id == workflow_id)
+        if vendor_id:
+            query = query.filter(CTFEvent.vendor_id == vendor_id)
+
+        return query.count()
+
+    def get_recent_completions(self, limit: int = 5) -> list[CTFEvent]:
+        """Get recent challenge completions and badge awards"""
+        return (
+            self.db.query(CTFEvent)
+            .filter(
+                CTFEvent.namespace == self.namespace,
+                CTFEvent.user_id == self.session_context.user_id,
+                (CTFEvent.challenge_id.isnot(None)) | (CTFEvent.badge_id.isnot(None)),
+            )
+            .order_by(CTFEvent.timestamp.desc())
+            .limit(limit)
+            .all()
+        )
+
+    def get_workflow_events(self, workflow_id: str) -> list[CTFEvent]:
+        """Get all events for a specific workflow"""
+        return (
+            self.db.query(CTFEvent)
+            .filter(
+                CTFEvent.namespace == self.namespace,
+                CTFEvent.workflow_id == workflow_id,
+            )
+            .order_by(CTFEvent.timestamp)
+            .all()
+        )

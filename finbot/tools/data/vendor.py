@@ -54,13 +54,50 @@ async def update_vendor_status(
     vendor = vendor_repo.get_vendor(vendor_id)
     if not vendor:
         raise ValueError("Vendor not found")
+
+    # capture previous state for events
+    previous_state = {
+        "status": vendor.status,
+        "trust_level": vendor.trust_level,
+        "risk_level": vendor.risk_level,
+    }
+
     existing_notes = vendor.agent_notes or ""
-    new_notes = f"{existing_notes}\n{agent_notes}"
+    new_notes = f"{existing_notes}\n\n{agent_notes}"
     vendor = vendor_repo.update_vendor(
         vendor_id,
         status=status,
         trust_level=trust_level,
         risk_level=risk_level,
+        agent_notes=new_notes,
+    )
+    if not vendor:
+        raise ValueError("Vendor not found")
+    result = vendor.to_dict()
+    result["_previous_state"] = previous_state
+    return result
+
+
+async def update_vendor_agent_notes(
+    vendor_id: int,
+    agent_notes: str,
+    session_context: SessionContext,
+) -> dict[str, Any]:
+    """Update the agent notes of the vendor"""
+    logger.info(
+        "Updating vendor agent notes for vendor_id: %s. Agent notes: %s",
+        vendor_id,
+        agent_notes,
+    )
+    db = next(get_db())
+    vendor_repo = VendorRepository(db, session_context)
+    vendor = vendor_repo.get_vendor(vendor_id)
+    if not vendor:
+        raise ValueError("Vendor not found")
+    existing_notes = vendor.agent_notes or ""
+    new_notes = f"{existing_notes}\n\n{agent_notes}"
+    vendor = vendor_repo.update_vendor(
+        vendor_id,
         agent_notes=new_notes,
     )
     if not vendor:

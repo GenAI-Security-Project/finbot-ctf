@@ -58,6 +58,7 @@
     <link rel="stylesheet" href="{{ url_for('static', path='css/common/base.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', path='css/vendor/portal.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', path='css/vendor/dashboard.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/vendor/ctf_sidecar.css') }}">
     {% block extra_css %}{% endblock %}
 
     {% block extra_head %}{% endblock %}
@@ -98,7 +99,6 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                         </svg>
                         <span>Invoices</span>
-                        <span class="status-badge">3</span>
                     </a>
 
                     <a href="/vendor/payments" class="vendor-nav-item {% block nav_payments %}{% endblock %}" data-section="payments">
@@ -113,7 +113,6 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
                         </svg>
                         <span>Messages</span>
-                        <span class="status-badge">2</span>
                     </a>
 
                     <a href="/vendor/profile" class="vendor-nav-item {% block nav_profile %}{% endblock %}" data-section="profile">
@@ -152,37 +151,73 @@
                     </div>
                 </div>
 
-                <!-- User Info -->
+                {% if session_context and session_context.email %}
+                <!-- Signed In User -->
                 <div class="flex items-center justify-between">
                     <div class="flex items-center space-x-3">
-                        <div class="w-10 h-10 rounded-full bg-gradient-to-r from-vendor-secondary to-vendor-accent flex items-center justify-center text-sm font-bold text-text-bright">
-                            U
+                        <div class="w-10 h-10 rounded-full bg-gradient-to-r from-vendor-accent to-vendor-primary flex items-center justify-center text-sm font-bold text-portal-bg-primary">
+                            {{ session_context.email[0]|upper }}
                         </div>
-                        <div>
-                            <div class="text-sm font-medium text-text-bright">User Session</div>
-                            <div class="text-xs text-text-secondary">Temporary Access</div>
+                        <div class="min-w-0 flex-1">
+                            <div class="text-sm font-medium text-text-bright truncate">{{ session_context.email }}</div>
+                            <div class="text-xs text-vendor-accent">Signed In</div>
                         </div>
                     </div>
-                    <button class="vendor-btn quantum-secondary text-xs px-3 py-2">
+                    <a href="/auth/logout" class="vendor-btn quantum-secondary text-xs px-3 py-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
                         </svg>
-                        Logout
-                    </button>
+                    </a>
                 </div>
 
-                <!-- Magic Link Notice -->
-                <div class="mt-4 p-3 bg-vendor-warning/10 border border-vendor-warning/30 rounded-lg">
+                <!-- Signed In Status -->
+                <div class="mt-4 p-3 bg-vendor-accent/10 border border-vendor-accent/30 rounded-lg">
                     <div class="flex items-start space-x-2">
-                        <svg class="w-4 h-4 text-vendor-warning mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                        <svg class="w-4 h-4 text-vendor-accent mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                         </svg>
                         <div>
-                            <div class="text-xs font-medium text-vendor-warning">Temporary Session</div>
-                            <div class="text-xs text-text-secondary mt-1">Use magic link to save progress permanently</div>
+                            <div class="text-xs font-medium text-vendor-accent">Progress Saved</div>
+                            <div class="text-xs text-text-secondary mt-1">Your progress syncs across devices</div>
                         </div>
                     </div>
                 </div>
+                {% else %}
+                <!-- Temporary User -->
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 rounded-full bg-gradient-to-r from-vendor-warning to-vendor-danger flex items-center justify-center text-sm font-bold text-text-bright">
+                            ?
+                        </div>
+                        <div>
+                            <div class="text-sm font-medium text-text-bright">Guest Session</div>
+                            <div class="text-xs text-vendor-warning">Temporary</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Magic Link Form -->
+                <div class="p-3 bg-vendor-warning/10 border border-vendor-warning/30 rounded-lg">
+                    <div class="text-xs font-medium text-vendor-warning mb-2">Save your progress</div>
+                    <form action="/auth/magic-link" method="POST" class="space-y-2">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input
+                            type="email"
+                            name="email"
+                            placeholder="your@email.com"
+                            required
+                            class="w-full bg-portal-bg-primary border border-vendor-primary/30 rounded px-3 py-2 text-sm text-text-bright placeholder-text-secondary focus:outline-none focus:border-vendor-primary transition-colors"
+                        >
+                        <button type="submit" class="w-full vendor-btn quantum-primary text-xs py-2">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                            </svg>
+                            Send Magic Link
+                        </button>
+                    </form>
+                    <p class="text-xs text-text-secondary mt-2">No password needed</p>
+                </div>
+                {% endif %}
             </div>
         </aside>
 
@@ -224,12 +259,22 @@
     <!-- CTF Footer -->
     {% include 'components/ctf_footer.html' %}
 
+    <!-- CTF Sidecar Panel -->
+    {% include 'components/ctf_sidecar.html' %}
+
+    <!-- CTF Context -->
+    <script>
+        window.CTF_NAMESPACE = "{{ session_context.namespace if session_context else 'default' }}";
+        window.CTF_USER_ID = "{{ session_context.user_id if session_context else 'anonymous' }}";
+    </script>
+
     <!-- JavaScript -->
     <script src="{{ url_for('static', path='js/common/agreement-check.js') }}"></script>
     <script src="{{ url_for('static', path='js/common/utils.js') }}"></script>
     <script src="{{ url_for('static', path='js/common/api.js') }}"></script>
     <script src="{{ url_for('static', path='js/vendor/main.js') }}"></script>
     <script src="{{ url_for('static', path='js/vendor/dashboard.js') }}"></script>
+    <script src="{{ url_for('static', path='js/vendor/ctf_sidecar.js') }}"></script>
     {% block extra_js %}{% endblock %}
 
     {% block analytics %}{% endblock %}

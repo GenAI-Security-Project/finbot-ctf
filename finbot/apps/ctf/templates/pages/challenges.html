@@ -1,0 +1,564 @@
+{% extends "base.html" %}
+
+{% block nav_challenges %}active{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="mb-8">
+    <h1 class="text-3xl font-bold text-text-bright mb-2">
+        <span class="glow-cyan">Challenges</span>
+    </h1>
+    <p class="text-text-secondary">Test your AI security skills. Exploit vulnerabilities. Learn defense techniques.</p>
+</div>
+<div class="flex gap-8">
+    <!-- Filters Sidebar -->
+    <div class="w-72 flex-shrink-0 space-y-6">
+        <!-- Your Progress Widget -->
+        <div class="filter-section">
+            <h3 class="font-semibold text-text-bright mb-4">Your Progress</h3>
+            <div class="space-y-3">
+                <div class="flex justify-between items-center">
+                    <span class="text-sm text-text-secondary">Completed</span>
+                    <span class="text-sm font-mono text-ctf-accent" id="filter-completed">0</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-sm text-text-secondary">In Progress</span>
+                    <span class="text-sm font-mono text-ctf-warning" id="filter-in-progress">0</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-sm text-text-secondary">Available</span>
+                    <span class="text-sm font-mono text-text-primary" id="filter-available">0</span>
+                </div>
+                <div class="pt-3 border-t border-white/10">
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-text-secondary">Total Points</span>
+                        <span class="text-sm font-mono text-ctf-primary" id="filter-total-points">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Categories Filter -->
+        <div class="filter-section">
+            <h3 class="font-semibold text-text-bright mb-4">Categories</h3>
+            <div id="category-filters" class="space-y-1">
+                <div class="filter-option active" data-filter="category" data-value="">
+                    <div class="filter-checkbox checked">
+                        <svg class="w-3 h-3 text-portal-bg-primary" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                        </svg>
+                    </div>
+                    <span>All Categories</span>
+                </div>
+                <!-- Categories loaded dynamically -->
+            </div>
+        </div>
+
+        <!-- Difficulty Filter -->
+        <div class="filter-section">
+            <h3 class="font-semibold text-text-bright mb-4">Difficulty</h3>
+            <div class="space-y-1">
+                <div class="filter-option active" data-filter="difficulty" data-value="">
+                    <div class="filter-checkbox checked">
+                        <svg class="w-3 h-3 text-portal-bg-primary" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                        </svg>
+                    </div>
+                    <span>All Levels</span>
+                </div>
+                <div class="filter-option" data-filter="difficulty" data-value="beginner">
+                    <div class="filter-checkbox"></div>
+                    <span class="text-green-400">Beginner</span>
+                </div>
+                <div class="filter-option" data-filter="difficulty" data-value="intermediate">
+                    <div class="filter-checkbox"></div>
+                    <span class="text-blue-400">Intermediate</span>
+                </div>
+                <div class="filter-option" data-filter="difficulty" data-value="advanced">
+                    <div class="filter-checkbox"></div>
+                    <span class="text-yellow-400">Advanced</span>
+                </div>
+                <div class="filter-option" data-filter="difficulty" data-value="expert">
+                    <div class="filter-checkbox"></div>
+                    <span class="text-red-400">Expert</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Filter -->
+        <div class="filter-section">
+            <h3 class="font-semibold text-text-bright mb-4">Status</h3>
+            <div class="space-y-1">
+                <div class="filter-option active" data-filter="status" data-value="">
+                    <div class="filter-checkbox checked">
+                        <svg class="w-3 h-3 text-portal-bg-primary" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                        </svg>
+                    </div>
+                    <span>All</span>
+                </div>
+                <div class="filter-option" data-filter="status" data-value="available">
+                    <div class="filter-checkbox"></div>
+                    <span>Available</span>
+                </div>
+                <div class="filter-option" data-filter="status" data-value="in_progress">
+                    <div class="filter-checkbox"></div>
+                    <span>In Progress</span>
+                </div>
+                <div class="filter-option" data-filter="status" data-value="completed">
+                    <div class="filter-checkbox"></div>
+                    <span>Completed</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Challenge Grid -->
+    <div class="flex-1">
+        <!-- Results Count -->
+        <div class="flex items-center justify-between mb-6">
+            <div class="text-text-secondary">
+                Showing <span id="results-count" class="text-text-bright font-medium">--</span> challenges
+            </div>
+        </div>
+
+        <!-- Challenges Grid -->
+        <div id="challenges-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            <!-- Loading skeletons -->
+            <div class="challenge-card p-0">
+                <div class="challenge-image ctf-skeleton"></div>
+                <div class="p-5 space-y-3">
+                    <div class="ctf-skeleton h-5 w-24"></div>
+                    <div class="ctf-skeleton h-6 w-3/4"></div>
+                    <div class="ctf-skeleton h-4 w-full"></div>
+                    <div class="ctf-skeleton h-4 w-2/3"></div>
+                </div>
+            </div>
+            <div class="challenge-card p-0">
+                <div class="challenge-image ctf-skeleton"></div>
+                <div class="p-5 space-y-3">
+                    <div class="ctf-skeleton h-5 w-24"></div>
+                    <div class="ctf-skeleton h-6 w-3/4"></div>
+                    <div class="ctf-skeleton h-4 w-full"></div>
+                    <div class="ctf-skeleton h-4 w-2/3"></div>
+                </div>
+            </div>
+            <div class="challenge-card p-0">
+                <div class="challenge-image ctf-skeleton"></div>
+                <div class="p-5 space-y-3">
+                    <div class="ctf-skeleton h-5 w-24"></div>
+                    <div class="ctf-skeleton h-6 w-3/4"></div>
+                    <div class="ctf-skeleton h-4 w-full"></div>
+                    <div class="ctf-skeleton h-4 w-2/3"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Empty State -->
+        <div id="empty-state" class="hidden text-center py-16">
+            <div class="text-4xl mb-4">🔍</div>
+            <h3 class="text-lg font-semibold text-text-bright mb-2">No challenges found</h3>
+            <p class="text-text-secondary text-sm">Try adjusting your filters.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .filter-section {
+        background: rgba(21, 21, 32, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        padding: 20px;
+    }
+
+    .filter-option {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        color: var(--text-secondary);
+    }
+
+    .filter-option:hover {
+        background: rgba(0, 212, 255, 0.1);
+        color: var(--text-primary);
+    }
+
+    .filter-option.active {
+        background: rgba(0, 212, 255, 0.15);
+        color: var(--vendor-primary);
+    }
+
+    .filter-checkbox {
+        width: 18px;
+        height: 18px;
+        border: 2px solid #444;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        flex-shrink: 0;
+    }
+
+    .filter-option.active .filter-checkbox {
+        background: var(--vendor-primary);
+        border-color: var(--vendor-primary);
+    }
+
+    .filter-option.active .filter-checkbox.checked {
+        background: var(--vendor-primary);
+        border-color: var(--vendor-primary);
+    }
+
+    /* Challenge Card */
+    .challenge-card {
+        position: relative;
+        background: linear-gradient(135deg, var(--portal-bg-secondary), var(--portal-bg-tertiary));
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 16px;
+        overflow: hidden;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        display: block;
+    }
+
+    .challenge-card:hover {
+        transform: translateY(-4px);
+        border-color: rgba(0, 212, 255, 0.3);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3), 0 0 30px rgba(0, 212, 255, 0.1);
+    }
+
+    .challenge-card.completed {
+        border-color: rgba(6, 255, 165, 0.3);
+    }
+
+    .challenge-card.completed:hover {
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3), 0 0 30px rgba(6, 255, 165, 0.1);
+    }
+
+    .challenge-image {
+        height: 140px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 3rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .challenge-image::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.1) 0%, transparent 60%);
+    }
+
+    .challenge-image.injection { background: linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(249, 115, 22, 0.3)); }
+    .challenge-image.escalation { background: linear-gradient(135deg, rgba(168, 85, 247, 0.3), rgba(236, 72, 153, 0.3)); }
+    .challenge-image.exfiltration { background: linear-gradient(135deg, rgba(34, 197, 94, 0.3), rgba(16, 185, 129, 0.3)); }
+    .challenge-image.dos { background: linear-gradient(135deg, rgba(59, 130, 246, 0.3), rgba(99, 102, 241, 0.3)); }
+    .challenge-image.default { background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(124, 58, 237, 0.2)); }
+
+    /* Points badge */
+    .points-badge {
+        background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(6, 255, 165, 0.2));
+        border: 1px solid rgba(0, 212, 255, 0.3);
+        padding: 4px 12px;
+        border-radius: 20px;
+    }
+
+    /* OWASP and CWE tags */
+    .owasp-tag {
+        background: rgba(255, 59, 102, 0.2);
+        border: 1px solid rgba(255, 59, 102, 0.3);
+        color: #ff3b66;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+    }
+
+    .cwe-tag {
+        background: rgba(124, 58, 237, 0.2);
+        border: 1px solid rgba(124, 58, 237, 0.3);
+        color: #a78bfa;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+    }
+
+    /* Completed checkmark */
+    .challenge-card .completed-badge {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        width: 28px;
+        height: 28px;
+        background: linear-gradient(135deg, #06ffa5, #00d4ff);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        color: #000;
+        z-index: 10;
+        font-size: 14px;
+    }
+
+    /* In progress indicator */
+    .challenge-card .in-progress-badge {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        width: 28px;
+        height: 28px;
+        background: linear-gradient(135deg, #ffb800, #f59e0b);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+    }
+
+    .line-clamp-2 {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let allChallenges = [];
+let categories = new Set();
+let currentFilters = {
+    category: '',
+    difficulty: '',
+    status: ''
+};
+
+// Category icons
+const CATEGORY_ICONS = {
+    'prompt_injection': { icon: '💉', class: 'injection' },
+    'prompt-injection': { icon: '💉', class: 'injection' },
+    'data_exfiltration': { icon: '📤', class: 'exfiltration' },
+    'data-exfiltration': { icon: '📤', class: 'exfiltration' },
+    'privilege_escalation': { icon: '🔓', class: 'escalation' },
+    'privilege-escalation': { icon: '🔓', class: 'escalation' },
+    'denial_of_service': { icon: '💥', class: 'dos' },
+    'denial-of-service': { icon: '💥', class: 'dos' },
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadChallenges();
+    setupFilters();
+});
+
+async function loadChallenges() {
+    try {
+        allChallenges = await CTF.getChallenges();
+
+        // Extract categories
+        categories = new Set(allChallenges.map(c => c.category));
+        updateCategoryFilters();
+
+        // Update stats
+        updateFilterStats();
+
+        // Render
+        applyFiltersAndRender();
+
+    } catch (error) {
+        console.error('Failed to load challenges:', error);
+        showToast('Failed to load challenges', 'error');
+    }
+}
+
+function setupFilters() {
+    // Set up click handlers for all filter options
+    document.querySelectorAll('.filter-option').forEach(option => {
+        option.addEventListener('click', function() {
+            const filterType = this.dataset.filter;
+            const value = this.dataset.value;
+
+            if (!filterType) return;
+
+            // Update current filters
+            currentFilters[filterType] = value;
+
+            // Update active states for this filter group
+            const siblings = this.parentElement.querySelectorAll('.filter-option');
+            siblings.forEach(sib => {
+                sib.classList.remove('active');
+                const checkbox = sib.querySelector('.filter-checkbox');
+                if (checkbox) checkbox.innerHTML = '';
+            });
+
+            this.classList.add('active');
+            const checkbox = this.querySelector('.filter-checkbox');
+            if (checkbox) {
+                checkbox.innerHTML = `<svg class="w-3 h-3 text-portal-bg-primary" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                </svg>`;
+            }
+
+            applyFiltersAndRender();
+        });
+    });
+}
+
+function updateCategoryFilters() {
+    const container = document.getElementById('category-filters');
+
+    // Keep "All Categories" option
+    const allOption = container.querySelector('.filter-option');
+    container.innerHTML = '';
+    container.appendChild(allOption);
+
+    // Count challenges per category
+    const categoryCounts = {};
+    allChallenges.forEach(c => {
+        categoryCounts[c.category] = (categoryCounts[c.category] || 0) + 1;
+    });
+
+    // Add category options
+    Array.from(categories).sort().forEach(cat => {
+        const option = document.createElement('div');
+        option.className = 'filter-option';
+        option.dataset.filter = 'category';
+        option.dataset.value = cat;
+        option.innerHTML = `
+            <div class="filter-checkbox"></div>
+            <span>${formatCategoryName(cat)}</span>
+            <span class="ml-auto text-xs text-text-secondary">${categoryCounts[cat] || 0}</span>
+        `;
+        option.addEventListener('click', function() {
+            currentFilters.category = cat;
+
+            container.querySelectorAll('.filter-option').forEach(sib => {
+                sib.classList.remove('active');
+                const checkbox = sib.querySelector('.filter-checkbox');
+                if (checkbox) checkbox.innerHTML = '';
+            });
+
+            this.classList.add('active');
+            const checkbox = this.querySelector('.filter-checkbox');
+            if (checkbox) {
+                checkbox.innerHTML = `<svg class="w-3 h-3 text-portal-bg-primary" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                </svg>`;
+            }
+
+            applyFiltersAndRender();
+        });
+        container.appendChild(option);
+    });
+}
+
+function updateFilterStats() {
+    const completed = allChallenges.filter(c => c.status === 'completed').length;
+    const inProgress = allChallenges.filter(c => c.status === 'in_progress').length;
+    const available = allChallenges.filter(c => c.status === 'available').length;
+    const totalPoints = allChallenges
+        .filter(c => c.status === 'completed')
+        .reduce((sum, c) => sum + c.points, 0);
+
+    document.getElementById('filter-completed').textContent = completed;
+    document.getElementById('filter-in-progress').textContent = inProgress;
+    document.getElementById('filter-available').textContent = available;
+    document.getElementById('filter-total-points').textContent = totalPoints.toLocaleString();
+}
+
+function applyFiltersAndRender() {
+    // Filter
+    let filtered = allChallenges.filter(c => {
+        if (currentFilters.status && c.status !== currentFilters.status) return false;
+        if (currentFilters.difficulty && c.difficulty !== currentFilters.difficulty) return false;
+        if (currentFilters.category && c.category !== currentFilters.category) return false;
+        return true;
+    });
+
+    // Sort by difficulty
+    const difficultyOrder = { 'beginner': 0, 'intermediate': 1, 'advanced': 2, 'expert': 3 };
+    filtered.sort((a, b) => (difficultyOrder[a.difficulty] || 0) - (difficultyOrder[b.difficulty] || 0));
+
+    renderChallenges(filtered);
+}
+
+function renderChallenges(challenges) {
+    const grid = document.getElementById('challenges-grid');
+    const empty = document.getElementById('empty-state');
+    const countEl = document.getElementById('results-count');
+
+    countEl.textContent = challenges.length;
+
+    if (challenges.length === 0) {
+        grid.classList.add('hidden');
+        empty.classList.remove('hidden');
+        return;
+    }
+
+    grid.classList.remove('hidden');
+    empty.classList.add('hidden');
+
+    grid.innerHTML = challenges.map(ch => {
+        const categoryConfig = CATEGORY_ICONS[ch.category] || { icon: '🎯', class: 'default' };
+        const isCompleted = ch.status === 'completed';
+        const isInProgress = ch.status === 'in_progress';
+
+        // Build labels HTML
+        let labelsHtml = '';
+        if (ch.labels) {
+            const labels = typeof ch.labels === 'string' ? JSON.parse(ch.labels) : ch.labels;
+            if (labels.owasp) {
+                const owaspList = Array.isArray(labels.owasp) ? labels.owasp : [labels.owasp];
+                labelsHtml += owaspList.map(l => `<span class="owasp-tag">${l}</span>`).join('');
+            }
+            if (labels.cwe) {
+                const cweList = Array.isArray(labels.cwe) ? labels.cwe : [labels.cwe];
+                labelsHtml += cweList.map(l => `<span class="cwe-tag">${l}</span>`).join('');
+            }
+        }
+
+        return `
+            <a href="/ctf/challenges/${ch.id}" class="challenge-card ${isCompleted ? 'completed' : ''}">
+                ${isCompleted ? '<div class="completed-badge">✓</div>' : ''}
+                ${isInProgress ? '<div class="in-progress-badge"><svg class="w-4 h-4 text-portal-bg-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>' : ''}
+                <div class="challenge-image ${categoryConfig.class}">
+                    ${categoryConfig.icon}
+                </div>
+                <div class="p-5">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="diff-${ch.difficulty}">${ch.difficulty}</span>
+                        <span class="points-badge text-xs text-ctf-primary font-mono">${ch.points} pts</span>
+                    </div>
+                    <h3 class="font-semibold text-text-bright mb-2">${escapeHtml(ch.title)}</h3>
+                    <p class="text-sm text-text-secondary mb-4 line-clamp-2">${escapeHtml(ch.subcategory || formatCategoryName(ch.category))}</p>
+                    ${labelsHtml ? `<div class="flex flex-wrap gap-2">${labelsHtml}</div>` : ''}
+                </div>
+            </a>
+        `;
+    }).join('');
+}
+
+function formatCategoryName(category) {
+    return category
+        .replace(/[-_]/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+</script>
+{% endblock %}

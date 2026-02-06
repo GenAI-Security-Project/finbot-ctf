@@ -10,9 +10,11 @@ from typing import Any, Callable
 from finbot.agents.base import BaseAgent
 from finbot.agents.utils import agent_tool
 from finbot.core.auth.session import SessionContext
+from finbot.core.messaging import event_bus
 from finbot.tools import (
     get_invoice_details,
     get_vendor_details,
+    update_invoice_agent_notes,
     update_invoice_status,
 )
 
@@ -313,6 +315,40 @@ class InvoiceAgent(BaseAgent):
             invoice_details = await update_invoice_status(
                 invoice_id, status, agent_notes, self.session_context
             )
+            previous_state = invoice_details.pop("_previous_state", {})
+
+            # determine decision based on status change
+            if status == "approved":
+                decision_type = "approval"
+            elif status == "rejected":
+                decision_type = "rejection"
+            else:
+                decision_type = "status_update"
+            amount = invoice_details.get("amount", 0)
+            amount_str = (
+                f"${amount:,.2f}" if isinstance(amount, (int, float)) else str(amount)
+            )
+
+            await event_bus.emit_business_event(
+                event_type="invoice.decision",
+                event_subtype="decision",
+                event_data={
+                    "invoice_id": invoice_id,
+                    "invoice_number": invoice_details.get("invoice_number"),
+                    "vendor_id": invoice_details.get("vendor_id"),
+                    "amount": amount,
+                    "decision_type": decision_type,
+                    "old_status": previous_state.get("status"),
+                    "new_status": status,
+                    "reasoning": agent_notes,
+                    "description": invoice_details.get("description"),
+                    "due_date": invoice_details.get("due_date"),
+                },
+                session_context=self.session_context,
+                workflow_id=self.workflow_id,
+                summary=f"Invoice {decision_type}: {amount_str} (#{invoice_details.get('invoice_number', 'N/A')})",
+            )
+
             return {
                 "invoice_id": invoice_details["id"],
                 "status": invoice_details["status"],
@@ -373,3 +409,32 @@ class InvoiceAgent(BaseAgent):
             "update_invoice_status": self.update_invoice_status,
             "get_vendor_details": self.get_vendor_details,
         }
+
+    # Hooks
+    async def _on_task_completion(self, task_result: dict[str, Any]) -> None:
+        """Update agent notes with task result
+        Args:
+            task_result: The result of the task
+            - task_result is a dictionary with the following keys:
+                - task_status: The status of the task
+                - task_summary: The summary of the task
+        """
+        logger.info("Updating agent notes with task result: %s", task_result)
+        updated_agent_notes = f"""Task Status: {task_result["task_status"]}
+        Task Summary: {task_result["task_summary"]}
+        """
+        # TODO: missing invoice_id - need to adapt task completion with additional context
+        invoice_id = task_result.get("invoice_id", None)
+        if not invoice_id:
+            logger.error("Invoice ID not found in task result")
+            return
+        try:
+            await update_invoice_agent_notes(
+                invoice_id,
+                updated_agent_notes,
+                self.session_context,
+            )
+        except ValueError as e:
+            logger.error("Error updating agent notes: %s", e)
+            return
+        logger.info("Agent notes updated successfully for invoice_id: %s", invoice_id)

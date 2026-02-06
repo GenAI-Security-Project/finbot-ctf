@@ -48,6 +48,12 @@ async def contact(request: Request):
     return template_response(request, "pages/contact.html")
 
 
+@router.get("/portals", response_class=HTMLResponse)
+async def portals(request: Request):
+    """Portals page - access vendor, admin, and CTF portals"""
+    return template_response(request, "pages/portals.html")
+
+
 # Test routes for error pages (for development/testing)
 @router.get("/test/404")
 async def test_404():

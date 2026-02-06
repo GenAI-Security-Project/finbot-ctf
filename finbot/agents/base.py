@@ -83,6 +83,20 @@ class BaseAgent(ABC):
         callables = self._get_final_callables()
 
         for iteration in range(max_iterations):
+            # Emit iteration start event
+            await event_bus.emit_agent_event(
+                agent_name=self.agent_name,
+                event_type="iteration_start",
+                event_subtype="lifecycle",
+                event_data={
+                    "iteration": iteration + 1,
+                    "max_iterations": max_iterations,
+                },
+                session_context=self.session_context,
+                workflow_id=self.workflow_id,
+                summary=f"Agent iteration {iteration + 1}/{max_iterations} started",
+            )
+
             try:
                 response = await self.llm_client.chat(
                     request=LLMRequest(
@@ -112,23 +126,17 @@ class BaseAgent(ABC):
                                     tool_call_name,
                                     tool_call["arguments"],
                                 )
+                                function_output = await callable_fn(
+                                    **tool_call["arguments"]
+                                )
+                                logger.debug("Function output: %s", function_output)
                                 if tool_call_name == "complete_task":
                                     # this will end the agent loop and
                                     # return the task status and summary
-                                    # simple fn that returns a dict - not awaitable
-                                    function_output = callable_fn(
-                                        **tool_call["arguments"]
-                                    )
                                     await self.log_task_completion(
                                         task_result=function_output
                                     )
-                                    logger.debug("Function output: %s", function_output)
                                     return function_output
-                                else:
-                                    function_output = await callable_fn(
-                                        **tool_call["arguments"]
-                                    )
-                                    logger.debug("Function output: %s", function_output)
                             except Exception as e:  # pylint: disable=broad-exception-caught
                                 logger.error(
                                     "Tool call %s failed: %s", tool_call["name"], e
@@ -138,6 +146,21 @@ class BaseAgent(ABC):
                                         failed: {str(e)}. Please try again.",
                                 }
                         else:
+                            # Emit invalid tool call event
+                            await event_bus.emit_agent_event(
+                                agent_name=self.agent_name,
+                                event_type="invalid_tool_call",
+                                event_subtype="error",
+                                event_data={
+                                    "attempted_tool": tool_call_name,
+                                    "arguments": tool_call.get("arguments", {}),
+                                    "available_tools": list(callables.keys()),
+                                    "iteration": iteration + 1,
+                                },
+                                session_context=self.session_context,
+                                workflow_id=self.workflow_id,
+                                summary=f"Invalid tool attempted: {tool_call_name}",
+                            )
                             function_output = {
                                 "error": f"Invalid tool call: {tool_call['name']} \
                                     Please try again.",
@@ -158,10 +181,28 @@ class BaseAgent(ABC):
                                 "output": function_output_str,
                             }
                         )
+
+                # Emit iteration complete event
+                await event_bus.emit_agent_event(
+                    agent_name=self.agent_name,
+                    event_type="iteration_complete",
+                    event_subtype="lifecycle",
+                    event_data={
+                        "iteration": iteration + 1,
+                        "max_iterations": max_iterations,
+                        "tool_calls_count": len(response.tool_calls)
+                        if response.tool_calls
+                        else 0,
+                        "has_content": bool(response.content),
+                    },
+                    session_context=self.session_context,
+                    workflow_id=self.workflow_id,
+                    summary=f"Agent iteration {iteration + 1}/{max_iterations} complete ({len(response.tool_calls) if response.tool_calls else 0} tool calls)",
+                )
             except Exception as e:  # pylint: disable=broad-exception-caught
                 logger.error("Agent loop iteration %d failed: %s", iteration, e)
 
-                task_result = callables["complete_task"](
+                task_result = await callables["complete_task"](
                     task_status="failed",
                     task_summary=f"Agent loop iteration {iteration} failed: {e}",
                 )
@@ -169,7 +210,7 @@ class BaseAgent(ABC):
                 return task_result
 
         # iterations exhausted, return the task status as failure
-        task_result = callables["complete_task"](
+        task_result = await callables["complete_task"](
             task_status="failed",
             task_summary=f"Agent loop iterations exhausted after {max_iterations} iterations",
         )
@@ -270,14 +311,23 @@ class BaseAgent(ABC):
         """
         raise NotImplementedError("Configuration loading method not implemented")
 
+    async def _complete_task(
+        self, task_status: str, task_summary: str
+    ) -> dict[str, Any]:
+        """Complete the task and return the task status and summary"""
+        task_result = {
+            "task_status": task_status,
+            "task_summary": task_summary,
+        }
+        await self._on_task_completion(task_result)
+
+        return task_result
+
     def _get_final_callables(self) -> dict[str, Callable[..., Any]]:
         """Get the final dict of callables for the agent including control flow callables"""
         callables = self._get_callables()
         control_flow_callables = {
-            "complete_task": lambda task_status, task_summary: {
-                "task_status": task_status,
-                "task_summary": task_summary,
-            },
+            "complete_task": self._complete_task,
         }
         return {**callables, **control_flow_callables}
 
@@ -307,12 +357,14 @@ class BaseAgent(ABC):
         await event_bus.emit_agent_event(
             agent_name=self.agent_name,
             event_type="task_start",
+            event_subtype="lifecycle",
             event_data={
                 "task_data": task_data or {},
                 "log_data": log_data or {},
             },
             session_context=self.session_context,
             workflow_id=self.workflow_id,
+            summary=f"Agent task started: {self.agent_name}",
         )
 
     async def log_task_completion(
@@ -332,12 +384,14 @@ class BaseAgent(ABC):
         await event_bus.emit_agent_event(
             agent_name=self.agent_name,
             event_type="task_completion",
+            event_subtype="lifecycle",
             event_data={
                 "task_result": task_result or {},
                 "log_data": log_data or {},
             },
             session_context=self.session_context,
             workflow_id=self.workflow_id,
+            summary=f"Agent task completed: {(task_result or {}).get('task_status', 'unknown')}",
         )
 
     @property
@@ -347,3 +401,15 @@ class BaseAgent(ABC):
             **self.llm_client.context_info,
             "agent_class": self.__class__.__name__,
         }
+
+    # Hooks for customizing the agent behavior
+    async def _on_task_completion(self, task_result: dict[str, Any]) -> None:
+        """Hook for customizing the agent behavior on task completion
+        Override this hook on specialized agents to perform additional actions on task completion.
+        Typical use case is to store the task result in the db.
+        Args:
+            task_result: The result of the task
+            - task_result is a dictionary with the following keys:
+                - task_status: The status of the task
+                - task_summary: The summary of the task
+        """

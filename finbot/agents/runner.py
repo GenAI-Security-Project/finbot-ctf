@@ -59,7 +59,24 @@ async def run_agent_with_retry(
                 exc_info=True,
             )
             if attempt < max_retries - 1:
-                await asyncio.sleep(2**attempt)
+                retry_delay = 2**attempt
+                # Emit retry event
+                await event_bus.emit_agent_event(
+                    agent_name=agent.agent_name,
+                    event_type="agent_retry",
+                    event_subtype="error",
+                    event_data={
+                        "attempt": attempt + 1,
+                        "max_retries": max_retries,
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                        "retry_delay_seconds": retry_delay,
+                    },
+                    session_context=session_context,
+                    workflow_id=workflow_id,
+                    summary=f"Agent retry {attempt + 1}/{max_retries}: {type(e).__name__}",
+                )
+                await asyncio.sleep(retry_delay)
             else:
                 logger.critical(
                     "Agent %s permanently failed after %d attempts",
@@ -68,6 +85,7 @@ async def run_agent_with_retry(
                 )
                 await event_bus.emit_business_event(
                     event_type="agent.failed",
+                    event_subtype="error",
                     event_data={
                         "agent_name": agent.agent_name,
                         "workflow_id": workflow_id,
@@ -76,6 +94,7 @@ async def run_agent_with_retry(
                     },
                     session_context=session_context,
                     workflow_id=workflow_id,
+                    summary=f"Agent failed permanently: {agent.agent_name} ({type(e).__name__})",
                 )
                 return {
                     "task_status": "failed",

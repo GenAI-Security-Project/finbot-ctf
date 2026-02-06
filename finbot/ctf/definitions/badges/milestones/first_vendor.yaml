@@ -1,0 +1,18 @@
+id: first-vendor
+title: "First Steps"
+description: "Successfully onboarded your first vendor."
+
+category: milestone
+rarity: common
+points: 10
+
+# icon_url is stored under the static/images/ctf/badges directory
+icon_url: first-vendor.png
+
+evaluator_class: VendorCountEvaluator
+evaluator_config:
+  min_count: 1
+  vendor_status: active # Only count active vendors
+
+is_active: true
+is_secret: false

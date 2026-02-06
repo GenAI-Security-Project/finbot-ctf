@@ -24,12 +24,8 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
     PROTECTED_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
     # Paths that are exempt from CSRF protection
-    EXEMPT_PATHS = {
-        "/api/health",
-        "/api/status",
-        "/static/",
-        "/favicon.ico",
-    }
+    # Note: /auth/ is exempt because magic link tokens are single-use and emailed
+    EXEMPT_PATHS = {"/api/health", "/api/status", "/static/", "/favicon.ico", "/auth/"}
 
     def __init__(self, app):
         super().__init__(app)
@@ -39,6 +35,10 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         """Dispatch request with CSRF validation"""
 
         if not self.enabled:
+            return await call_next(request)
+
+        # Skip WebSocket upgrade requests
+        if request.headers.get("upgrade", "").lower() == "websocket":
             return await call_next(request)
 
         # Skip for safe methods (GET, HEAD, OPTIONS)

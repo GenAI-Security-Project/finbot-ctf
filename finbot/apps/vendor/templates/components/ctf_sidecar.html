@@ -1,0 +1,117 @@
+<!-- CTF Sidecar Panel -->
+<div id="ctf-sidecar" class="ctf-sidecar closed" aria-hidden="true">
+    <!-- Sidecar Header -->
+    <div class="ctf-sidecar-header">
+        <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-r from-green-500 to-cyan-500 flex items-center justify-center">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                </svg>
+            </div>
+            <div>
+                <h2 class="text-lg font-bold text-white">CTF Progress</h2>
+                <p class="text-xs text-gray-400">OWASP ASI FinBot</p>
+            </div>
+        </div>
+        <button id="ctf-sidecar-close" class="p-2 hover:bg-gray-700 rounded-lg transition-colors" aria-label="Close CTF panel">
+            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+        </button>
+    </div>
+
+    <!-- Sidecar Content -->
+    <div class="ctf-sidecar-content">
+        <!-- Loading State -->
+        <div id="ctf-sidecar-loading" class="ctf-loading">
+            <div class="animate-spin w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full"></div>
+            <p class="text-gray-400 mt-2">Loading CTF data...</p>
+        </div>
+
+        <!-- Main Content (hidden until loaded) -->
+        <div id="ctf-sidecar-main" class="hidden">
+            <!-- Points & Progress Section -->
+            <div class="ctf-section">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-2xl">⚡</span>
+                        <span id="ctf-points" class="text-3xl font-bold text-green-400">0</span>
+                        <span class="text-gray-400 text-sm">points</span>
+                    </div>
+                    <div class="text-right">
+                        <span id="ctf-completed" class="text-xl font-bold text-cyan-400">0</span>
+                        <span class="text-gray-500">/</span>
+                        <span id="ctf-total" class="text-gray-400">0</span>
+                        <span class="text-xs text-gray-500 block">challenges</span>
+                    </div>
+                </div>
+                <!-- Progress Bar -->
+                <div class="ctf-progress-bar">
+                    <div id="ctf-progress-fill" class="ctf-progress-fill" style="width: 0%"></div>
+                </div>
+                <p class="text-xs text-gray-500 mt-1"><span id="ctf-percentage">0</span>% complete</p>
+            </div>
+
+            <!-- Badges Section -->
+            <div class="ctf-section">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm font-semibold text-gray-300 flex items-center space-x-2">
+                        <span>🎖️</span>
+                        <span>Badges</span>
+                        <span id="ctf-badges-count" class="text-xs bg-gray-700 px-2 py-0.5 rounded-full">0</span>
+                    </h3>
+                </div>
+                <div id="ctf-badges-grid" class="ctf-badges-grid">
+                    <!-- Badges will be populated here -->
+                    <div class="ctf-badge-empty">
+                        <span class="text-gray-600">No badges yet</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Challenges Section -->
+            <div class="ctf-section">
+                <h3 class="text-sm font-semibold text-gray-300 flex items-center space-x-2 mb-3">
+                    <span>🎯</span>
+                    <span>Active Challenges</span>
+                </h3>
+                <div id="ctf-active-challenges" class="space-y-2">
+                    <!-- Active challenges will be populated here -->
+                    <div class="ctf-empty-state">
+                        <p class="text-gray-500 text-sm">Start exploring to discover challenges!</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Live Activity Section -->
+            <div class="ctf-section ctf-section-activity">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm font-semibold text-gray-300 flex items-center space-x-2">
+                        <span class="relative flex h-2 w-2">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                        </span>
+                        <span>Live Activity</span>
+                    </h3>
+                    <span id="ctf-ws-status" class="text-xs text-gray-500">Connecting...</span>
+                </div>
+                <div id="ctf-activity-stream" class="ctf-activity-stream">
+                    <!-- Activity items will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidecar Footer -->
+    <div class="ctf-sidecar-footer">
+        <a href="/ctf" class="ctf-btn-primary">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+            </svg>
+            <span>Open Full CTF Portal</span>
+        </a>
+    </div>
+</div>
+
+<!-- Sidecar Overlay -->
+<div id="ctf-sidecar-overlay" class="ctf-sidecar-overlay hidden"></div>

@@ -1,0 +1,328 @@
+{% extends "base.html" %}
+
+{% block nav_badges %}active{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="mb-8">
+    <h1 class="text-3xl font-bold text-text-bright mb-2">
+        <span class="glow-cyan text-ctf-primary">Badge</span> Collection
+    </h1>
+    <p class="text-text-secondary">Earn badges by completing challenges and reaching milestones</p>
+</div>
+
+<!-- Stats -->
+<div id="stats-row" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+    <div class="glass-card p-4 text-center">
+        <div id="stat-earned" class="text-3xl font-bold text-text-bright">-</div>
+        <div class="text-sm text-text-secondary">Badges Earned</div>
+    </div>
+    <div class="glass-card p-4 text-center">
+        <div id="stat-locked" class="text-3xl font-bold text-text-secondary">-</div>
+        <div class="text-sm text-text-secondary">Locked</div>
+    </div>
+    <div class="glass-card p-4 text-center">
+        <div id="stat-rare" class="text-3xl font-bold text-blue-400">-</div>
+        <div class="text-sm text-text-secondary">Rare+</div>
+    </div>
+    <div class="glass-card p-4 text-center">
+        <div id="stat-legendary" class="text-3xl font-bold text-yellow-400">-</div>
+        <div class="text-sm text-text-secondary">Legendary</div>
+    </div>
+</div>
+
+<!-- Loading State -->
+<div id="loading-state" class="space-y-8">
+    <div>
+        <div class="ctf-skeleton h-8 w-48 mb-4"></div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div class="glass-card p-6 text-center"><div class="ctf-skeleton h-20 w-20 rounded-full mx-auto mb-4"></div><div class="ctf-skeleton h-4 w-24 mx-auto mb-2"></div><div class="ctf-skeleton h-3 w-32 mx-auto"></div></div>
+            <div class="glass-card p-6 text-center"><div class="ctf-skeleton h-20 w-20 rounded-full mx-auto mb-4"></div><div class="ctf-skeleton h-4 w-24 mx-auto mb-2"></div><div class="ctf-skeleton h-3 w-32 mx-auto"></div></div>
+            <div class="glass-card p-6 text-center"><div class="ctf-skeleton h-20 w-20 rounded-full mx-auto mb-4"></div><div class="ctf-skeleton h-4 w-24 mx-auto mb-2"></div><div class="ctf-skeleton h-3 w-32 mx-auto"></div></div>
+            <div class="glass-card p-6 text-center"><div class="ctf-skeleton h-20 w-20 rounded-full mx-auto mb-4"></div><div class="ctf-skeleton h-4 w-24 mx-auto mb-2"></div><div class="ctf-skeleton h-3 w-32 mx-auto"></div></div>
+        </div>
+    </div>
+</div>
+
+<!-- Badges Content -->
+<div id="badges-content" class="hidden space-y-10">
+    <!-- Earned Badges -->
+    <section id="earned-section" class="hidden">
+        <h2 class="text-xl font-bold text-text-bright mb-4">Earned Badges</h2>
+        <div id="earned-badges" class="grid grid-cols-2 md:grid-cols-4 gap-6"></div>
+    </section>
+
+    <!-- Locked Badges -->
+    <section id="locked-section" class="hidden">
+        <h2 class="text-xl font-bold text-text-bright mb-4">Locked Badges</h2>
+        <div id="locked-badges" class="grid grid-cols-2 md:grid-cols-4 gap-6"></div>
+    </section>
+
+    <!-- Secret Badges -->
+    <section id="secret-section" class="hidden">
+        <h2 class="text-xl font-bold text-text-bright mb-4">Secret Badges</h2>
+        <p class="text-text-secondary text-sm mb-4">Hidden achievements waiting to be discovered...</p>
+        <div id="secret-badges" class="grid grid-cols-2 md:grid-cols-4 gap-6"></div>
+    </section>
+
+    <!-- Empty State -->
+    <div id="empty-state" class="hidden glass-card p-8 text-center">
+        <div class="text-4xl mb-4">🏅</div>
+        <h3 class="text-lg font-semibold text-text-bright mb-2">No Badges Yet</h3>
+        <p class="text-text-secondary text-sm mb-4">Complete challenges and reach milestones to earn badges!</p>
+        <a href="/ctf/challenges" class="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-ctf-primary/20 text-ctf-primary font-medium hover:bg-ctf-primary/30 transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+            </svg>
+            Browse Challenges
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .glow-cyan {
+        text-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+    }
+
+    /* Badge cards */
+    .badge-card {
+        position: relative;
+        background: linear-gradient(135deg, var(--portal-bg-secondary), #1a1a2e);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 16px;
+        padding: 24px;
+        text-align: center;
+        transition: all 0.3s;
+        overflow: hidden;
+    }
+
+    .badge-card:hover {
+        transform: translateY(-4px);
+        border-color: rgba(0, 212, 255, 0.3);
+    }
+
+    .badge-card.earned {
+        border-color: rgba(6, 255, 165, 0.3);
+    }
+
+    .badge-card.locked {
+        opacity: 0.5;
+        filter: grayscale(0.8);
+    }
+
+    .badge-card.secret {
+        background: linear-gradient(135deg, #1a1a2e, #0d0d12);
+    }
+
+    .badge-card.secret .badge-icon {
+        background: linear-gradient(135deg, #1f1f2e, #0a0a0f);
+        border: 2px dashed #333;
+    }
+
+    .badge-icon {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 16px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.5rem;
+        position: relative;
+    }
+
+    .badge-card.earned .badge-icon::after {
+        content: '';
+        position: absolute;
+        inset: -4px;
+        border-radius: 50%;
+        background: conic-gradient(from 0deg, var(--ctf-accent), var(--ctf-primary), var(--ctf-secondary), var(--ctf-accent));
+        z-index: -1;
+        animation: badgeRotate 3s linear infinite;
+    }
+
+    @keyframes badgeRotate {
+        100% { transform: rotate(360deg); }
+    }
+
+    /* Rarity colors */
+    .rarity-common .badge-icon {
+        background: linear-gradient(135deg, #6b7280, #4b5563);
+    }
+
+    .rarity-rare .badge-icon {
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+        box-shadow: 0 0 30px rgba(59, 130, 246, 0.3);
+    }
+
+    .rarity-epic .badge-icon {
+        background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+        box-shadow: 0 0 30px rgba(139, 92, 246, 0.3);
+    }
+
+    .rarity-legendary .badge-icon {
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+        box-shadow: 0 0 30px rgba(245, 158, 11, 0.3);
+    }
+
+    .rarity-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .rarity-common .rarity-badge {
+        background: rgba(107, 114, 128, 0.2);
+        color: #9ca3af;
+    }
+
+    .rarity-rare .rarity-badge {
+        background: rgba(59, 130, 246, 0.2);
+        color: #60a5fa;
+    }
+
+    .rarity-epic .rarity-badge {
+        background: rgba(139, 92, 246, 0.2);
+        color: #a78bfa;
+    }
+
+    .rarity-legendary .rarity-badge {
+        background: rgba(245, 158, 11, 0.2);
+        color: #fbbf24;
+    }
+
+    /* Earned date */
+    .earned-date {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        background: rgba(6, 255, 165, 0.2);
+        color: #06ffa5;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', loadBadges);
+
+async function loadBadges() {
+    try {
+        const badges = await CTF.getBadges();
+        renderBadges(badges);
+    } catch (error) {
+        console.error('Failed to load badges:', error);
+        document.getElementById('loading-state').classList.add('hidden');
+        document.getElementById('badges-content').classList.remove('hidden');
+        document.getElementById('empty-state').classList.remove('hidden');
+    }
+}
+
+function renderBadges(badges) {
+    document.getElementById('loading-state').classList.add('hidden');
+    document.getElementById('badges-content').classList.remove('hidden');
+
+    // Categorize badges
+    const earned = badges.filter(b => b.earned);
+    const locked = badges.filter(b => !b.earned && !b.secret);
+    const secret = badges.filter(b => b.secret && !b.earned);
+
+    // Update stats
+    const rareCount = earned.filter(b => b.rarity === 'rare' || b.rarity === 'epic' || b.rarity === 'legendary').length;
+    const legendaryCount = earned.filter(b => b.rarity === 'legendary').length;
+
+    document.getElementById('stat-earned').textContent = earned.length;
+    document.getElementById('stat-locked').textContent = locked.length + secret.length;
+    document.getElementById('stat-rare').textContent = rareCount;
+    document.getElementById('stat-legendary').textContent = legendaryCount;
+
+    // Render earned badges
+    if (earned.length > 0) {
+        const earnedSection = document.getElementById('earned-section');
+        const earnedContainer = document.getElementById('earned-badges');
+        earnedSection.classList.remove('hidden');
+
+        // Sort by rarity (legendary first) then by earned date (recent first)
+        const rarityOrder = { legendary: 0, epic: 1, rare: 2, common: 3 };
+        earned.sort((a, b) => {
+            const rarityDiff = (rarityOrder[a.rarity] || 4) - (rarityOrder[b.rarity] || 4);
+            if (rarityDiff !== 0) return rarityDiff;
+            return new Date(b.earned_at) - new Date(a.earned_at);
+        });
+
+        earnedContainer.innerHTML = earned.map(badge => renderBadgeCard(badge, true)).join('');
+    }
+
+    // Render locked badges
+    if (locked.length > 0) {
+        const lockedSection = document.getElementById('locked-section');
+        const lockedContainer = document.getElementById('locked-badges');
+        lockedSection.classList.remove('hidden');
+        lockedContainer.innerHTML = locked.map(badge => renderBadgeCard(badge, false)).join('');
+    }
+
+    // Render secret badges
+    if (secret.length > 0) {
+        const secretSection = document.getElementById('secret-section');
+        const secretContainer = document.getElementById('secret-badges');
+        secretSection.classList.remove('hidden');
+        secretContainer.innerHTML = secret.map(() => renderSecretBadge()).join('');
+    }
+
+    // Show empty state if no badges at all
+    if (badges.length === 0) {
+        document.getElementById('empty-state').classList.remove('hidden');
+    }
+}
+
+function renderBadgeCard(badge, isEarned) {
+    const earnedClass = isEarned ? 'earned' : 'locked';
+    const rarityClass = `rarity-${badge.rarity || 'common'}`;
+    const earnedDate = isEarned && badge.earned_at
+        ? `<span class="earned-date">${formatShortDate(badge.earned_at)}</span>`
+        : '';
+
+    return `
+        <div class="badge-card ${earnedClass} ${rarityClass}">
+            ${earnedDate}
+            <div class="badge-icon">${badge.icon || '🏅'}</div>
+            <h3 class="font-semibold text-text-bright mb-1">${escapeHtml(badge.name)}</h3>
+            <p class="text-xs text-text-secondary mb-3">${escapeHtml(badge.description || '')}</p>
+            <span class="rarity-badge">${badge.rarity || 'common'}</span>
+        </div>
+    `;
+}
+
+function renderSecretBadge() {
+    return `
+        <div class="badge-card secret">
+            <div class="badge-icon">❓</div>
+            <h3 class="font-semibold text-text-secondary mb-1">???</h3>
+            <p class="text-xs text-text-secondary/50 mb-3">Hidden achievement</p>
+        </div>
+    `;
+}
+
+function formatShortDate(dateStr) {
+    const date = new Date(dateStr);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${months[date.getMonth()]} ${date.getDate()}`;
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+</script>
+{% endblock %}

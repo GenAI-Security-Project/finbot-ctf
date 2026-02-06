@@ -171,41 +171,75 @@
         </div>
     </div>
 
-    <!-- Account Statistics -->
+    <!-- Agent Notes -->
     <div class="holo-card">
         <div class="holo-header">
             <div class="flex items-center space-x-3">
                 <div class="w-8 h-8 rounded-full bg-gradient-to-r from-vendor-warning to-vendor-accent flex items-center justify-center">
                     <svg class="w-5 h-5 text-portal-bg-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                     </svg>
                 </div>
-                <h3 class="text-lg font-semibold text-text-bright">Account Statistics</h3>
+                <h3 class="text-lg font-semibold text-text-bright">Agent Notes</h3>
             </div>
         </div>
         <div class="holo-body">
-            <div class="grid grid-cols-2 gap-4">
-                <div class="text-center p-4 bg-portal-surface rounded-lg border border-vendor-primary/20">
-                    <div id="stats-total-invoices" class="text-2xl font-bold text-vendor-primary mb-1">12</div>
-                    <div class="text-xs text-text-secondary">Total Invoices</div>
+            <!-- Trust & Risk Levels -->
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div class="p-4 bg-portal-surface rounded-lg border border-vendor-primary/20">
+                    <div class="flex items-center space-x-2 mb-2">
+                        <svg class="w-4 h-4 text-vendor-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                        </svg>
+                        <span class="text-xs text-text-secondary uppercase tracking-wide">Trust Level</span>
+                    </div>
+                    <div id="vendor-trust-level" class="text-lg font-semibold text-vendor-primary">Standard</div>
                 </div>
-                <div class="text-center p-4 bg-portal-surface rounded-lg border border-vendor-accent/20">
-                    <div id="stats-total-revenue" class="text-2xl font-bold text-vendor-accent mb-1">$24,580</div>
-                    <div class="text-xs text-text-secondary">Total Revenue</div>
+                <div class="p-4 bg-portal-surface rounded-lg border border-vendor-warning/20">
+                    <div class="flex items-center space-x-2 mb-2">
+                        <svg class="w-4 h-4 text-vendor-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                        <span class="text-xs text-text-secondary uppercase tracking-wide">Risk Level</span>
+                    </div>
+                    <div id="vendor-risk-level" class="text-lg font-semibold text-vendor-warning">Low</div>
                 </div>
-                <div class="text-center p-4 bg-portal-surface rounded-lg border border-vendor-warning/20">
-                    <div id="stats-pending-payments" class="text-2xl font-bold text-vendor-warning mb-1">8</div>
-                    <div class="text-xs text-text-secondary">Pending Payments</div>
+            </div>
+
+            <!-- Agent Notes -->
+            <div class="p-4 bg-portal-surface rounded-lg border border-vendor-secondary/20">
+                <div class="flex items-center space-x-2 mb-3">
+                    <svg class="w-4 h-4 text-vendor-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/>
+                    </svg>
+                    <span class="text-xs text-text-secondary uppercase tracking-wide">Review History</span>
                 </div>
-                <div class="text-center p-4 bg-portal-surface rounded-lg border border-vendor-secondary/20">
-                    <div id="stats-completion-rate" class="text-2xl font-bold text-vendor-secondary mb-1">94%</div>
-                    <div class="text-xs text-text-secondary">Completion Rate</div>
+                <div id="agent-notes" class="text-sm text-text-bright leading-relaxed max-h-64 overflow-y-auto">
+                    <span class="text-text-secondary italic">No notes available.</span>
                 </div>
             </div>
             <div class="mt-4 pt-4 border-t border-vendor-primary/20">
-                <div class="flex items-center justify-between text-sm">
+                <div class="flex items-center justify-between text-sm mb-4">
                     <span class="text-text-secondary">Last Activity</span>
-                    <span id="stats-last-activity" class="text-text-bright font-medium">2 hours ago</span>
+                    <span id="stats-last-activity" class="text-text-bright font-medium">3 hours ago</span>
+                </div>
+
+                <!-- Request Re-Review Action -->
+                <div id="review-request-section" class="p-4 bg-gradient-to-r from-vendor-primary/5 to-vendor-secondary/5 rounded-lg border border-vendor-primary/20">
+                    <div class="flex items-center justify-between">
+                        <div class="flex-1 mr-4">
+                            <p class="text-sm text-text-secondary">
+                                Updated your profile? Request a new review to update your status.
+                            </p>
+                        </div>
+                        <button id="request-review-btn" class="vendor-btn quantum-secondary whitespace-nowrap">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                            </svg>
+                            Request Re-Review
+                        </button>
+                    </div>
+                    <div id="review-status-message" class="hidden mt-3 p-3 rounded-lg text-sm"></div>
                 </div>
             </div>
         </div>

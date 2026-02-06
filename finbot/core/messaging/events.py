@@ -1,5 +1,25 @@
 """Event Bus for the FinBot platform
-- Redis is the underlying message broker
+
+Event Classification:
+- business: Events for domain actions and business decisions
+    - pattern: business.<domain>.<action>
+    - subtypes: lifecycle, decision, error
+    - Examples:
+        - business.vendor.created (lifecycle)
+        - business.vendor.decision (decision)
+        - business.invoice.decision (decision)
+
+- agent: Events for agent operations and LLM interactions
+    - pattern: agent.<agent_name>.<action>
+    - subtypes: lifecycle, llm, tool, security, decision, reasoning, planning
+    - Examples:
+        - agent.onboarding_agent.task_start (lifecycle)
+        - agent.onboarding_agent.llm_request_success (llm)
+        - agent.invoice_agent.tool_call_success (tool)
+
+Note: CTF outcomes (challenge completions, badge awards) are derived by
+the CTFEventProcessor from these events, not emitted directly.
+event_subtype="ctf" can be used to support CTF challenges and badges as needed.
 """
 
 import asyncio
@@ -54,21 +74,36 @@ class EventBus:
     async def emit_business_event(
         self,
         event_type: str,
+        event_subtype: str,
         event_data: dict[str, Any],
         session_context: SessionContext,
         workflow_id: str | None = None,
+        summary: str | None = None,
     ) -> None:
-        """Emit a business event"""
+        """Emit a business event
 
+        Args:
+            event_type: The event type (e.g., "vendor.created", "invoice.decision")
+            event_subtype: The event subtype (e.g., "lifecycle", "decision", "error")
+            event_data: Additional event data to include
+            session_context: The session context for namespace/user/session info
+            workflow_id: Optional workflow identifier for correlation
+            summary: Human-readable summary for UX display. If not provided,
+                     the event processor will generate a fallback summary.
+        """
         enriched_event = {
             "namespace": session_context.namespace,
             "user_id": session_context.user_id,
             "session_id": session_context.session_id,
             "event_type": f"business.{event_type}",
+            "event_subtype": event_subtype,
             "workflow_id": workflow_id or "",
             "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             **(event_data or {}),
         }
+
+        if summary:
+            enriched_event["summary"] = summary
 
         encoded_event = self._encode_event_data(enriched_event)
 
@@ -82,22 +117,38 @@ class EventBus:
         self,
         agent_name: str,
         event_type: str,
+        event_subtype: str,
         event_data: dict[str, Any],
         session_context: SessionContext,
         workflow_id: str | None = None,
+        summary: str | None = None,
     ) -> None:
-        """Emit agent-specific event"""
+        """Emit agent-specific event
 
+        Args:
+            agent_name: Name of the agent emitting the event
+            event_type: The event type (e.g., "task_start", "llm_request_success")
+            event_subtype: The event subtype (e.g., "lifecycle", "llm", "tool", "security")
+            event_data: Additional event data to include
+            session_context: The session context for namespace/user/session info
+            workflow_id: Optional workflow identifier for correlation
+            summary: Human-readable summary for UX display. If not provided,
+                     the event processor will generate a fallback summary.
+        """
         agent_event = {
             "namespace": session_context.namespace,
             "user_id": session_context.user_id,
             "session_id": session_context.session_id,
-            "event_type": f"agent.{event_type}",
+            "event_type": f"agent.{agent_name}.{event_type}",
+            "event_subtype": event_subtype,
             "agent_name": agent_name,
             "workflow_id": workflow_id or "",
             "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             **(event_data or {}),
         }
+
+        if summary:
+            agent_event["summary"] = summary
 
         encoded_event = self._encode_event_data(agent_event)
 

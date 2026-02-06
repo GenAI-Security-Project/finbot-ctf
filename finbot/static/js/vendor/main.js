@@ -102,10 +102,17 @@ function initializeMetrics() {
  * Animate metric values with counting effect
  */
 function animateMetricValue(metric) {
+    // Skip elements that are dynamically updated (have data-no-animate attribute)
+    if (metric.hasAttribute('data-no-animate')) return;
+
     const valueElement = metric.querySelector('.metric-value');
     if (!valueElement) return;
 
     const finalValue = parseInt(valueElement.textContent.replace(/[^\d]/g, ''));
+
+    // Skip if value is NaN or 0
+    if (isNaN(finalValue) || finalValue === 0) return;
+
     const duration = 2000;
     const steps = 60;
     const increment = finalValue / steps;
