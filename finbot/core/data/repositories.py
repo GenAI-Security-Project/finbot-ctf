@@ -12,7 +12,6 @@ from finbot.core.data.models import (
     Challenge,
     CTFEvent,
     Invoice,
-    UserActivity,
     UserBadge,
     UserChallengeProgress,
     Vendor,
@@ -20,7 +19,7 @@ from finbot.core.data.models import (
 
 
 class NamespacedRepository:
-    """Base Repository for automatic isolation and activity logging"""
+    """Base Repository for namespace isolation (audit trail is event-driven via CTFEvent)."""
 
     def __init__(self, db: Session, session_context: SessionContext):
         self.db = db
@@ -35,36 +34,6 @@ class NamespacedRepository:
         """Ensure object has correct namespace before saving"""
         if hasattr(obj, "namespace"):
             obj.namespace = self.namespace
-
-    def log_activity(
-        self,
-        activity_type: str,
-        description: str,
-        metadata: dict | None = None,
-        commit: bool = False,
-    ) -> UserActivity:
-        """Log user activity
-
-        Args:
-            activity_type: Type of activity being logged
-            description: Human-readable description
-            metadata: Optional metadata dictionary
-            commit: Whether to commit immediately (default: False, relies on caller to commit)
-        """
-        activity = UserActivity(
-            namespace=self.namespace,
-            user_id=self.session_context.user_id,
-            activity_type=activity_type,
-            description=description,
-            activity_metadata=json.dumps(metadata) if metadata else None,
-        )
-
-        self.db.add(activity)
-        if commit:
-            self.db.commit()
-            self.db.refresh(activity)
-
-        return activity
 
 
 # =============================================================================
@@ -111,18 +80,6 @@ class VendorRepository(NamespacedRepository):
         self.db.commit()
         self.db.refresh(vendor)
 
-        self.log_activity(
-            "vendor_created",
-            f"Created vendor: {company_name}",
-            metadata={
-                "vendor_id": vendor.id,
-                "company_name": company_name,
-                "vendor_category": vendor_category,
-                "industry": industry,
-            },
-            commit=True,
-        )
-
         return vendor
 
     def get_vendor(self, vendor_id: int) -> Vendor | None:
@@ -153,17 +110,6 @@ class VendorRepository(NamespacedRepository):
         vendor.updated_at = datetime.now(UTC)
         self.db.commit()
 
-        self.log_activity(
-            "vendor_updated",
-            f"Updated vendor: {vendor.company_name}",
-            metadata={
-                "vendor_id": vendor.id,
-                "vendor_name": vendor.company_name,
-                "updates": list(updates.keys()),
-            },
-            commit=True,
-        )
-
         return vendor
 
     def delete_vendor(self, vendor_id: int) -> bool:
@@ -172,17 +118,8 @@ class VendorRepository(NamespacedRepository):
         if not vendor:
             return False
 
-        vendor_name = vendor.company_name
-        vendor_id = vendor.id
         self.db.delete(vendor)
         self.db.commit()
-
-        self.log_activity(
-            "vendor_deleted",
-            f"Deleted vendor: {vendor_name}",
-            metadata={"vendor_id": vendor_id, "vendor_name": vendor_name},
-            commit=True,
-        )
 
         return True
 
@@ -201,22 +138,9 @@ class VendorRepository(NamespacedRepository):
         # avoid circular import; pylint: disable=import-outside-toplevel
         from finbot.core.auth.session import session_manager
 
-        success = session_manager.update_vendor_context(
+        return session_manager.update_vendor_context(
             self.session_context.session_id, vendor_id
         )
-
-        if success:
-            self.log_activity(
-                "vendor_switched",
-                f"Switched to vendor: {vendor.company_name}",
-                metadata={
-                    "vendor_id": vendor_id,
-                    "company_name": vendor.company_name,
-                },
-                commit=True,
-            )
-
-        return success
 
 
 # =============================================================================
@@ -259,17 +183,6 @@ class InvoiceRepository(NamespacedRepository):
         self.db.add(invoice)
         self.db.commit()
         self.db.refresh(invoice)
-
-        self.log_activity(
-            "invoice_created",
-            f"Created invoice: {invoice.invoice_number}",
-            metadata={
-                "invoice_id": invoice.id,
-                "vendor_id": self.current_vendor_id,
-                "amount": float(invoice.amount),
-            },
-            commit=True,
-        )
 
         return invoice
 
@@ -447,77 +360,6 @@ class InvoiceRepository(NamespacedRepository):
 
 
 # =============================================================================
-# User Activity Repository
-# =============================================================================
-
-
-class UserActivityRepository(NamespacedRepository):
-    """User activity tracking repository"""
-
-    def log_activity(
-        self,
-        activity_type: str,
-        description: str,
-        metadata: dict | None = None,
-        commit: bool = True,
-    ) -> UserActivity:
-        """Log user activity with immediate commit by default"""
-
-        activity = UserActivity(
-            namespace=self.namespace,
-            user_id=self.session_context.user_id,
-            activity_type=activity_type,
-            description=description,
-            activity_metadata=json.dumps(metadata) if metadata else None,
-        )
-
-        self.db.add(activity)
-        if commit:
-            self.db.commit()
-            self.db.refresh(activity)
-
-        return activity
-
-    def get_user_activities(self, limit: int = 50) -> list[UserActivity]:
-        """Get user activities in their namespace"""
-        return (
-            self._add_namespace_filter(
-                self.db.query(UserActivity).filter(
-                    UserActivity.user_id == self.session_context.user_id
-                ),
-                UserActivity,
-            )
-            .order_by(UserActivity.created_at.desc())
-            .limit(limit)
-            .all()
-        )
-
-    def get_activity_stats(self) -> dict:
-        """Get activity statistics for user"""
-        query = self._add_namespace_filter(
-            self.db.query(UserActivity).filter(
-                UserActivity.user_id == self.session_context.user_id
-            ),
-            UserActivity,
-        )
-
-        total_activities = query.count()
-
-        activity_types = {}
-        activity_type_query = (
-            query.with_entities(UserActivity.activity_type)
-            .group_by(UserActivity.activity_type)
-            .all()
-        )
-        for activity_type_result in activity_type_query:
-            activity_type = activity_type_result[0]
-            count = query.filter(UserActivity.activity_type == activity_type).count()
-            activity_types[activity_type] = count
-
-        return {"total_activities": total_activities, "activity_types": activity_types}
-
-
-# =============================================================================
 # CTF Repositories
 # =============================================================================
 
@@ -659,17 +501,6 @@ class UserChallengeProgressRepository(NamespacedRepository):
 
         self.db.commit()
 
-        self.log_activity(
-            "challenge_hint_used",
-            f"Used hint for challenge: {challenge_id}",
-            metadata={
-                "challenge_id": challenge_id,
-                "hint_number": progress.hints_used,
-                "hint_cost": hint_cost,
-                "total_hints_cost": progress.hints_cost,
-            },
-        )
-
         return progress
 
     def record_attempt(self, challenge_id: str) -> UserChallengeProgress:
@@ -706,17 +537,6 @@ class UserChallengeProgressRepository(NamespacedRepository):
         progress.completion_workflow_id = workflow_id
 
         self.db.commit()
-
-        self.log_activity(
-            "challenge_completed",
-            f"Completed challenge: {challenge_id}",
-            metadata={
-                "challenge_id": challenge_id,
-                "attempts": progress.attempts,
-                "hints_used": progress.hints_used,
-                "completion_time_seconds": progress.completion_time_seconds,
-            },
-        )
 
         return progress
 
@@ -861,15 +681,6 @@ class UserBadgeRepository(NamespacedRepository):
         )
         self.db.add(user_badge)
         self.db.commit()
-
-        self.log_activity(
-            "badge_earned",
-            f"Earned badge: {badge_id}",
-            metadata={
-                "badge_id": badge_id,
-                "workflow_id": workflow_id,
-            },
-        )
 
         return user_badge
 

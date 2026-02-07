@@ -125,30 +125,6 @@ class UserSession(Base):
         }
 
 
-class UserActivity(Base):
-    """User Activity Model
-    - Useful for auditing, compliance and CTF purposes
-    """
-
-    __tablename__ = "user_activities"
-
-    id = Column[int](Integer, primary_key=True)
-    namespace = Column[str](String(64), nullable=False, index=True)
-
-    # activity data
-    user_id = Column[str](String(32), nullable=False)
-    activity_type = Column[str](String(100), nullable=False)
-    description = Column[str](Text, nullable=True)
-    activity_metadata = Column[str](Text, nullable=True)  # JSON
-
-    created_at = Column[datetime](DateTime, default=datetime.now(UTC))
-    __table_args__ = (
-        Index("idx_activities_namespace", "namespace"),
-        Index("idx_activities_namespace_user", "namespace", "user_id"),
-        Index("idx_activities_namespace_type", "namespace", "activity_type"),
-    )
-
-
 class MagicLinkToken(Base):
     """Magic Link Token for password-less authentication"""
 

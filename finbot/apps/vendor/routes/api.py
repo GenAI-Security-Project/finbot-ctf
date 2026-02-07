@@ -222,6 +222,18 @@ async def update_vendor(
         db.commit()
         db.refresh(vendor)
 
+        await event_bus.emit_business_event(
+            event_type="vendor.updated",
+            event_subtype="lifecycle",
+            event_data={
+                "vendor_id": vendor.id,
+                "company_name": vendor.company_name,
+                "updates": list(update_data.keys()),
+            },
+            session_context=session_context,
+            summary=f"Vendor profile updated: {vendor.company_name}",
+        )
+
         return {
             "success": True,
             "message": "Vendor profile updated successfully",
@@ -261,10 +273,19 @@ async def delete_vendor(
             status_code=403, detail="Not authorized to delete this vendor"
         )
 
+    company_name = vendor.company_name
     success = vendor_repo.delete_vendor(vendor_id)
 
     if not success:
         raise HTTPException(status_code=500, detail="Failed to delete vendor")
+
+    await event_bus.emit_business_event(
+        event_type="vendor.deleted",
+        event_subtype="lifecycle",
+        event_data={"vendor_id": vendor_id, "company_name": company_name},
+        session_context=session_context,
+        summary=f"Vendor deleted: {company_name}",
+    )
 
     return {"success": True, "message": "Vendor deleted successfully"}
 
@@ -350,6 +371,17 @@ async def switch_vendor(
     success = vendor_repo.set_current_vendor(vendor_id)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to switch vendor")
+
+    await event_bus.emit_business_event(
+        event_type="vendor.switched",
+        event_subtype="lifecycle",
+        event_data={
+            "vendor_id": vendor.id,
+            "company_name": vendor.company_name,
+        },
+        session_context=session_context,
+        summary=f"Switched to vendor: {vendor.company_name}",
+    )
 
     return {
         "success": True,
