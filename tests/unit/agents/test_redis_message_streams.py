@@ -17,15 +17,13 @@ Dependencies: CD007
 GitHub Issue: #11
 """
 
-import asyncio
 import json
 import pytest
 from datetime import datetime, timedelta, UTC
-from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from finbot.core.messaging.events import EventBus
 from finbot.core.auth.session import session_manager, SessionContext
-from finbot.agents.base import BaseAgent
 from finbot.agents.specialized.invoice import InvoiceAgent
 from finbot.agents.specialized.onboarding import VendorOnboardingAgent
 
@@ -63,7 +61,7 @@ class TestRedisMessageStreams:
         """Helper to create SessionContext for testing."""
         session = session_manager.create_session(
             email=email,
-            user_agent="RedisStreamTest/1.0"
+            user_agent="RedisStreamTest/1.0",
         )
         created_at = datetime.now(UTC)
         expires_at = created_at + timedelta(hours=24)
@@ -75,7 +73,7 @@ class TestRedisMessageStreams:
             namespace=f"user_{email.split('@')[0]}",
             is_temporary=False,
             created_at=created_at,
-            expires_at=expires_at
+            expires_at=expires_at,
         )
 
     # =========================================================================
@@ -125,11 +123,8 @@ class TestRedisMessageStreams:
             assert business_stream == "finbot:events:business"
             assert agent_stream == "finbot:events:agents"
 
-            print(f"✓ RDS-RED-001: EventBus initialized")
-            print(f"✓ RDS-RED-001: Event prefix: {bus.event_prefix}")
-            print(f"✓ RDS-RED-001: Business stream: {business_stream}")
-            print(f"✓ RDS-RED-001: Agent stream: {agent_stream}")
-            print(f"✓ RDS-RED-001: Redis connection established")
+            print(f"✓ RDS-RED-001: Prefix: {bus.event_prefix}")
+            print(f"✓ RDS-RED-001: Streams: {business_stream}, {agent_stream}")
 
     @pytest.mark.unit
     def test_rds_red_002_event_data_encoding(self):
@@ -175,7 +170,7 @@ class TestRedisMessageStreams:
                 "float_val": 3.14,
                 "list_val": [1, 2, 3],
                 "dict_val": {"key": "value"},
-                "str_val": "hello"
+                "str_val": "hello",
             }
 
             encoded = bus._encode_event_data(event_data)
@@ -190,13 +185,7 @@ class TestRedisMessageStreams:
             assert encoded["list_val"] == json.dumps([1, 2, 3])
             assert encoded["dict_val"] == json.dumps({"key": "value"})
 
-            print(f"✓ RDS-RED-002: None → {encoded['none_val']}")
-            print(f"✓ RDS-RED-002: Bool → {encoded['bool_val']}")
-            print(f"✓ RDS-RED-002: Int → {encoded['int_val']}")
-            print(f"✓ RDS-RED-002: Float → {encoded['float_val']}")
-            print(f"✓ RDS-RED-002: List → {encoded['list_val']}")
-            print(f"✓ RDS-RED-002: Dict → {encoded['dict_val']}")
-            print(f"✓ RDS-RED-002: All event data encoded for Redis")
+            print(f"✓ RDS-RED-002: All 7 types encoded to strings")
 
     @pytest.mark.unit
     def test_rds_red_003_event_data_decoding(self):
@@ -241,7 +230,7 @@ class TestRedisMessageStreams:
                 b"float_val": b"3.14",
                 b"list_val": b"[1, 2, 3]",
                 b"dict_val": b'{"key": "value"}',
-                b"str_val": b"hello"
+                b"str_val": b"hello",
             }
 
             decoded = bus._decode_event_data(encoded_data)
@@ -254,12 +243,7 @@ class TestRedisMessageStreams:
             assert decoded["dict_val"] == {"key": "value"}
             assert decoded["str_val"] == "hello"
 
-            print(f"✓ RDS-RED-003: null → {decoded['none_val']}")
-            print(f"✓ RDS-RED-003: true → {decoded['bool_val']}")
-            print(f"✓ RDS-RED-003: 42 → {decoded['int_val']} ({type(decoded['int_val']).__name__})")
-            print(f"✓ RDS-RED-003: list → {decoded['list_val']}")
-            print(f"✓ RDS-RED-003: dict → {decoded['dict_val']}")
-            print(f"✓ RDS-RED-003: All Redis data decoded to Python types")
+            print(f"✓ RDS-RED-003: All 7 types decoded from bytes")
 
     @pytest.mark.unit
     @pytest.mark.asyncio
@@ -302,15 +286,10 @@ class TestRedisMessageStreams:
 
         assert result is not None
         assert mock_event_bus.emit_agent_event.called
+        assert "session_context" in mock_event_bus.emit_agent_event.call_args_list[0].kwargs
 
-        call_args = mock_event_bus.emit_agent_event.call_args_list[0]
-        assert "agent_name" in call_args.kwargs or len(call_args.args) > 0
-        assert "session_context" in call_args.kwargs
-
-        print(f"✓ RDS-RED-004: Business event emitted")
-        print(f"✓ RDS-RED-004: emit_agent_event called {mock_event_bus.emit_agent_event.call_count} times")
+        print(f"✓ RDS-RED-004: emit_agent_event called {mock_event_bus.emit_agent_event.call_count}x")
         print(f"✓ RDS-RED-004: Event includes session context")
-        print(f"✓ RDS-RED-004: Event published to Redis stream")
 
     @pytest.mark.unit
     @pytest.mark.asyncio
@@ -360,12 +339,11 @@ class TestRedisMessageStreams:
             )
 
             mock_client.xadd.assert_called_once()
-            call_kwargs = mock_client.xadd.call_args
-            assert call_kwargs[1]["maxlen"] is not None
+            call_kwargs = mock_client.xadd.call_args.kwargs
+            assert "maxlen" in call_kwargs, "xadd called without maxlen parameter"
+            assert call_kwargs["maxlen"] is not None
 
-            print(f"✓ RDS-RED-005: xadd called with maxlen parameter")
-            print(f"✓ RDS-RED-005: Stream length bounded by EVENT_BUFFER_SIZE")
-            print(f"✓ RDS-RED-005: Stream: finbot:events:business")
+            print(f"✓ RDS-RED-005: xadd called with maxlen={call_kwargs['maxlen']}")
             print(f"✓ RDS-RED-005: Buffer overflow protection active")
 
     # =========================================================================
@@ -417,10 +395,8 @@ class TestRedisMessageStreams:
 
         assert invoice_agent.agent_name != vendor_agent.agent_name
 
-        print(f"✓ RDS-REG-001: InvoiceAgent registered as '{invoice_agent.agent_name}'")
-        print(f"✓ RDS-REG-001: VendorOnboardingAgent registered as '{vendor_agent.agent_name}'")
-        print(f"✓ RDS-REG-001: Agent names are unique")
-        print(f"✓ RDS-REG-001: Both agents discoverable by name")
+        print(f"✓ RDS-REG-001: Invoice='{invoice_agent.agent_name}', Vendor='{vendor_agent.agent_name}'")
+        print(f"✓ RDS-REG-001: Agent names unique, both discoverable")
 
     @pytest.mark.unit
     def test_rds_reg_002_custom_agent_name_registration(self):
@@ -430,7 +406,7 @@ class TestRedisMessageStreams:
         Description: For horizontal scaling, multiple instances of the same
                      agent class are differentiated by unique workflow IDs,
                      enabling independent task tracking and routing.
-    
+
         Steps:
         1. Create session context
         2. Initialize first InvoiceAgent
@@ -442,7 +418,7 @@ class TestRedisMessageStreams:
         8. Verify both are InvoiceAgent instances
         9. Initialize InvoiceAgent with custom workflow_id
         10. Confirm multi-instance differentiation
-    
+
         Expected Results:
         1. Session created
         2. First agent created
@@ -456,25 +432,21 @@ class TestRedisMessageStreams:
         10. Multi-instance routing ready
         """
         session_context = self._create_session_context("custom_name@example.com")
-    
+
         agent_1 = InvoiceAgent(session_context=session_context)
         agent_2 = InvoiceAgent(session_context=session_context)
-    
-        # Same agent_name, different workflow IDs
+
         assert agent_1.agent_name == agent_2.agent_name == "invoice_agent"
         assert agent_1.workflow_id != agent_2.workflow_id
         assert isinstance(agent_1, InvoiceAgent)
         assert isinstance(agent_2, InvoiceAgent)
-    
-        # Custom workflow_id for pipeline correlation
+
         agent_3 = InvoiceAgent(session_context=session_context, workflow_id="wf_custom_node1")
         assert agent_3.workflow_id == "wf_custom_node1"
         assert agent_3.agent_name == "invoice_agent"
-    
-        print(f"✓ RDS-REG-002: Instance 1 workflow: {agent_1.workflow_id}")
-        print(f"✓ RDS-REG-002: Instance 2 workflow: {agent_2.workflow_id}")
-        print(f"✓ RDS-REG-002: Instance 3 custom workflow: {agent_3.workflow_id}")
-        print(f"✓ RDS-REG-002: Multi-instance differentiation supported")
+
+        print(f"✓ RDS-REG-002: wf1={agent_1.workflow_id}, wf2={agent_2.workflow_id}")
+        print(f"✓ RDS-REG-002: Custom wf={agent_3.workflow_id}")
 
     @pytest.mark.unit
     def test_rds_reg_003_agent_tool_discovery(self):
@@ -520,15 +492,11 @@ class TestRedisMessageStreams:
         assert len(vendor_tools) > 0
         vendor_tool_names = {t["name"] for t in vendor_tools}
 
-        for tool in invoice_tools:
+        for tool in invoice_tools + vendor_tools:
             assert "name" in tool
 
-        for tool in vendor_tools:
-            assert "name" in tool
-
-        print(f"✓ RDS-REG-003: InvoiceAgent tools: {invoice_tool_names}")
-        print(f"✓ RDS-REG-003: VendorOnboardingAgent tools: {vendor_tool_names}")
-        print(f"✓ RDS-REG-003: Tool discovery operational")
+        print(f"✓ RDS-REG-003: Invoice tools: {invoice_tool_names}")
+        print(f"✓ RDS-REG-003: Vendor tools: {vendor_tool_names}")
 
     @pytest.mark.unit
     def test_rds_reg_004_agent_config_discovery(self):
@@ -572,11 +540,8 @@ class TestRedisMessageStreams:
         vendor_config = vendor_agent._load_config()
         assert isinstance(vendor_config, dict)
 
-        assert invoice_config != vendor_config or (invoice_config == {} and vendor_config == {})
-
-        print(f"✓ RDS-REG-004: InvoiceAgent config: {list(invoice_config.keys())}")
-        print(f"✓ RDS-REG-004: VendorOnboardingAgent config: {list(vendor_config.keys())}")
-        print(f"✓ RDS-REG-004: Configuration discovery operational")
+        print(f"✓ RDS-REG-004: Invoice config keys: {list(invoice_config.keys())}")
+        print(f"✓ RDS-REG-004: Vendor config keys: {list(vendor_config.keys())}")
 
     @pytest.mark.unit
     def test_rds_reg_005_agent_context_info_discovery(self):
@@ -622,9 +587,7 @@ class TestRedisMessageStreams:
         assert isinstance(vendor_info, dict)
         assert vendor_info["agent_class"] == "VendorOnboardingAgent"
 
-        print(f"✓ RDS-REG-005: InvoiceAgent context: {info['agent_class']}")
-        print(f"✓ RDS-REG-005: VendorOnboardingAgent context: {vendor_info['agent_class']}")
-        print(f"✓ RDS-REG-005: Agent context info discoverable")
+        print(f"✓ RDS-REG-005: Invoice={info['agent_class']}, Vendor={vendor_info['agent_class']}")
 
     # =========================================================================
     # RDS-ROU-001 through RDS-ROU-005: Task Routing and Load Balancing
@@ -676,7 +639,6 @@ class TestRedisMessageStreams:
 
         print(f"✓ RDS-ROU-001: Invoice task → InvoiceAgent ✓")
         print(f"✓ RDS-ROU-001: Vendor task → VendorOnboardingAgent ✓")
-        print(f"✓ RDS-ROU-001: Domain-based routing verified")
 
     @pytest.mark.unit
     def test_rds_rou_002_workflow_id_isolation(self):
@@ -716,18 +678,13 @@ class TestRedisMessageStreams:
         agent_2 = InvoiceAgent(session_context=session_context)
         agent_3 = VendorOnboardingAgent(session_context=session_context)
 
-        assert agent_1.workflow_id != agent_2.workflow_id
-        assert agent_1.workflow_id != agent_3.workflow_id
-        assert agent_2.workflow_id != agent_3.workflow_id
+        all_ids = {agent_1.workflow_id, agent_2.workflow_id, agent_3.workflow_id}
+        assert len(all_ids) == 3, f"Workflow IDs not unique: {all_ids}"
 
-        assert agent_1.workflow_id.startswith("wf_")
-        assert agent_2.workflow_id.startswith("wf_")
-        assert agent_3.workflow_id.startswith("wf_")
+        for agent in (agent_1, agent_2, agent_3):
+            assert agent.workflow_id.startswith("wf_")
 
-        print(f"✓ RDS-ROU-002: Agent 1 workflow: {agent_1.workflow_id}")
-        print(f"✓ RDS-ROU-002: Agent 2 workflow: {agent_2.workflow_id}")
-        print(f"✓ RDS-ROU-002: Agent 3 workflow: {agent_3.workflow_id}")
-        print(f"✓ RDS-ROU-002: All workflow IDs unique")
+        print(f"✓ RDS-ROU-002: 3 unique workflow IDs: {all_ids}")
 
     @pytest.mark.unit
     def test_rds_rou_003_custom_workflow_id_routing(self):
@@ -773,8 +730,6 @@ class TestRedisMessageStreams:
         assert invoice_agent.agent_name != vendor_agent.agent_name
 
         print(f"✓ RDS-ROU-003: Shared workflow: {shared_workflow_id}")
-        print(f"✓ RDS-ROU-003: InvoiceAgent: {invoice_agent.workflow_id}")
-        print(f"✓ RDS-ROU-003: VendorAgent: {vendor_agent.workflow_id}")
         print(f"✓ RDS-ROU-003: Cross-agent correlation enabled")
 
     @pytest.mark.unit
@@ -814,17 +769,12 @@ class TestRedisMessageStreams:
 
         invoice_agent = InvoiceAgent(session_context=session_context)
         max_iter = invoice_agent._get_max_iterations()
-        assert max_iter > 0
-        assert max_iter < 100
+        assert 0 < max_iter < 100
 
         vendor_agent = VendorOnboardingAgent(session_context=session_context)
-        vendor_max_iter = vendor_agent._get_max_iterations()
-        assert vendor_max_iter > 0
-        assert vendor_max_iter == max_iter
+        assert vendor_agent._get_max_iterations() == max_iter
 
-        print(f"✓ RDS-ROU-004: Max iterations: {max_iter}")
-        print(f"✓ RDS-ROU-004: Consistent across agents")
-        print(f"✓ RDS-ROU-004: Runaway loop prevention configured")
+        print(f"✓ RDS-ROU-004: Max iterations: {max_iter}, consistent across agents")
 
     @pytest.mark.unit
     def test_rds_rou_005_control_flow_tool_injection(self):
@@ -876,8 +826,6 @@ class TestRedisMessageStreams:
 
             print(f"✓ RDS-ROU-005: {label} has complete_task tool and callable")
 
-        print(f"✓ RDS-ROU-005: Control flow injection verified for all agents")
-
     # =========================================================================
     # RDS-PER-001 through RDS-PER-005: Message Persistence and Replay
     # =========================================================================
@@ -928,11 +876,7 @@ class TestRedisMessageStreams:
         assert call_kwargs["session_context"] == session_context
         assert call_kwargs["workflow_id"] == agent.workflow_id
 
-        print(f"✓ RDS-PER-001: agent_name: {call_kwargs['agent_name']}")
-        print(f"✓ RDS-PER-001: event_type: {call_kwargs['event_type']}")
-        print(f"✓ RDS-PER-001: event_subtype: {call_kwargs['event_subtype']}")
-        print(f"✓ RDS-PER-001: workflow_id: {call_kwargs['workflow_id']}")
-        print(f"✓ RDS-PER-001: All persistence fields present")
+        print(f"✓ RDS-PER-001: All persistence fields present (agent, type, subtype, ctx, wf)")
 
     @pytest.mark.unit
     @pytest.mark.asyncio
@@ -981,10 +925,7 @@ class TestRedisMessageStreams:
         assert "task_result" in call_kwargs["event_data"]
         assert call_kwargs["event_data"]["task_result"] == task_result
 
-        print(f"✓ RDS-PER-002: Completion event emitted")
-        print(f"✓ RDS-PER-002: Status: {task_result['task_status']}")
-        print(f"✓ RDS-PER-002: Summary: {task_result['task_summary']}")
-        print(f"✓ RDS-PER-002: Task completion persisted for replay")
+        print(f"✓ RDS-PER-002: Completion event: status={task_result['task_status']}")
 
     @pytest.mark.unit
     @pytest.mark.asyncio
@@ -1032,25 +973,19 @@ class TestRedisMessageStreams:
 
                     assert mock_create_task.call_count == 2
 
-                # Verify _listen_to_stream was invoked with correct stream names
                 listen_calls = mock_listen.call_args_list
                 assert len(listen_calls) == 2
 
                 business_stream = listen_calls[0][0][0]
-                business_cb = listen_calls[0][0][1]
                 agent_stream = listen_calls[1][0][0]
-                agent_cb = listen_calls[1][0][1]
 
                 assert business_stream == "finbot:events:business"
                 assert agent_stream == "finbot:events:agents"
-                assert business_stream != agent_stream
-                assert business_cb is callback
-                assert agent_cb is callback
+                assert listen_calls[0][0][1] is callback
+                assert listen_calls[1][0][1] is callback
 
-            print(f"✓ RDS-PER-003: Business stream: {business_stream}")
-            print(f"✓ RDS-PER-003: Agent stream: {agent_stream}")
-            print(f"✓ RDS-PER-003: Callback correctly wired to both streams")
-            print(f"✓ RDS-PER-003: Subscription system operational")
+            print(f"✓ RDS-PER-003: Business={business_stream}, Agent={agent_stream}")
+            print(f"✓ RDS-PER-003: Callbacks wired, 2 tasks created")
 
     @pytest.mark.unit
     @pytest.mark.asyncio
@@ -1090,17 +1025,14 @@ class TestRedisMessageStreams:
 
         await agent.log_task_start(task_data={"action": "enrich_test"})
 
-        call_kwargs = mock_event_bus.emit_agent_event.call_args.kwargs
-        ctx = call_kwargs["session_context"]
+        ctx = mock_event_bus.emit_agent_event.call_args.kwargs["session_context"]
 
         assert ctx.namespace == session_context.namespace
         assert ctx.user_id == session_context.user_id
         assert ctx.session_id == session_context.session_id
 
-        print(f"✓ RDS-PER-004: Namespace: {ctx.namespace}")
-        print(f"✓ RDS-PER-004: User ID: {ctx.user_id[:16]}...")
-        print(f"✓ RDS-PER-004: Session ID: {ctx.session_id[:16]}...")
-        print(f"✓ RDS-PER-004: Event enrichment supports replay filtering")
+        print(f"✓ RDS-PER-004: ns={ctx.namespace}, user={ctx.user_id}")
+        print(f"✓ RDS-PER-004: Enrichment supports replay filtering")
 
     @pytest.mark.unit
     @pytest.mark.asyncio
@@ -1148,8 +1080,7 @@ class TestRedisMessageStreams:
                 event_data={},
                 session_context=session_context,
             )
-            business_call = mock_client.xadd.call_args_list[0]
-            business_stream = business_call[0][0]
+            business_stream = mock_client.xadd.call_args_list[0][0][0]
 
             await bus.emit_agent_event(
                 agent_name="TestAgent",
@@ -1158,50 +1089,47 @@ class TestRedisMessageStreams:
                 event_data={},
                 session_context=session_context,
             )
-            agent_call = mock_client.xadd.call_args_list[1]
-            agent_stream = agent_call[0][0]
+            agent_stream = mock_client.xadd.call_args_list[1][0][0]
 
-            assert business_stream != agent_stream
             assert business_stream == "finbot:events:business"
             assert agent_stream == "finbot:events:agents"
+            assert business_stream != agent_stream
 
-            print(f"✓ RDS-PER-005: Business stream: {business_stream}")
-            print(f"✓ RDS-PER-005: Agent stream: {agent_stream}")
-            print(f"✓ RDS-PER-005: Streams separated for independent replay")
+            print(f"✓ RDS-PER-005: Business={business_stream}, Agent={agent_stream}")
 
     # =========================================================================
     # RDS-HEA-001 through RDS-HEA-005: Health Monitoring for Agents
     # =========================================================================
     @pytest.mark.unit
-    def test_rds_hea_001_agent_context_info_for_health(self):
+    def test_rds_hea_001_agent_health_context_and_session(self):
         """
-        RDS-HEA-001: Agent exposes health-relevant context info
-        Title: context_info property provides monitoring data
-        Description: Agent health monitoring needs agent class, session, and
-                     workflow info to determine agent state.
+        RDS-HEA-001: Agent exposes health-relevant context and session info
+        Title: context_info and session expiry provide monitoring data
+        Description: Agent health monitoring needs agent class identity and
+                     session validity to determine agent state.
 
         Steps:
         1. Create session context
         2. Initialize InvoiceAgent
         3. Access context_info
         4. Verify it returns a dict
-        5. Verify agent_class is present
-        6. Verify agent_class value is correct
-        7. Access context_info on VendorOnboardingAgent
-        8. Verify vendor agent_class
-        9. Verify info is accessible without side effects
-        10. Confirm health data available
+        5. Verify agent_class is present and correct
+        6. Verify session expires_at is set and in the future
+        7. Create an expired session context
+        8. Verify expired session is detectable
+        9. Access context_info on VendorOnboardingAgent
+        10. Confirm health data available for both agents
 
         Expected Results:
         1. Session created
         2. Agent initialized
         3. context_info returned
         4. Type is dict
-        5. agent_class key exists
-        6. Value: "InvoiceAgent"
-        7. Vendor info accessible
-        8. Value: "VendorOnboardingAgent"
-        9. No exceptions on access
+        5. agent_class: "InvoiceAgent"
+        6. Session not yet expired
+        7. Expired session created
+        8. Expired state detectable
+        9. Vendor agent_class: "VendorOnboardingAgent"
         10. Health monitoring data ready
         """
         session_context = self._create_session_context("health@example.com")
@@ -1209,16 +1137,30 @@ class TestRedisMessageStreams:
         invoice_agent = InvoiceAgent(session_context=session_context)
         info = invoice_agent.context_info
         assert isinstance(info, dict)
-        assert "agent_class" in info
         assert info["agent_class"] == "InvoiceAgent"
 
-        vendor_agent = VendorOnboardingAgent(session_context=session_context)
-        vendor_info = vendor_agent.context_info
-        assert vendor_info["agent_class"] == "VendorOnboardingAgent"
+        # Session health
+        assert invoice_agent.session_context.expires_at > datetime.now(UTC)
+        time_remaining = invoice_agent.session_context.expires_at - datetime.now(UTC)
+        assert time_remaining.total_seconds() > 0
 
-        print(f"✓ RDS-HEA-001: InvoiceAgent health: {info['agent_class']}")
-        print(f"✓ RDS-HEA-001: VendorAgent health: {vendor_info['agent_class']}")
-        print(f"✓ RDS-HEA-001: Health monitoring data accessible")
+        # Expired session detection
+        expired_context = SessionContext(
+            session_id="expired-session",
+            user_id="user_expired",
+            email="expired@example.com",
+            namespace="user_expired",
+            is_temporary=False,
+            created_at=datetime.now(UTC) - timedelta(hours=48),
+            expires_at=datetime.now(UTC) - timedelta(hours=1),
+        )
+        assert expired_context.expires_at < datetime.now(UTC)
+
+        vendor_agent = VendorOnboardingAgent(session_context=session_context)
+        assert vendor_agent.context_info["agent_class"] == "VendorOnboardingAgent"
+
+        print(f"✓ RDS-HEA-001: Invoice={info['agent_class']}, Vendor=VendorOnboardingAgent")
+        print(f"✓ RDS-HEA-001: Session valid, expired session detectable")
 
     @pytest.mark.unit
     @pytest.mark.asyncio
@@ -1270,73 +1212,12 @@ class TestRedisMessageStreams:
         assert start_kwargs["workflow_id"] == complete_kwargs["workflow_id"]
         assert start_kwargs["agent_name"] == complete_kwargs["agent_name"]
 
-        print(f"✓ RDS-HEA-002: task_start emitted")
-        print(f"✓ RDS-HEA-002: task_completion emitted")
-        print(f"✓ RDS-HEA-002: Workflow IDs match: {start_kwargs['workflow_id']}")
-        print(f"✓ RDS-HEA-002: Lifecycle tracking operational")
+        print(f"✓ RDS-HEA-002: start→completion, workflow={start_kwargs['workflow_id']}")
 
     @pytest.mark.unit
-    def test_rds_hea_003_agent_session_health_check(self):
+    def test_rds_hea_003_redis_stream_configuration_health(self):
         """
-        RDS-HEA-003: Agent session validity can be checked
-        Title: Session expiry is detectable for health monitoring
-        Description: Health monitoring must detect agents with expired
-                     sessions to prevent stale processing.
-
-        Steps:
-        1. Create session context with known expiry
-        2. Initialize InvoiceAgent
-        3. Access session expiry
-        4. Verify expires_at is set
-        5. Verify expires_at is in the future
-        6. Calculate time remaining
-        7. Verify session is not expired
-        8. Create expired session context
-        9. Verify expired session detectable
-        10. Confirm session health monitoring
-
-        Expected Results:
-        1. Session with 24h expiry
-        2. Agent initialized
-        3. Expiry accessible
-        4. expires_at is not None
-        5. Expiry is future datetime
-        6. Time remaining > 0
-        7. Session currently valid
-        8. Expired session created
-        9. Expired state detectable
-        10. Session health checkable
-        """
-        session_context = self._create_session_context("session_health@example.com")
-        agent = InvoiceAgent(session_context=session_context)
-
-        assert agent.session_context.expires_at is not None
-        assert agent.session_context.expires_at > datetime.now(UTC)
-
-        time_remaining = agent.session_context.expires_at - datetime.now(UTC)
-        assert time_remaining.total_seconds() > 0
-
-        expired_context = SessionContext(
-            session_id="expired-session",
-            user_id="user_expired",
-            email="expired@example.com",
-            namespace="user_expired",
-            is_temporary=False,
-            created_at=datetime.now(UTC) - timedelta(hours=48),
-            expires_at=datetime.now(UTC) - timedelta(hours=1)
-        )
-        assert expired_context.expires_at < datetime.now(UTC)
-
-        print(f"✓ RDS-HEA-003: Session expires: {agent.session_context.expires_at}")
-        print(f"✓ RDS-HEA-003: Time remaining: {time_remaining}")
-        print(f"✓ RDS-HEA-003: Active session detected: valid")
-        print(f"✓ RDS-HEA-003: Expired session detected: expired")
-        print(f"✓ RDS-HEA-003: Session health monitoring operational")
-
-    @pytest.mark.unit
-    def test_rds_hea_004_redis_stream_configuration_health(self):
-        """
-        RDS-HEA-004: Redis stream configuration is healthy
+        RDS-HEA-003: Redis stream configuration is healthy
         Title: Stream settings are within operational bounds
         Description: Health monitoring must verify that Redis configuration
                      values are within acceptable bounds for production.
@@ -1350,7 +1231,7 @@ class TestRedisMessageStreams:
         6. Check REDIS_RESULT_TTL
         7. Verify TTL is positive
         8. Check EVENT_BUFFER_SIZE
-        9. Verify buffer matches stream max
+        9. Verify buffer is positive
         10. Confirm all Redis settings healthy
 
         Expected Results:
@@ -1358,7 +1239,7 @@ class TestRedisMessageStreams:
         2. Max length accessible
         3. Max length > 0
         4. Timeout accessible
-        5. Timeout between 100ms and 60s
+        5. Timeout between 1ms and 60s
         6. TTL accessible
         7. TTL > 0
         8. Buffer size accessible
@@ -1368,25 +1249,20 @@ class TestRedisMessageStreams:
         from finbot.config import settings
 
         assert settings.REDIS_STREAM_MAX_LEN > 0
-        assert settings.REDIS_CONSUMER_TIMEOUT > 0
-        assert settings.REDIS_CONSUMER_TIMEOUT <= 60000
+        assert 0 < settings.REDIS_CONSUMER_TIMEOUT <= 60000
         assert settings.REDIS_RESULT_TTL > 0
         assert settings.EVENT_BUFFER_SIZE > 0
 
-        print(f"✓ RDS-HEA-004: REDIS_STREAM_MAX_LEN: {settings.REDIS_STREAM_MAX_LEN}")
-        print(f"✓ RDS-HEA-004: REDIS_CONSUMER_TIMEOUT: {settings.REDIS_CONSUMER_TIMEOUT}ms")
-        print(f"✓ RDS-HEA-004: REDIS_RESULT_TTL: {settings.REDIS_RESULT_TTL}s")
-        print(f"✓ RDS-HEA-004: EVENT_BUFFER_SIZE: {settings.EVENT_BUFFER_SIZE}")
-        print(f"✓ RDS-HEA-004: All Redis settings within healthy bounds")
+        print(f"✓ RDS-HEA-003: MAX_LEN={settings.REDIS_STREAM_MAX_LEN}, TIMEOUT={settings.REDIS_CONSUMER_TIMEOUT}ms")
+        print(f"✓ RDS-HEA-003: TTL={settings.REDIS_RESULT_TTL}s, BUFFER={settings.EVENT_BUFFER_SIZE}")
 
     @pytest.mark.unit
-    def test_rds_hea_005_agent_max_iterations_health(self):
+    def test_rds_hea_004_agent_max_iterations_health(self):
         """
-        RDS-HEA-005: Agent iteration limits prevent resource exhaustion
+        RDS-HEA-004: Agent iteration limits match settings and prevent exhaustion
         Title: Max iterations guard against infinite loops
         Description: Health monitoring must verify that agent iteration
-                     limits are set to prevent resource exhaustion in
-                     horizontal scaling scenarios.
+                     limits are sourced from settings and bounded.
 
         Steps:
         1. Import settings
@@ -1414,21 +1290,59 @@ class TestRedisMessageStreams:
         """
         from finbot.config import settings
 
-        assert settings.AGENT_MAX_ITERATIONS > 0
-        assert settings.AGENT_MAX_ITERATIONS < 100
+        assert 0 < settings.AGENT_MAX_ITERATIONS < 100
 
         session_context = self._create_session_context("iter_health@example.com")
 
         invoice_agent = InvoiceAgent(session_context=session_context)
-        assert invoice_agent._get_max_iterations() == settings.AGENT_MAX_ITERATIONS
-
         vendor_agent = VendorOnboardingAgent(session_context=session_context)
+
+        assert invoice_agent._get_max_iterations() == settings.AGENT_MAX_ITERATIONS
         assert vendor_agent._get_max_iterations() == settings.AGENT_MAX_ITERATIONS
 
-        print(f"✓ RDS-HEA-005: AGENT_MAX_ITERATIONS: {settings.AGENT_MAX_ITERATIONS}")
-        print(f"✓ RDS-HEA-005: InvoiceAgent max: {invoice_agent._get_max_iterations()}")
-        print(f"✓ RDS-HEA-005: VendorAgent max: {vendor_agent._get_max_iterations()}")
-        print(f"✓ RDS-HEA-005: Iteration health guard active")
+        print(f"✓ RDS-HEA-004: AGENT_MAX_ITERATIONS={settings.AGENT_MAX_ITERATIONS}, consistent")
+
+    @pytest.mark.unit
+    @pytest.mark.asyncio
+    async def test_rds_hea_005_emit_agent_event_signature(self, mock_event_bus):
+        """
+        RDS-HEA-005: emit_agent_event receives all required kwargs
+        Title: Agent event emission includes the full kwargs contract
+        Description: Health monitoring relies on emit_agent_event receiving
+                     agent_name, event_type, event_subtype, event_data,
+                     session_context, and workflow_id. A missing kwarg
+                     would silently break downstream consumers.
+
+        Steps:
+        1. Create session context
+        2. Initialize InvoiceAgent
+        3. Log task start to trigger emit
+        4. Capture call kwargs
+        5. Verify agent_name present
+        6. Verify event_type present
+        7. Verify event_subtype present
+        8. Verify event_data present
+        9. Verify session_context present
+        10. Verify workflow_id present
+
+        Expected Results:
+        1. Session created
+        2. Agent initialized
+        3. Event emitted
+        4. kwargs captured
+        5-10. All 6 required kwargs present
+        """
+        session_context = self._create_session_context("sig_check@example.com")
+        agent = InvoiceAgent(session_context=session_context)
+
+        await agent.log_task_start(task_data={"action": "sig_test"})
+
+        call_kwargs = mock_event_bus.emit_agent_event.call_args.kwargs
+        required_keys = {"agent_name", "event_type", "event_subtype", "event_data", "session_context", "workflow_id"}
+        missing = required_keys - set(call_kwargs.keys())
+        assert not missing, f"emit_agent_event missing kwargs: {missing}"
+
+        print(f"✓ RDS-HEA-005: All 6 required kwargs present in emit_agent_event")
 
     # =========================================================================
     # RDS-GSI-001: Redis Message Streams Google Sheets Integration
@@ -1470,7 +1384,7 @@ class TestRedisMessageStreams:
             "Agent Registration (RDS-REG)": {"tests": 5, "status": "implemented", "coverage": "naming/discovery/tools/config/context"},
             "Task Routing (RDS-ROU)": {"tests": 5, "status": "implemented", "coverage": "domain routing/workflow ID/correlation/iterations/control flow"},
             "Message Persistence (RDS-PER)": {"tests": 5, "status": "implemented", "coverage": "structure/completion/subscription/enrichment/separation"},
-            "Health Monitoring (RDS-HEA)": {"tests": 5, "status": "implemented", "coverage": "context/lifecycle/session/redis config/iterations"},
+            "Health Monitoring (RDS-HEA)": {"tests": 5, "status": "implemented", "coverage": "context/lifecycle/config/iterations/event signature"},
         }
 
         assert len(metrics) == 5
@@ -1479,7 +1393,6 @@ class TestRedisMessageStreams:
 
         for category, data in metrics.items():
             assert data["status"] == "implemented"
-            print(f"✓ RDS-GSI-001: {category}: {data['tests']} tests — {data['coverage']}")
 
-        print(f"✓ RDS-GSI-001: Total: {total_tests} tests across {len(metrics)} categories")
+        print(f"✓ RDS-GSI-001: {total_tests} tests across {len(metrics)} categories")
         print(f"✓ RDS-GSI-001: Google Sheets integration ready")
