@@ -1,154 +1,234 @@
+# MCP Design Overview
+
 ## Objective
 
-1. step1: build couple of mock mcp servers  
-2. step2 : build the connectivity engine/layer (mcp host should be part of finbot to run and connect to above)  
-3. step 3: specialized agent to leverage mcp use cases  
+The goal of this MCP design is to **control how agents access tools**, without changing how agents think or behave.
 
+This design ensures that:
 
+- Agents focus only on **reasoning and decision-making**
+- Tool access is **explicitly declared and enforced by the framework**
+- MCP servers remain **simple executors**
+- All activity is **observable for security review**
 
-This document outlines the architecture, implementation steps, and security considerations for the Model Context Protocol (MCP) integration within FinBot.
-
-
-
----
-
-## 1. Core Architecture Principles
-* **MCP Host as the Sole Bridge:** The MCP Host is the only bridge between FinBot and MCP.
-* **Isolated Agents:** Agents never talk to MCP servers directly; they interact only with the Host layer.
+In short, **MCP is introduced to separate agent logic from tool execution**, while keeping the existing **multi-agent CTF flow intact**.
 
 ---
 
-##
+## Core Architecture Principles
 
-## High-Level Architecture Flow
+### 1. Framework-Controlled Access
 
-### Execution Entry Point
+Agents **never call MCP servers directly**.  
+All tool calls must go through the **framework-controlled interface**.
+
+This ensures:
+- Centralized policy enforcement
+- Consistent auditing and telemetry
+- No direct coupling between agents and tools
+
+---
+
+### 2. Agent-Scoped Tool Visibility
+
+Each agent **explicitly declares** which MCP servers it is allowed to use.
+
+- Agents can only see tools within their declared scope
+- Tools outside this scope are completely invisible to the agent
+- Unauthorized tool calls are blocked at the framework level
+
+---
+
+### 3. Passive MCP Servers
+
+MCP servers are **pure execution layers**.
+
+They:
+- Expose tools
+- Execute incoming requests
+
+They do **not**:
+- Know which agent is calling them
+- Understand permissions or policy
+- Make authorization decisions
+
+---
+
+### 4. Separation of Concerns
+
+The system strictly separates responsibilities:
+
+- **Agent logic** → reasoning and decision-making
+- **Tool execution** → handled by MCP servers
+- **Application startup & wiring** → handled by the framework
+
+This keeps each layer simple, testable, and replaceable.
+
+---
+
+### 5. Minimal Enforcement Model
+
+All access control is enforced at the **MCP Client / Host interface**.
+
+- No policy logic exists inside agent code
+- No enforcement logic exists inside MCP servers
+- This minimizes complexity and reduces attack surface
+
+---
+
+### 6. Mandatory Observability
+
+Every tool interaction is captured through **telemetry**:
+
+- Tool access attempts
+- Successful executions
+- Failures and denials
+
+Observability is:
+- Always enabled
+- Non-intrusive
+- Does not affect execution flow
+
+This enables auditing, debugging, and security reviews without changing agent behavior.
 
 ```text
-Execution Entry Point
-        |
-        v
-+----------------------+
-|      MCP Host        |  ← Connectivity Engine inside FinBot
-|   (Central Gateway)  |
-+----------+-----------+
-           |
-           v
-+----------------------+        +----------------------+
-|  Mock Payments MCP   |        |   Mock Drive MCP     |
-|   (Stripe-like)      |        |   (Storage-like)     |
-+----------------------+        +----------------------+
 
-           |
-           v
-+-----------------------------------------------+
-|        Specialized Agents                     |
-|        (Use MCP via the Host)                 |
-|                                               |
-|   Recon Agent → Offensive Agent → Auditor     |
-+-----------------------------------------------+
+UI / API / Cloud Function
+            |
+            v
+     MCP Orchestrator
+            |
+            v
++-------------------------------+
+|       MCP Framework           |
+|                               |
+|  - MCPRegistry                |
+|  - AgentToolRegistrationResolver
+|  - MCPHost                     |
+|  - Telemetry                   |
++---------------+---------------+
+                |
+                | MCP protocol
+                v
++-------------------+   +-------------------+
+| Payments MCP      |   | Drive MCP         |
+| Server            |   | Server            |
++-------------------+   +-------------------+
 
-           |
-           v
-+----------------------+
-| Telemetry & Report   |
-|   ctf_report.json    |
-+----------------------+
+                |
+                v
++-----------------------------------+
+|           Agents                  |
+|                                   |
+| ReconAgent → OffensiveAgent →     |
+| AuditorAgent                      |
++-----------------------------------+
 ```
 
-## 2. Step-by-Step Implementation
+## Component Responsibilities
 
-### Step 1: Build Mock MCP Servers
-Build a small number of mock MCP servers, intentionally limited to simulate real-world service behavior and vulnerabilities.
+| Component | Responsibility |
+|---------|----------------|
+| **Agent** | Reasoning, decision-making, and declaring tool-call intent |
+| **AgentToolRegistrationResolver** | Dependency discovery and agent-scoped tool wiring |
+| **MCPHost** | Central authority for routing requests and enforcing access |
+| **MCPClient** | Scoped execution interface injected into agents |
+| **MCPRegistry** | Source of truth for MCP server discovery and lookup |
+| **Telemetry** | Passive observability layer capturing all activity |
+| **MCP Orchestrator** | Coordinates lifecycle from startup to teardown |
 
-| Server | What it simulates | Purpose |
-| :--- | :--- | :--- |
-| **Payments MCP** | Stripe-like payment workflows | Test idempotency and financial logic |
-| **Drive MCP** | File storage with access control | Test authorization and data leakage |
-
-**Server Requirements:**
-* Implement real MCP tools.
-* Behave like real production services.
-* Contain intentional vulnerabilities (Exploitable by design).
-
-### Step 2: Build the Connectivity Engine (MCP Host)
-The MCP Host is the connectivity and control layer inside FinBot. It acts as the runtime environment for all MCP interactions.
-
-**The Host Functions:**
-* **Registration:** Registers MCP servers (mock today, real tomorrow).
-* **Session Management:** Manages active MCP sessions and connections.
-* **API Exposure:** Provides a simplified API to agents:
-    * `list_tools(server)`
-    * `call_tool(server, tool, args)`
-
-**Abstraction:**
-Agents remain unaware of how MCP works internally, how servers are started, or whether the servers are mock or production-grade.
-
-### Step 3: Specialized Security Agents
-These agents consume MCP tools to simulate usage and stress-test the ecosystem.
-
-#### A. Recon Agent — “What is exposed?”
-* **Purpose:** Discover the MCP attack surface.
-* **Actions:** Enumerates tools, extracts parameters, and flags high-risk tools (refund, read, delete).
-* **Key Question:** “What can an attacker learn just by connecting?”
-
-#### B. Offensive Agent — “What can be abused?”
-* **Purpose:** Exploit business logic flaws, not software bugs.
-* **Actions:** Chains legitimate tools and exploits missing controls (e.g., Double Refund via missing idempotency or File Read via BOLA).
-* **Key Question:** “What damage is possible using only allowed tools?”
-
-#### C. Auditor Agent — “Is this safe to trust?”
-* **Purpose:** Convert exploits into security decisions.
-* **Actions:** Aggregates results and assigns a final verdict: **SECURE** or **COMPROMISED**.
-* **Key Question:** “Can FinBot safely integrate this MCP ecosystem?”
 
 ---
 
-## 3. Vulnerabilities & Logic Flaws
+## Execution Lifecycle
 
-### Missing Idempotency (Double Refund)
-* **Definition:** Operations that should run once can be triggered multiple times.
-* **MCP Risk:** AI agents often retry on partial failures or repeat similar calls. Without idempotency, a retry becomes a duplicate financial transaction.
+This section describes how MCP execution proceeds from initialization to completion.
 
-### BOLA (Broken Object Level Authorization)
-* **Definition:** The system fails to check if the user has permission for a specific object/ID.
-* **MCP Risk:** If an agent can guess a filename or ID, it can access data it shouldn't, leading to leaks.
+### 1. Registration
 
----
+MCP servers are registered with the **MCPRegistry**.
 
-## 4. Telemetry & Reporting
-The system generates a `ctf_report.json` to record:
-* **Recon findings:** Tools discovered and risks flagged.
-* **Exploit attempts:** Success/failure of chained tool attacks.
-* **Audit decisions:** Final security scoring.
+- The registry stores **connection objects only**
+- It contains **no policy or authorization logic**
 
 ---
 
-## 5. Project Folder Structure
+### 2. Declaration
+
+Agents declare the MCP servers they require using `required_mcp_servers`.
+
+- This declaration is **explicit**
+- The configuration is **static and deterministic**
+- No dynamic discovery is allowed at runtime
+
+---
+
+### 3. Resolution
+
+The **AgentToolRegistrationResolver** performs the following steps:
+
+- Reads agent declarations
+- Validates them against the MCPRegistry
+- Creates a **scoped MCPClient** per agent
+- Injects the MCPClient into the agent
+- Registers the agent–client binding with the **MCPHost**
+
+This step establishes **hard security boundaries** between agents and tools.
+
+---
+
+### 4. Execution
+
+During execution:
+
+- Agents invoke tools via the **MCPClient**
+- The MCPClient enforces **server scope**
+- The MCPHost validates agent registration and routes calls
+- Telemetry records **tool attempts and results**
+- MCP servers execute tools and return responses
+
+Agents never:
+
+- Discover MCP servers
+- Access global tool sets
+- Bypass framework enforcement
+
+---
+
+### 5. Teardown
+
+At completion, the **MCP Orchestrator**:
+
+- Finalizes execution
+- Collects telemetry
+- Emits `ctf_report.json`
+
+
+## Folder Structure
 
 ```text
 finbot/
-├── agents_mcp/
-│   ├── base_mcp_agent.py     # Shared agent utilities
-│   ├── recon_agent.py        # Tool discovery & risk flagging
-│   ├── offensive_agent.py    # Exploit logic
-│   ├── auditor_agent.py      # Blue-team analysis
-│   └── __init__.py
+├── main.py                      # Application entrypoint (unchanged)
+│
+├── mcp_runtime/
+│   └── orchestrator.py          # MCP execution controller
 │
 ├── mcp/
-│   ├── host.py               # MCP runtime & server orchestration
-│   ├── registry.py           # MCP server registry (source of truth)
-│   ├── telemetry.py          # Central event logging
-│   ├── Readme_mcp.md         # MCP-specific notes
-│   └── __init__.py
+│   ├── host.py                  # Enforcement & routing
+│   ├── resolver.py              # Dependency wiring
+│   ├── client.py                # Scoped MCP execution
+│   ├── registry.py              # MCP server registry
+│   ├── telemetry.py             # Observability
+│   └── Readme_mcp.md            # This RFC
+│
+├── agents_mcp/
+│   ├── base_mcp_agent.py
+│   ├── recon_agent.py
+│   ├── offensive_agent.py
+│   └── auditor_agent.py
 │
 ├── mock_mcp_servers/
 │   ├── payments_mcp/
-│   │   ├── server.py         # Vulnerable payments service
-│   │   └── vulnerabilities.yaml
-│   │
-│   ├── drive_mcp/
-│   │   ├── server.py         # Vulnerable file service
-│   │   ├── mock_data/
-│   │   │   └── secret.txt
-│   │   └── vulnerabilities.yaml
+│   └── drive_mcp/
+
+```
