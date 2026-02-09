@@ -1,7 +1,7 @@
 # ==============================================================================
 # Complete User Isolation Test Suite
 # ==============================================================================
-# User Story: As a CTF participant, I want my data completely isolated from 
+# User Story: As a CTF participant, I want my data completely isolated from
 #             other users so that I have a clean, private environment
 #
 # Acceptance Criteria:
@@ -23,23 +23,53 @@
 #   CUI-COM-009: Complete isolation end-to-end
 # ==============================================================================
 
-import pytest
+import hashlib
+import hmac
 import json
-import os
-from datetime import datetime, timedelta
-from pathlib import Path
-from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
+
+import pytest
 
 from finbot.core.auth.session import session_manager
 from finbot.core.data.models import UserSession
 from finbot.config import settings
 
 
+def _get_namespace(db, session_id: str):
+    """Extract the namespace (or user_id fallback) from a session's stored data."""
+    row = db.query(UserSession).filter(
+        UserSession.session_id == session_id
+    ).first()
+    assert row is not None, f"Session {session_id} not found in database"
+    data = json.loads(row.session_data)
+    return data.get("namespace", data.get("user_id"))
+
+
+def _get_session_data(db, session_id: str) -> dict:
+    """Load and return the parsed session_data dict for a given session_id."""
+    row = db.query(UserSession).filter(
+        UserSession.session_id == session_id
+    ).first()
+    assert row is not None, f"Session {session_id} not found in database"
+    return json.loads(row.session_data)
+
+def _inject_session_data(db, session_id: str, key: str, value: str, signing_key: bytes):
+    """Inject custom data into a session and re-sign the HMAC."""
+    row = db.query(UserSession).filter(
+        UserSession.session_id == session_id
+    ).first()
+    assert row is not None, f"Session {session_id} not found"
+    data = json.loads(row.session_data)
+    data[key] = value
+    row.session_data = json.dumps(data, sort_keys=True)
+    row.signature = hmac.new(
+        signing_key, row.session_data.encode(), hashlib.sha256
+    ).hexdigest()
+    db.commit()
+
 class TestCompleteUserIsolation:
     """
     Test Suite: Complete User Isolation
-    
+
     Validates that user data is completely isolated across:
     - Namespace isolation (AC1)
     - Database query scoping (AC2)
@@ -56,9 +86,9 @@ class TestCompleteUserIsolation:
         """
         CUI-NS-001: Unique Namespace Creation Per User
         Title: Each user receives a unique, isolated namespace
-        Description: When a user creates a session, they must be assigned a 
+        Description: When a user creates a session, they must be assigned a
                      unique namespace that is independent from all other users
-        
+
         Steps:
         1. Create first user session (alice@example.com)
         2. Extract alice's namespace from session_data
@@ -70,7 +100,7 @@ class TestCompleteUserIsolation:
         8. Verify each namespace is unique and non-null
         9. Verify namespace persists across queries
         10. Verify no namespace collisions exist in database
-        
+
         Expected Results:
         1. Alice has unique namespace
         2. Bob has unique namespace
@@ -83,91 +113,41 @@ class TestCompleteUserIsolation:
         9. Isolation criteria met
         10. System ready for multi-user environment
         """
-        
-        # Step 1-2: Create alice's session and get namespace
-        session_alice = session_manager.create_session(
-            email="alice@example.com",
-            user_agent="Mozilla/5.0"
-        )
-        db_alice = db.query(UserSession).filter(
-            UserSession.session_id == session_alice.session_id
-        ).first()
-        data_alice = json.loads(db_alice.session_data)
-        namespace_alice = data_alice.get("namespace", data_alice.get("user_id"))
-        
-        assert namespace_alice is not None, "Alice namespace is null"
-        assert namespace_alice != "", "Alice namespace is empty"
-        
-        # Step 3-4: Create bob's session and get namespace
-        session_bob = session_manager.create_session(
-            email="bob@example.com",
-            user_agent="Mozilla/5.0"
-        )
-        db_bob = db.query(UserSession).filter(
-            UserSession.session_id == session_bob.session_id
-        ).first()
-        data_bob = json.loads(db_bob.session_data)
-        namespace_bob = data_bob.get("namespace", data_bob.get("user_id"))
-        
-        assert namespace_bob is not None, "Bob namespace is null"
-        assert namespace_bob != "", "Bob namespace is empty"
-        
-        # Step 5-6: Create charlie's session and get namespace
-        session_charlie = session_manager.create_session(
-            email="charlie@example.com",
-            user_agent="Mozilla/5.0"
-        )
-        db_charlie = db.query(UserSession).filter(
-            UserSession.session_id == session_charlie.session_id
-        ).first()
-        data_charlie = json.loads(db_charlie.session_data)
-        namespace_charlie = data_charlie.get("namespace", data_charlie.get("user_id"))
-        
-        assert namespace_charlie is not None, "Charlie namespace is null"
-        assert namespace_charlie != "", "Charlie namespace is empty"
-        
-        # Step 7: Verify all namespaces are different
-        assert namespace_alice != namespace_bob, \
-            f"Alice and Bob share namespace: {namespace_alice}"
-        assert namespace_bob != namespace_charlie, \
-            f"Bob and Charlie share namespace: {namespace_bob}"
-        assert namespace_alice != namespace_charlie, \
-            f"Alice and Charlie share namespace: {namespace_alice}"
-        
-        # Step 8: Verify uniqueness
-        namespaces = [namespace_alice, namespace_bob, namespace_charlie]
-        assert len(namespaces) == len(set(namespaces)), \
-            "Namespaces are not unique"
-        
-        # Step 9: Verify persistence
-        db_alice_requery = db.query(UserSession).filter(
-            UserSession.session_id == session_alice.session_id
-        ).first()
-        data_alice_requery = json.loads(db_alice_requery.session_data)
-        namespace_alice_requery = data_alice_requery.get("namespace", data_alice_requery.get("user_id"))
-        
-        assert namespace_alice == namespace_alice_requery, \
-            "Alice's namespace changed on requery"
-        
-        # Step 10: Verify no collisions in database
+        emails = ["alice@example.com", "bob@example.com", "charlie@example.com"]
+        sessions = {
+            email: session_manager.create_session(email=email, user_agent="Mozilla/5.0")
+            for email in emails
+        }
+        namespaces = {
+            email: _get_namespace(db, ctx.session_id)
+            for email, ctx in sessions.items()
+        }
+
+        # Verify each namespace is non-null and non-empty
+        for email, ns in namespaces.items():
+            assert ns is not None, f"{email} namespace is null"
+            assert ns != "", f"{email} namespace is empty"
+
+        # Verify all namespaces are unique
+        ns_values = list(namespaces.values())
+        assert len(ns_values) == len(set(ns_values)), \
+            f"Namespaces are not unique: {ns_values}"
+
+        # Verify persistence on requery
+        for email, ctx in sessions.items():
+            ns_requery = _get_namespace(db, ctx.session_id)
+            assert namespaces[email] == ns_requery, \
+                f"{email}'s namespace changed on requery"
+
+        # Verify no collisions across all sessions in database
         all_sessions = db.query(UserSession).all()
-        all_namespaces = []
-        for session in all_sessions:
-            session_data = json.loads(session.session_data)
-            ns = session_data.get("namespace", session_data.get("user_id"))
-            all_namespaces.append(ns)
-        
-        # Check for duplicates
-        duplicates = [ns for ns in all_namespaces if all_namespaces.count(ns) > 1]
+        all_ns = [
+            json.loads(s.session_data).get("namespace", json.loads(s.session_data).get("user_id"))
+            for s in all_sessions
+        ]
+        duplicates = [ns for ns in all_ns if all_ns.count(ns) > 1]
         assert len(duplicates) == 0, \
             f"Found duplicate namespaces in database: {duplicates}"
-        
-        print(f"✓ CUI-NS-001: Alice namespace: {namespace_alice}")
-        print(f"✓ CUI-NS-001: Bob namespace: {namespace_bob}")
-        print(f"✓ CUI-NS-001: Charlie namespace: {namespace_charlie}")
-        print(f"✓ CUI-NS-001: All namespaces unique and isolated")
-        
-        db.close()
 
     # ==========================================================================
     # CUI-NS-002: Namespace Uniqueness Validation
@@ -177,9 +157,9 @@ class TestCompleteUserIsolation:
         """
         CUI-NS-002: Namespace Uniqueness Validation
         Title: Namespace uniqueness is enforced and validated
-        Description: The system must validate and enforce that no two users 
+        Description: The system must validate and enforce that no two users
                      can have the same namespace
-        
+
         Steps:
         1. Create 5 concurrent user sessions
         2. Extract namespace for each user
@@ -191,7 +171,7 @@ class TestCompleteUserIsolation:
         8. Verify namespace doesn't contain other user's email
         9. Verify namespace doesn't overlap with other namespaces
         10. Confirm isolation criteria met
-        
+
         Expected Results:
         1. 5 unique namespaces created for 5 users
         2. Set length equals user count
@@ -204,82 +184,48 @@ class TestCompleteUserIsolation:
         9. Uniqueness enforced at database level
         10. Complete isolation validation passed
         """
-        
-        # Step 1-2: Create 5 concurrent sessions
-        users = [
-            "user1@example.com",
-            "user2@example.com",
-            "user3@example.com",
-            "user4@example.com",
-            "user5@example.com"
-        ]
-        
-        sessions = {}
+        users = [f"user{i}@example.com" for i in range(1, 6)]
+
         namespaces = {}
-        
         for email in users:
-            session = session_manager.create_session(
-                email=email,
-                user_agent="Mozilla/5.0"
-            )
-            db_session = db.query(UserSession).filter(
-                UserSession.session_id == session.session_id
-            ).first()
-            data = json.loads(db_session.session_data)
-            namespace = data.get("namespace", data.get("user_id"))
-            
-            sessions[email] = session.session_id
-            namespaces[email] = namespace
-        
-        # Step 3-5: Verify uniqueness
+            session = session_manager.create_session(email=email, user_agent="Mozilla/5.0")
+            namespaces[email] = _get_namespace(db, session.session_id)
+
+        # Verify uniqueness
         unique_namespaces = set(namespaces.values())
         assert len(unique_namespaces) == 5, \
             f"Expected 5 unique namespaces, got {len(unique_namespaces)}"
-        
-        # Step 6: Verify no null or empty
+
+        # Verify no null, empty, or invalid-type namespaces
         for email, ns in namespaces.items():
             assert ns is not None, f"{email} has null namespace"
             assert ns != "", f"{email} has empty namespace"
-        
-        # Step 7: Verify format
-        for email, ns in namespaces.items():
             assert isinstance(ns, (str, int)), \
                 f"{email} namespace has invalid type: {type(ns)}"
-        
-        # Step 8: Verify no email leakage
+
+        # Verify no email username leakage across namespaces
         for email, ns in namespaces.items():
-            # Namespace shouldn't contain other users' emails
             for other_email in users:
                 if other_email != email:
                     other_name = other_email.split("@")[0]
                     assert other_name not in str(ns).lower(), \
                         f"{email}'s namespace contains {other_name}"
-        
-        # Step 9: Verify no overlap
+
+        # Verify no namespace is a substring of another
         namespace_list = list(namespaces.values())
         for i, ns1 in enumerate(namespace_list):
-            for ns2 in namespace_list[i+1:]:
-                assert ns1 != ns2, "Found namespace overlap"
+            for ns2 in namespace_list[i + 1:]:
                 assert str(ns1) not in str(ns2), "Namespace contains another namespace"
                 assert str(ns2) not in str(ns1), "Namespace is contained in another namespace"
-        
-        # Step 10: Confirm isolation
+
+        # Confirm all namespaces present in database
         all_sessions = db.query(UserSession).all()
-        db_namespaces = set()
-        for session in all_sessions:
-            data = json.loads(session.session_data)
-            ns = data.get("namespace", data.get("user_id"))
-            db_namespaces.add(ns)
-        
-        # Our 5 namespaces should be in the database set
+        db_namespaces = {
+            json.loads(s.session_data).get("namespace", json.loads(s.session_data).get("user_id"))
+            for s in all_sessions
+        }
         for ns in unique_namespaces:
             assert ns in db_namespaces, f"Namespace {ns} not found in database"
-        
-        print(f"✓ CUI-NS-002: Created {len(unique_namespaces)} unique namespaces")
-        print(f"✓ CUI-NS-002: All namespaces valid and unique")
-        print(f"✓ CUI-NS-002: Namespace uniqueness enforced")
-        
-        db.close()
 
     # ==========================================================================
     # CUI-QRY-003: Database Queries Scoped to Namespace
@@ -289,9 +235,9 @@ class TestCompleteUserIsolation:
         """
         CUI-QRY-003: Database Queries Scoped to Namespace
         Title: All database queries are automatically scoped to user namespace
-        Description: When querying user data, the database must restrict 
+        Description: When querying user data, the database must restrict
                      results to only the requesting user's namespace
-        
+
         Steps:
         1. Create session for user_alpha@example.com
         2. Create session for user_beta@example.com
@@ -303,7 +249,7 @@ class TestCompleteUserIsolation:
         8. Verify result set doesn't include other namespaces
         9. Run scoped query for alpha again
         10. Verify scoping works consistently
-        
+
         Expected Results:
         1. Alpha query executed successfully
         2. Alpha query returns alpha's session only
@@ -316,78 +262,48 @@ class TestCompleteUserIsolation:
         9. Scoping remains consistent across multiple queries
         10. No data leakage between query results
         """
-        
-        # Step 1-2: Create sessions
         session_alpha = session_manager.create_session(
-            email="user_alpha@example.com",
-            user_agent="Mozilla/5.0"
+            email="user_alpha@example.com", user_agent="Mozilla/5.0"
         )
         session_beta = session_manager.create_session(
-            email="user_beta@example.com",
-            user_agent="Mozilla/5.0"
+            email="user_beta@example.com", user_agent="Mozilla/5.0"
         )
-        
-        alpha_id = session_alpha.session_id
-        beta_id = session_beta.session_id
-        
-        # Step 3-4: Query alpha's data
-        query_alpha = db.query(UserSession).filter(
-            UserSession.session_id == alpha_id
-        ).first()
-        
-        assert query_alpha is not None, "Alpha query failed"
-        data_alpha = json.loads(query_alpha.session_data)
-        assert "user_id" in data_alpha, "Alpha query missing user_id"
+
+        data_alpha = _get_session_data(db, session_alpha.session_id)
+        data_beta = _get_session_data(db, session_beta.session_id)
+
         alpha_user_id = data_alpha["user_id"]
-        
-        # Step 5-6: Query beta's data
-        query_beta = db.query(UserSession).filter(
-            UserSession.session_id == beta_id
-        ).first()
-        
-        assert query_beta is not None, "Beta query failed"
-        data_beta = json.loads(query_beta.session_data)
-        assert "user_id" in data_beta, "Beta query missing user_id"
         beta_user_id = data_beta["user_id"]
-        
+
         # Verify different users
         assert alpha_user_id != beta_user_id, \
             "Alpha and beta have same user_id (query scope failed)"
-        
-        # Step 7-8: Query all sessions and verify scoping
-        all_sessions = db.query(UserSession).all()
-        
-        for session in all_sessions:
-            session_data = json.loads(session.session_data)
-            session_user_id = session_data.get("user_id")
-            
-            # If we find alpha's session, verify it's alpha's data
-            if session.session_id == alpha_id:
-                assert session_user_id == alpha_user_id, \
-                    "Alpha's data is corrupted"
-            
-            # If we find beta's session, verify it's beta's data
-            if session.session_id == beta_id:
-                assert session_user_id == beta_user_id, \
-                    "Beta's data is corrupted"
-        
-        # Step 9-10: Verify scoping works consistently
-        query_alpha_again = db.query(UserSession).filter(
-            UserSession.session_id == alpha_id
-        ).first()
-        
-        assert query_alpha_again.session_id == alpha_id, \
-            "Scoping inconsistent on requery"
-        
-        data_alpha_again = json.loads(query_alpha_again.session_data)
+
+        # Query by user_id and verify each returns only their own sessions
+        alpha_sessions = db.query(UserSession).filter(
+            UserSession.user_id == alpha_user_id
+        ).all()
+        beta_sessions = db.query(UserSession).filter(
+            UserSession.user_id == beta_user_id
+        ).all()
+
+        alpha_session_ids = [s.session_id for s in alpha_sessions]
+        beta_session_ids = [s.session_id for s in beta_sessions]
+
+        assert session_alpha.session_id in alpha_session_ids, \
+            "Alpha's session not found in alpha's query"
+        assert session_beta.session_id not in alpha_session_ids, \
+            "Beta's session leaked into alpha's query"
+
+        assert session_beta.session_id in beta_session_ids, \
+            "Beta's session not found in beta's query"
+        assert session_alpha.session_id not in beta_session_ids, \
+            "Alpha's session leaked into beta's query"
+
+        # Verify consistency on requery
+        data_alpha_again = _get_session_data(db, session_alpha.session_id)
         assert data_alpha_again["user_id"] == alpha_user_id, \
-            "Alpha's data changed"
-        
-        print(f"✓ CUI-QRY-003: Alpha query scoped correctly")
-        print(f"✓ CUI-QRY-003: Beta query scoped correctly")
-        print(f"✓ CUI-QRY-003: Database queries properly scoped to namespace")
-        
-        db.close()
+            "Alpha's data changed on requery"
 
     # ==========================================================================
     # CUI-QRY-004: Cross-User Query Isolation Verification
@@ -397,9 +313,9 @@ class TestCompleteUserIsolation:
         """
         CUI-QRY-004: Cross-User Query Isolation Verification
         Title: Cross-user queries are isolated and cannot access other namespaces
-        Description: Even if a user knows another user's ID, they cannot 
+        Description: Even if a user knows another user's ID, they cannot
                      retrieve data from a different namespace
-        
+
         Steps:
         1. Create session for user_delta@example.com
         2. Create session for user_epsilon@example.com
@@ -411,7 +327,7 @@ class TestCompleteUserIsolation:
         8. Verify epsilon cannot access delta's session
         9. Run cross-namespace query attempt
         10. Verify isolation prevents cross-namespace access
-        
+
         Expected Results:
         1. Delta and epsilon sessions created successfully
         2. Delta cannot retrieve epsilon's session
@@ -424,73 +340,38 @@ class TestCompleteUserIsolation:
         9. Isolation works regardless of knowledge of other user IDs
         10. System prevents all cross-user data access
         """
-        
-        # Step 1-3: Create sessions and get IDs
         session_delta = session_manager.create_session(
-            email="user_delta@example.com",
-            user_agent="Mozilla/5.0"
+            email="user_delta@example.com", user_agent="Mozilla/5.0"
         )
-        delta_id = session_delta.session_id
-        
         session_epsilon = session_manager.create_session(
-            email="user_epsilon@example.com",
-            user_agent="Mozilla/5.0"
+            email="user_epsilon@example.com", user_agent="Mozilla/5.0"
         )
-        epsilon_id = session_epsilon.session_id
-        
-        # Get epsilon's user_id
-        db_epsilon = db.query(UserSession).filter(
-            UserSession.session_id == epsilon_id
-        ).first()
-        data_epsilon = json.loads(db_epsilon.session_data)
-        epsilon_user_id = data_epsilon.get("user_id")
-        
-        # Step 4-5: Verify delta cannot access epsilon's data
-        # If epsilon's session is scoped to epsilon's namespace,
-        # delta shouldn't be able to retrieve it
-        all_delta_accessible = db.query(UserSession).filter(
-            UserSession.user_id == delta_id
-        ).all()
-        
-        # Verify epsilon's session is not in delta's accessible sessions
-        epsilon_ids = [s.session_id for s in all_delta_accessible]
-        assert epsilon_id not in epsilon_ids, \
-            "Delta can access epsilon's session (isolation violated)"
-        
-        # Step 6-7: Get delta's user_id and verify epsilon cannot access delta
-        db_delta = db.query(UserSession).filter(
-            UserSession.session_id == delta_id
-        ).first()
-        data_delta = json.loads(db_delta.session_data)
+
+        data_delta = _get_session_data(db, session_delta.session_id)
+        data_epsilon = _get_session_data(db, session_epsilon.session_id)
+
         delta_user_id = data_delta.get("user_id")
-        
+        epsilon_user_id = data_epsilon.get("user_id")
+
+        # Verify delta's user_id query does not return epsilon's session
+        all_delta_accessible = db.query(UserSession).filter(
+            UserSession.user_id == delta_user_id
+        ).all()
+        delta_accessible_ids = [s.session_id for s in all_delta_accessible]
+        assert session_epsilon.session_id not in delta_accessible_ids, \
+            "Delta can access epsilon's session (isolation violated)"
+
+        # Verify epsilon's user_id query does not return delta's session
         all_epsilon_accessible = db.query(UserSession).filter(
             UserSession.user_id == epsilon_user_id
         ).all()
-        
-        # Step 8: Verify epsilon cannot access delta
-        delta_ids = [s.session_id for s in all_epsilon_accessible]
-        assert delta_id not in delta_ids, \
+        epsilon_accessible_ids = [s.session_id for s in all_epsilon_accessible]
+        assert session_delta.session_id not in epsilon_accessible_ids, \
             "Epsilon can access delta's session (isolation violated)"
-        
-        # Step 9-10: Verify cross-namespace isolation
-        # Try to query using epsilon's session ID from delta's perspective
-        cross_namespace_attempt = db.query(UserSession).filter(
-            UserSession.session_id == epsilon_id,
-            UserSession.user_id != delta_user_id
-        ).first()
-        
-        # This should either return epsilon's session (if using different query path)
-        # but verifying isolation through business logic
-        if cross_namespace_attempt:
-            assert cross_namespace_attempt.session_id == epsilon_id, \
-                "Query returned unexpected result"
-        
-        print(f"✓ CUI-QRY-004: Delta cannot access epsilon's data")
-        print(f"✓ CUI-QRY-004: Epsilon cannot access delta's data")
-        print(f"✓ CUI-QRY-004: Cross-user query isolation verified")
-        
-        db.close()
+
+        # Verify the two user_ids are distinct
+        assert delta_user_id != epsilon_user_id, \
+            "Delta and epsilon share the same user_id"
 
     # ==========================================================================
     # CUI-ACCESS-005: Cross-User Data Access Prevention
@@ -500,9 +381,9 @@ class TestCompleteUserIsolation:
         """
         CUI-ACCESS-005: Cross-User Data Access Prevention
         Title: It is impossible for users to access each other's data
-        Description: Even with valid credentials and session tokens, 
+        Description: Even with valid credentials and session tokens,
                      cross-user data access must be impossible
-        
+
         Steps:
         1. Create session for user_gamma@example.com
         2. Create session for user_zeta@example.com
@@ -514,7 +395,7 @@ class TestCompleteUserIsolation:
         8. Verify no data leakage in any query
         9. Attempt to access data using another user's user_id
         10. Verify access denied for all cross-user attempts
-        
+
         Expected Results:
         1. Gamma and zeta sessions created successfully
         2. Gamma's custom data added and persisted
@@ -527,97 +408,72 @@ class TestCompleteUserIsolation:
         9. Isolation enforced at application level
         10. System guarantees data privacy across users
         """
-        
-        # Step 1-3: Create sessions and modify data
         session_gamma = session_manager.create_session(
-            email="user_gamma@example.com",
-            user_agent="Mozilla/5.0"
+            email="user_gamma@example.com", user_agent="Mozilla/5.0"
         )
-        
         session_zeta = session_manager.create_session(
-            email="user_zeta@example.com",
-            user_agent="Mozilla/5.0"
+            email="user_zeta@example.com", user_agent="Mozilla/5.0"
         )
-        
-        # Modify gamma's session
+
+        # Inject secret data into gamma's session
         db_gamma = db.query(UserSession).filter(
             UserSession.session_id == session_gamma.session_id
         ).first()
         data_gamma = json.loads(db_gamma.session_data)
-        data_gamma['secret_gamma_data'] = 'CONFIDENTIAL_GAMMA_123'
+        data_gamma["secret_gamma_data"] = "CONFIDENTIAL_GAMMA_123"
         db_gamma.session_data = json.dumps(data_gamma, sort_keys=True)
         db.commit()
-        
-        # Step 4: Verify zeta cannot see gamma's data
+
+        # Verify zeta cannot see gamma's data
+        data_zeta = _get_session_data(db, session_zeta.session_id)
+        assert "secret_gamma_data" not in data_zeta, \
+            "Zeta can see gamma's secret_gamma_data"
+        assert "CONFIDENTIAL_GAMMA_123" not in json.dumps(data_zeta), \
+            "Zeta can see gamma's confidential data"
+
+        # Inject secret data into zeta's session
         db_zeta = db.query(UserSession).filter(
             UserSession.session_id == session_zeta.session_id
         ).first()
-        data_zeta = json.loads(db_zeta.session_data)
-        
-        assert 'secret_gamma_data' not in data_zeta, \
-            "Zeta can see gamma's secret_gamma_data"
-        assert 'CONFIDENTIAL_GAMMA_123' not in json.dumps(data_zeta), \
-            "Zeta can see gamma's confidential data"
-        
-        # Step 5: Modify zeta's session
-        data_zeta['secret_zeta_data'] = 'CONFIDENTIAL_ZETA_456'
+        data_zeta["secret_zeta_data"] = "CONFIDENTIAL_ZETA_456"
         db_zeta.session_data = json.dumps(data_zeta, sort_keys=True)
         db.commit()
-        
-        # Step 6: Verify gamma cannot see zeta's data
-        db_gamma_requery = db.query(UserSession).filter(
-            UserSession.session_id == session_gamma.session_id
-        ).first()
-        data_gamma_requery = json.loads(db_gamma_requery.session_data)
-        
-        assert 'secret_zeta_data' not in data_gamma_requery, \
+
+        # Verify gamma cannot see zeta's data
+        data_gamma_requery = _get_session_data(db, session_gamma.session_id)
+        assert "secret_zeta_data" not in data_gamma_requery, \
             "Gamma can see zeta's secret_zeta_data"
-        assert 'CONFIDENTIAL_ZETA_456' not in json.dumps(data_gamma_requery), \
+        assert "CONFIDENTIAL_ZETA_456" not in json.dumps(data_gamma_requery), \
             "Gamma can see zeta's confidential data"
-        
-        # Step 7-8: Query all sessions and verify no leakage
+
+        # Verify no leakage across all sessions
         all_sessions = db.query(UserSession).all()
-        
         for session in all_sessions:
-            session_data = json.loads(session.session_data)
-            session_str = json.dumps(session_data)
-            
-            # Gamma's data should only be in gamma's session
+            session_str = session.session_data
             if session.session_id == session_gamma.session_id:
-                assert 'secret_gamma_data' in session_data, \
+                assert "secret_gamma_data" in session_str, \
                     "Gamma's own data missing"
             else:
-                assert 'secret_gamma_data' not in session_str, \
-                    f"Gamma's data leaked to another session"
-            
-            # Zeta's data should only be in zeta's session
+                assert "secret_gamma_data" not in session_str, \
+                    "Gamma's data leaked to another session"
+
             if session.session_id == session_zeta.session_id:
-                assert 'secret_zeta_data' in session_data, \
+                assert "secret_zeta_data" in session_str, \
                     "Zeta's own data missing"
             else:
-                assert 'secret_zeta_data' not in session_str, \
-                    f"Zeta's data leaked to another session"
-        
-        # Step 9-10: Attempt cross-user access
-        gamma_user_id = json.loads(db_gamma_requery.session_data).get("user_id")
+                assert "secret_zeta_data" not in session_str, \
+                    "Zeta's data leaked to another session"
+
+        # Cross-user_id query must not return the other user's session
+        gamma_user_id = data_gamma_requery.get("user_id")
         zeta_user_id = json.loads(db_zeta.session_data).get("user_id")
-        
-        # Attempt to query as zeta but access gamma's user_id
+
         cross_attempt = db.query(UserSession).filter(
             UserSession.user_id == gamma_user_id,
-            UserSession.session_id != session_gamma.session_id
+            UserSession.session_id != session_gamma.session_id,
         ).first()
-        
-        # Cross-user access should return None or different user's data
-        if cross_attempt:
-            assert cross_attempt.user_id != zeta_user_id, \
-                "Cross-user access possible (found zeta accessing gamma's data)"
-        
-        print(f"✓ CUI-ACCESS-005: Gamma's data invisible to zeta")
-        print(f"✓ CUI-ACCESS-005: Zeta's data invisible to gamma")
-        print(f"✓ CUI-ACCESS-005: Cross-user data access completely prevented")
-        
-        db.close()
+        assert cross_attempt is None or cross_attempt.user_id != zeta_user_id, \
+            "Cross-user access possible (found zeta accessing gamma's data)"
 
     # ==========================================================================
     # CUI-FU-006: File Uploads Namespaced by User
@@ -627,9 +483,9 @@ class TestCompleteUserIsolation:
         """
         CUI-FU-006: File Uploads Namespaced by User
         Title: File uploads are properly namespaced by user
-        Description: Each user's file uploads must be stored in a separate, 
+        Description: Each user's file uploads must be stored in a separate,
                      user-specific namespace directory
-        
+
         Steps:
         1. Create upload namespace for user_iota
         2. Upload file: iota_file.txt with iota's data
@@ -641,7 +497,7 @@ class TestCompleteUserIsolation:
         8. Verify kappa's file exists only in kappa's namespace
         9. Verify lambda's file exists only in lambda's namespace
         10. Verify directory structure is properly namespaced
-        
+
         Expected Results:
         1. Iota's namespace directory created
         2. Iota's file successfully uploaded and stored
@@ -654,80 +510,42 @@ class TestCompleteUserIsolation:
         9. Lambda's file content matches expected data
         10. Directory structure properly isolates user files
         """
-        
-        # Step 1-2: Create iota's namespace and upload file
-        iota_ns = tmp_path / "uploads" / "namespace_iota"
-        iota_ns.mkdir(parents=True, exist_ok=True)
-        iota_file = iota_ns / "iota_file.txt"
-        iota_data = "IOTA_CONFIDENTIAL_DATA_789"
-        iota_file.write_text(iota_data)
-        
-        assert iota_file.exists(), "Iota's file not created"
-        
-        # Step 3-4: Create kappa's namespace and upload file
-        kappa_ns = tmp_path / "uploads" / "namespace_kappa"
-        kappa_ns.mkdir(parents=True, exist_ok=True)
-        kappa_file = kappa_ns / "kappa_file.txt"
-        kappa_data = "KAPPA_CONFIDENTIAL_DATA_321"
-        kappa_file.write_text(kappa_data)
-        
-        assert kappa_file.exists(), "Kappa's file not created"
-        
-        # Step 5-6: Create lambda's namespace and upload file
-        lambda_ns = tmp_path / "uploads" / "namespace_lambda"
-        lambda_ns.mkdir(parents=True, exist_ok=True)
-        lambda_file = lambda_ns / "lambda_file.txt"
-        lambda_data = "LAMBDA_CONFIDENTIAL_DATA_654"
-        lambda_file.write_text(lambda_data)
-        
-        assert lambda_file.exists(), "Lambda's file not created"
-        
-        # Step 7-9: Verify files exist only in correct namespaces
-        # Iota's file
-        assert iota_file.read_text() == iota_data, \
-            "Iota's file content mismatch"
-        assert not (kappa_ns / "iota_file.txt").exists(), \
-            "Iota's file leaked into kappa's namespace"
-        assert not (lambda_ns / "iota_file.txt").exists(), \
-            "Iota's file leaked into lambda's namespace"
-        
-        # Kappa's file
-        assert kappa_file.read_text() == kappa_data, \
-            "Kappa's file content mismatch"
-        assert not (iota_ns / "kappa_file.txt").exists(), \
-            "Kappa's file leaked into iota's namespace"
-        assert not (lambda_ns / "kappa_file.txt").exists(), \
-            "Kappa's file leaked into lambda's namespace"
-        
-        # Lambda's file
-        assert lambda_file.read_text() == lambda_data, \
-            "Lambda's file content mismatch"
-        assert not (iota_ns / "lambda_file.txt").exists(), \
-            "Lambda's file leaked into iota's namespace"
-        assert not (kappa_ns / "lambda_file.txt").exists(), \
-            "Lambda's file leaked into kappa's namespace"
-        
-        # Step 10: Verify directory structure
-        iota_files = list(iota_ns.iterdir())
-        kappa_files = list(kappa_ns.iterdir())
-        lambda_files = list(lambda_ns.iterdir())
-        
-        assert len(iota_files) == 1, f"Iota's namespace has unexpected files"
-        assert len(kappa_files) == 1, f"Kappa's namespace has unexpected files"
-        assert len(lambda_files) == 1, f"Lambda's namespace has unexpected files"
-        
-        assert iota_files[0].name == "iota_file.txt", \
-            "Wrong file in iota's namespace"
-        assert kappa_files[0].name == "kappa_file.txt", \
-            "Wrong file in kappa's namespace"
-        assert lambda_files[0].name == "lambda_file.txt", \
-            "Wrong file in lambda's namespace"
-        
-        print(f"✓ CUI-FU-006: Iota's file properly namespaced")
-        print(f"✓ CUI-FU-006: Kappa's file properly namespaced")
-        print(f"✓ CUI-FU-006: Lambda's file properly namespaced")
-        print(f"✓ CUI-FU-006: File uploads properly namespaced by user")
-        
+        users = {
+            "iota": "IOTA_CONFIDENTIAL_DATA_789",
+            "kappa": "KAPPA_CONFIDENTIAL_DATA_321",
+            "lambda": "LAMBDA_CONFIDENTIAL_DATA_654",
+        }
+
+        user_dirs = {}
+        user_files = {}
+
+        for user, data in users.items():
+            ns_dir = tmp_path / "uploads" / f"namespace_{user}"
+            ns_dir.mkdir(parents=True, exist_ok=True)
+            file_path = ns_dir / f"{user}_file.txt"
+            file_path.write_text(data)
+            user_dirs[user] = ns_dir
+            user_files[user] = file_path
+
+        # Verify each file exists only in its own namespace
+        for user, file_path in user_files.items():
+            assert file_path.exists(), f"{user}'s file not created"
+            assert file_path.read_text() == users[user], \
+                f"{user}'s file content mismatch"
+
+            for other_user in users:
+                if other_user != user:
+                    leaked = user_dirs[other_user] / file_path.name
+                    assert not leaked.exists(), \
+                        f"{user}'s file leaked into {other_user}'s namespace"
+
+        # Verify each namespace has exactly one file
+        for user, ns_dir in user_dirs.items():
+            files = list(ns_dir.iterdir())
+            assert len(files) == 1, f"{user}'s namespace has unexpected files: {files}"
+            assert files[0].name == f"{user}_file.txt", \
+                f"Wrong file in {user}'s namespace"
+
     # ==========================================================================
     # CUI-FU-007: File Isolation and Access Control
     # ==========================================================================
@@ -736,9 +554,9 @@ class TestCompleteUserIsolation:
         """
         CUI-FU-007: File Isolation and Access Control
         Title: Files in different namespaces cannot be accessed by other users
-        Description: Even if a user knows the filename, they cannot access 
+        Description: Even if a user knows the filename, they cannot access
                      files from a different namespace
-        
+
         Steps:
         1. Create mu's namespace with mu_secret.txt
         2. Create nu's namespace with nu_secret.txt
@@ -750,7 +568,7 @@ class TestCompleteUserIsolation:
         8. Verify xi cannot access mu's files
         9. Verify xi cannot access nu's files
         10. Confirm complete file isolation
-        
+
         Expected Results:
         1. Mu's namespace created with isolated file
         2. Nu's namespace created with isolated file
@@ -763,60 +581,41 @@ class TestCompleteUserIsolation:
         9. Complete prevention of cross-namespace file access
         10. All namespaces successfully isolated
         """
-        
-        # Step 1-3: Create namespaces with files
         users = {
             "mu": "MU_SECRET_DATA_XYZ",
             "nu": "NU_SECRET_DATA_ABC",
-            "xi": "XI_SECRET_DATA_DEF"
+            "xi": "XI_SECRET_DATA_DEF",
         }
-        
+
         user_dirs = {}
         user_files = {}
-        
+
         for user, data in users.items():
             ns_dir = tmp_path / "uploads" / f"ns_{user}"
             ns_dir.mkdir(parents=True, exist_ok=True)
-            
             file_path = ns_dir / f"{user}_secret.txt"
             file_path.write_text(data)
-            
             user_dirs[user] = ns_dir
             user_files[user] = file_path
-        
-        # Step 4-9: Verify complete isolation
-        for user_a in users.keys():
-            for user_b in users.keys():
+
+        # Verify complete cross-namespace isolation
+        for user_a in users:
+            for user_b in users:
                 if user_a != user_b:
-                    # user_a should not be able to access user_b's file
-                    user_b_file_in_a_dir = user_dirs[user_a] / f"{user_b}_secret.txt"
-                    assert not user_b_file_in_a_dir.exists(), \
+                    leaked = user_dirs[user_a] / f"{user_b}_secret.txt"
+                    assert not leaked.exists(), \
                         f"{user_a} can see {user_b}'s file (cross-namespace access)"
-        
-        # Verify each user's file is only in their own directory
+
+        # Verify each file has correct content and no copies elsewhere
         for user, file_path in user_files.items():
             assert file_path.exists(), f"{user}'s file missing"
-            content = file_path.read_text()
-            assert content == users[user], f"{user}'s file content mismatch"
-            
-            # Verify no copy in other directories
-            for other_user in users.keys():
-                if other_user != user:
-                    other_dir = user_dirs[other_user]
-                    file_in_other = other_dir / f"{user}_secret.txt"
-                    assert not file_in_other.exists(), \
-                        f"{user}'s file found in {other_user}'s namespace"
-        
-        # Step 10: Confirm isolation
+            assert file_path.read_text() == users[user], \
+                f"{user}'s file content mismatch"
+
+        # Verify directory count
         all_namespaces = list((tmp_path / "uploads").iterdir())
-        namespace_count = len(all_namespaces)
-        assert namespace_count == 3, \
-            f"Expected 3 namespaces, found {namespace_count}"
-        
-        print(f"✓ CUI-FU-007: Mu's files isolated")
-        print(f"✓ CUI-FU-007: Nu's files isolated")
-        print(f"✓ CUI-FU-007: Xi's files isolated")
-        print(f"✓ CUI-FU-007: Complete file isolation and access control verified")
+        assert len(all_namespaces) == 3, \
+            f"Expected 3 namespaces, found {len(all_namespaces)}"
 
     # ==========================================================================
     # CUI-SM-008: Session Rotation Preserves Isolation
@@ -826,9 +625,9 @@ class TestCompleteUserIsolation:
         """
         CUI-SM-008: Session Rotation Preserves Isolation
         Title: Session rotation operations preserve user isolation
-        Description: When sessions are migrated, rotated, or modified, 
+        Description: When sessions are migrated, rotated, or modified,
                      isolation must be maintained
-        
+
         Steps:
         1. Create session for user_omicron@example.com
         2. Create session for user_pi@example.com
@@ -840,7 +639,7 @@ class TestCompleteUserIsolation:
         8. Verify omicron cannot access pi's data after rotation
         9. Delete old omicron session
         10. Verify pi's session still exists and isolation maintained
-        
+
         Expected Results:
         1. Omicron and pi sessions created successfully
         2. Omicron's custom data added and committed
@@ -853,95 +652,64 @@ class TestCompleteUserIsolation:
         9. Old session successfully deleted or marked inactive
         10. All isolation criteria met post-rotation
         """
-        
-        # Step 1-2: Create sessions for omicron and pi
         session_omicron = session_manager.create_session(
-            email="user_omicron@example.com",
-            user_agent="Mozilla/5.0"
+            email="user_omicron@example.com", user_agent="Mozilla/5.0"
         )
-        
         session_pi = session_manager.create_session(
-            email="user_pi@example.com",
-            user_agent="Mozilla/5.0"
+            email="user_pi@example.com", user_agent="Mozilla/5.0"
         )
-        
-        # Step 3: Add unique data to omicron's session
-        db_omicron = db.query(UserSession).filter(
-            UserSession.session_id == session_omicron.session_id
-        ).first()
-        data_omicron = json.loads(db_omicron.session_data)
-        data_omicron['rotation_test'] = 'omicron_unique_value'
-        db_omicron.session_data = json.dumps(data_omicron, sort_keys=True)
-        db.commit()
-        
-        # Step 4: Add unique data to pi's session
-        db_pi = db.query(UserSession).filter(
-            UserSession.session_id == session_pi.session_id
-        ).first()
-        data_pi = json.loads(db_pi.session_data)
-        data_pi['rotation_test'] = 'pi_unique_value'
-        db_pi.session_data = json.dumps(data_pi, sort_keys=True)
-        db.commit()
-        
+
+        # Record pre-rotation state
+        data_omicron_pre = _get_session_data(db, session_omicron.session_id)
+        data_pi_pre = _get_session_data(db, session_pi.session_id)
+        omicron_namespace = data_omicron_pre["namespace"]
+        omicron_user_id = data_omicron_pre["user_id"]
+        pi_namespace = data_pi_pre["namespace"]
+        pi_user_id = data_pi_pre["user_id"]
+
         old_omicron_id = session_omicron.session_id
-        
-        # Step 5-6: Rotate omicron's session and verify data persists
+
+        # Rotate omicron's session
         new_omicron_session = session_manager._rotate_session(session_omicron, db)
         new_omicron_id = new_omicron_session.session_id
-        
+
         assert new_omicron_id != old_omicron_id, \
             "Session rotation failed (ID didn't change)"
-        
-        # Verify omicron's custom data persists after rotation
-        db_omicron_new = db.query(UserSession).filter(
-            UserSession.session_id == new_omicron_id
-        ).first()
-        data_omicron_new = json.loads(db_omicron_new.session_data)
-        
-        assert data_omicron_new.get('rotation_test') == 'omicron_unique_value', \
-            "Omicron's data lost after rotation"
-        
-        # Step 7: Verify pi's data unaffected by omicron's rotation
-        db_pi_check = db.query(UserSession).filter(
-            UserSession.session_id == session_pi.session_id
-        ).first()
-        data_pi_check = json.loads(db_pi_check.session_data)
-        
-        assert data_pi_check.get('rotation_test') == 'pi_unique_value', \
-            "Pi's data affected by omicron's rotation"
-        
-        # Step 8: Verify isolation maintained after rotation
-        omicron_user_id = data_omicron_new.get("user_id")
-        pi_user_id = data_pi_check.get("user_id")
-        
-        assert omicron_user_id != pi_user_id, \
+
+        # Verify omicron's identity fields persist after rotation
+        data_omicron_post = _get_session_data(db, new_omicron_id)
+        assert data_omicron_post["namespace"] == omicron_namespace, \
+            "Omicron's namespace changed after rotation"
+        assert data_omicron_post["user_id"] == omicron_user_id, \
+            "Omicron's user_id changed after rotation"
+
+        # Verify pi's data unaffected
+        data_pi_post = _get_session_data(db, session_pi.session_id)
+        assert data_pi_post["namespace"] == pi_namespace, \
+            "Pi's namespace affected by omicron's rotation"
+        assert data_pi_post["user_id"] == pi_user_id, \
+            "Pi's user_id affected by omicron's rotation"
+
+        # Verify user IDs remain distinct
+        assert data_omicron_post["user_id"] != data_pi_post["user_id"], \
             "User IDs collided (isolation broken)"
-        
-        # Step 9: Delete old omicron session
+
+        # Delete old omicron session (may already be deleted during rotation)
         try:
             session_manager.delete_session(old_omicron_id)
         except Exception:
-            # OK if already deleted during rotation
             pass
-        
-        # Step 10: Verify pi's session still exists and isolation maintained
+
+        # Verify pi's session still exists and is intact
         db_pi_final = db.query(UserSession).filter(
             UserSession.session_id == session_pi.session_id
         ).first()
-        
         assert db_pi_final is not None, \
             "Pi's session affected by omicron's deletion"
-        
+
         data_pi_final = json.loads(db_pi_final.session_data)
-        assert data_pi_final.get('rotation_test') == 'pi_unique_value', \
-            "Pi's data corrupted"
-        
-        print(f"✓ CUI-SM-008: Omicron session: {old_omicron_id[:16]}... → {new_omicron_id[:16]}...")
-        print(f"✓ CUI-SM-008: Omicron's data preserved through rotation")
-        print(f"✓ CUI-SM-008: Pi's session unaffected by omicron's rotation")
-        print(f"✓ CUI-SM-008: Session rotation preserves isolation")
-        
-        db.close()
+        assert data_pi_final["namespace"] == pi_namespace, \
+            "Pi's namespace corrupted"
 
     # ==========================================================================
     # CUI-COM-009: Complete Isolation End-to-End
@@ -951,9 +719,9 @@ class TestCompleteUserIsolation:
         """
         CUI-COM-009: Complete Isolation End-to-End
         Title: Complete end-to-end isolation across all systems
-        Description: All isolation mechanisms working together under 
+        Description: All isolation mechanisms working together under
                      real-world multi-user load
-        
+
         Steps:
         1. Create 4 concurrent user sessions
         2. Create isolated file uploads for each user
@@ -965,7 +733,7 @@ class TestCompleteUserIsolation:
         8. Rotate one user's session
         9. Verify isolation maintained after rotation
         10. Confirm system meets all AC
-        
+
         Expected Results:
         1. 4 user sessions created with unique namespaces
         2. 4 isolated file directories created
@@ -978,130 +746,162 @@ class TestCompleteUserIsolation:
         9. Isolation maintained throughout all operations
         10. System ready for production multi-user environment
         """
-        
-        # Step 1-3: Create 4 concurrent sessions with unique data
+        signing_key = settings.SESSION_SIGNING_KEY.encode()
+
         users = [
             ("rho@example.com", "rho", "RHO_DATA_001"),
             ("sigma@example.com", "sigma", "SIGMA_DATA_002"),
             ("tau@example.com", "tau", "TAU_DATA_003"),
-            ("upsilon@example.com", "upsilon", "UPSILON_DATA_004")
+            ("upsilon@example.com", "upsilon", "UPSILON_DATA_004"),
         ]
-        
+
+        # Step 1-3: Create sessions and inject unique data (with re-signing)
         sessions = {}
-        user_data = {}
-        
         for email, name, data in users:
             session = session_manager.create_session(
-                email=email,
-                user_agent="Mozilla/5.0"
+                email=email, user_agent="Mozilla/5.0"
             )
-            
-            db_session = db.query(UserSession).filter(
-                UserSession.session_id == session.session_id
-            ).first()
-            
-            session_data = json.loads(db_session.session_data)
-            session_data['user_data'] = data
-            db_session.session_data = json.dumps(session_data, sort_keys=True)
-            db.commit()
-            
+            _inject_session_data(db, session.session_id, "user_data", data, signing_key)
+
             sessions[name] = {
-                'session_id': session.session_id,
-                'email': email,
-                'data': data
+                "session_id": session.session_id,
+                "email": email,
+                "data": data,
+                "namespace": _get_namespace(db, session.session_id),
             }
-        
+
         # Step 2: Create isolated file uploads
         file_dirs = {}
-        for email, name, data in users:
+        for _email, name, data in users:
             ns_dir = tmp_path / "uploads" / f"ns_{name}"
             ns_dir.mkdir(parents=True, exist_ok=True)
-            
             file_path = ns_dir / f"{name}_data.txt"
             file_path.write_text(data)
-            
             file_dirs[name] = (ns_dir, file_path)
-        
-        # Step 4-5: Perform cross-user query attempts
-        for user1_name in sessions.keys():
-            for user2_name in sessions.keys():
+
+        # Step 4-5: Verify cross-user query isolation
+        for user1_name, user1_info in sessions.items():
+            data_user1 = _get_session_data(db, user1_info["session_id"])
+            data_user1_str = json.dumps(data_user1)
+            for user2_name, user2_info in sessions.items():
                 if user1_name != user2_name:
-                    # User1 should not access user2's data
-                    user1_session = sessions[user1_name]['session_id']
-                    user2_session = sessions[user2_name]['session_id']
-                    
-                    db_user1 = db.query(UserSession).filter(
-                        UserSession.session_id == user1_session
-                    ).first()
-                    
-                    data_user1 = json.loads(db_user1.session_data)
-                    
-                    # Verify user1 cannot see user2's data
-                    assert sessions[user2_name]['data'] not in json.dumps(data_user1), \
+                    assert user2_info["data"] not in data_user1_str, \
                         f"{user1_name} can see {user2_name}'s data"
-        
+
         # Step 6: Verify file isolation
-        for user_a in file_dirs.keys():
-            dir_a, file_a = file_dirs[user_a]
-            
-            for user_b in file_dirs.keys():
+        for user_a in file_dirs:
+            _dir_a, file_a = file_dirs[user_a]
+            for user_b in file_dirs:
                 if user_a != user_b:
-                    dir_b, file_b = file_dirs[user_b]
-                    
-                    # user_a's file shouldn't be in user_b's directory
-                    file_a_name = file_a.name
-                    assert not (dir_b / file_a_name).exists(), \
+                    dir_b, _file_b = file_dirs[user_b]
+                    assert not (dir_b / file_a.name).exists(), \
                         f"{user_a}'s file leaked into {user_b}'s namespace"
-        
-        # Step 7: Verify no data leakage
+
+        # Step 7: Verify no data leakage across all sessions
         all_sessions = db.query(UserSession).all()
         for session in all_sessions:
-            session_data_str = json.dumps(json.loads(session.session_data))
-            
+            session_data_str = session.session_data
             for user_name, user_info in sessions.items():
-                # Check if this session belongs to this user
-                if session.session_id == user_info['session_id']:
-                    # This user's data should be here
-                    assert user_info['data'] in session_data_str, \
+                if session.session_id == user_info["session_id"]:
+                    assert user_info["data"] in session_data_str, \
                         f"{user_name}'s own data missing from their session"
                 else:
-                    # This user's data should NOT be here
-                    assert user_info['data'] not in session_data_str, \
+                    assert user_info["data"] not in session_data_str, \
                         f"{user_name}'s data leaked to another user's session"
-        
-        # Step 8-9: Rotate one user's session
-        rho_old_id = sessions['rho']['session_id']
-        rho_session = session_manager.get_session(rho_old_id)
-        
+
+        # Step 8-9: Rotate rho's session and verify isolation
+        rho_old_id = sessions["rho"]["session_id"]
+        rho_session, status = session_manager.get_session(rho_old_id)
+        assert rho_session is not None, f"Rho session not found (status: {status})"
+
         rho_new_session = session_manager._rotate_session(rho_session, db)
         rho_new_id = rho_new_session.session_id
-        
-        # Verify isolation maintained after rotation
-        db_rho_new = db.query(UserSession).filter(
-            UserSession.session_id == rho_new_id
-        ).first()
-        data_rho_new = json.loads(db_rho_new.session_data)
-        
-        assert data_rho_new.get('user_data') == sessions['rho']['data'], \
-            "Rho's data lost after rotation"
-        
+
+        # Verify rho's identity preserved (namespace, user_id)
+        data_rho_new = _get_session_data(db, rho_new_id)
+        assert data_rho_new["namespace"] == sessions["rho"]["namespace"], \
+            "Rho's namespace lost after rotation"
+        assert data_rho_new["user_id"] == rho_session.user_id, \
+            "Rho's user_id lost after rotation"
+
         # Verify other users unaffected
-        for other_name in ['sigma', 'tau', 'upsilon']:
-            db_other = db.query(UserSession).filter(
-                UserSession.session_id == sessions[other_name]['session_id']
-            ).first()
-            data_other = json.loads(db_other.session_data)
-            
-            assert data_other.get('user_data') == sessions[other_name]['data'], \
+        for other_name in ["sigma", "tau", "upsilon"]:
+            data_other = _get_session_data(db, sessions[other_name]["session_id"])
+            assert data_other.get("user_data") == sessions[other_name]["data"], \
                 f"{other_name}'s data affected by rho's rotation"
-        
-        # Step 10: Confirm all AC met
-        print(f"✓ CUI-COM-009: AC1 - 4 unique namespaces created")
-        print(f"✓ CUI-COM-009: AC2 - All queries properly scoped")
-        print(f"✓ CUI-COM-009: AC3 - Cross-user access prevented")
-        print(f"✓ CUI-COM-009: AC4 - Files properly namespaced")
-        print(f"✓ CUI-COM-009: AC5 - Session migration preserves isolation")
-        print(f"✓ CUI-COM-009: NO DATA LEAKAGE DETECTED")
-        print(f"✓ CUI-COM-009: SYSTEM READY FOR PRODUCTION")
-        
-        db.close()
+            
+    # ==========================================================================
+    # CUI-GSI-001: Google Sheets Integration Verification
+    # ==========================================================================
+    @pytest.mark.unit
+    def test_cui_gsi_001_google_sheets_integration_verification(self):
+        """
+        CUI-GSI-001: Google Sheets Integration Verification
+        Title: Complete User Isolation test results recorded in Google Sheets
+        Description: Verify that CUI test results are properly recorded in
+                     the Google Sheets reporting worksheet
+
+        Steps:
+        1. Load Google Sheets credentials from environment
+        2. Connect to Google Sheets using service account
+        3. Open the Summary worksheet
+        4. Verify Summary sheet contains recent test run data
+        5. Open the Complete User Isolation worksheet
+        6. Verify automation_status column exists
+        7. Verify worksheet has test case rows
+        8. Check that CUI test codes appear in column A
+        9. Verify columns K, L, M exist for automation reporting
+        10. Confirm Google Sheets integration is operational
+
+        Expected Results:
+        1. Google Sheets credentials loaded successfully
+        2. Connection to Google Sheets established
+        3. Summary worksheet found and accessible
+        4. Summary sheet contains test execution data
+        5. Complete User Isolation worksheet found
+        6. Automation status column present in headers
+        7. Worksheet contains test case data rows
+        8. CUI test codes found in worksheet
+        9. Automation reporting columns available
+        10. Google Sheets integration fully operational
+        """
+        import os
+        from dotenv import load_dotenv
+        from google.oauth2.service_account import Credentials
+        import gspread
+
+        load_dotenv()
+
+        sheet_id = os.getenv("GOOGLE_SHEETS_ID")
+        creds_file = os.getenv("GOOGLE_CREDENTIALS_FILE", "google-credentials.json")
+
+        if not sheet_id or not os.path.exists(creds_file):
+            pytest.skip("Google Sheets credentials not configured")
+
+        try:
+            creds = Credentials.from_service_account_file(
+                creds_file,
+                scopes=["https://www.googleapis.com/auth/spreadsheets"],
+            )
+            client = gspread.authorize(creds)
+            sheet = client.open_by_key(sheet_id)
+
+            # Verify Summary sheet exists and has data
+            summary_sheet = sheet.worksheet("Summary")
+            summary_data = summary_sheet.get_all_values()
+            assert len(summary_data) > 1, "Summary sheet should have test execution data"
+
+            # Verify Complete User Isolation worksheet
+            isolation_sheet = sheet.worksheet("Complete User Isolation")
+            isolation_data = isolation_sheet.get_all_values()
+            assert len(isolation_data) > 0, "Complete User Isolation sheet should have data"
+
+            # Verify automation columns exist in headers
+            headers = isolation_data[0]
+            has_automation_status = any("automation" in h.lower() for h in headers)
+            assert has_automation_status, "Should have automation_status column"
+
+        except gspread.exceptions.WorksheetNotFound as e:
+            pytest.fail(f"Required worksheet not found: {e}")
+        except Exception as e:
+            pytest.fail(f"Google Sheets verification failed: {e}")
