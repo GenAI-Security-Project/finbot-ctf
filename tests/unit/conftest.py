@@ -4,11 +4,29 @@ Unit test configuration.
 
 import pytest
 from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
 
+from fastapi.testclient import TestClient
+
+from finbot.main import app
 from finbot.core.auth.session import session_manager
 from finbot.core.data.database import SessionLocal
 from finbot.core.data.repositories import VendorRepository, InvoiceRepository
 from finbot.core.data.models import UserSession
+
+
+@pytest.fixture
+def client():
+    """Test client for unit tests.
+
+    Overrides the global client fixture. Mocks the CTF event processor
+    and definition loader to prevent CancelledError from async background
+    tasks during test teardown.
+    """
+    with patch("finbot.main.start_processor_task", return_value=None), \
+         patch("finbot.main.load_definitions_on_startup", return_value={"challenges": [], "badges": []}):
+        with TestClient(app) as test_client:
+            yield test_client
 
 
 @pytest.fixture
@@ -84,9 +102,13 @@ def multi_vendor_setup(db):
     """
     vendors = []
     
+    # Create 5 vendors, each with their own session and unique identity
     for i in range(5):
+        # Each vendor gets a distinct session (separate user email)
         session = session_manager.create_session(email=f"vendor_{i}@example.com")
         vendor_repo = VendorRepository(db, session)
+
+        # Create vendor with unique test data per iteration
         vendor = create_vendor(
             vendor_repo,
             f"Load Test Vendor {i}",
@@ -95,10 +117,11 @@ def multi_vendor_setup(db):
             f"{i:02d}-{i:07d}"
         )
         
+        # Track each vendor's context for use in tests
         vendors.append({
             'session_id': session.session_id,
             'vendor_id': vendor.id,
-            'invoice_id': None,
+            'invoice_id': None,  # Placeholder for tests that need invoices
             'db': db,
         })
     

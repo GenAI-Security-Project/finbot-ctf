@@ -36,7 +36,10 @@ jobs:
       env:
         GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
       run: pytest tests/unit/auth/test_secure_session_management.py -v --google-sheets
-    
+
+    - name: Run web route tests
+      run: pytest tests/unit/apps/web/test_routes.py -v
+      
     - name: Upload coverage reports
       if: always()
       uses: codecov/codecov-action@v3
