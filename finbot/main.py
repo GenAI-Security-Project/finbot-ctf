@@ -27,7 +27,7 @@ from finbot.ctf.processor import start_processor_task
 
 # Logging
 from finbot.logging_config import setup_logging
-from mcp_runtime.orchestrator import run_ctf_scenario
+from finbot.mcp_runtime.orchestrator import run_ctf_scenario
 
 setup_logging()
 
