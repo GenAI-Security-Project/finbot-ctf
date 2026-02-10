@@ -21,6 +21,7 @@ from fastapi.testclient import TestClient
 
 from finbot.core.auth.session import session_manager
 from finbot.core.data.models import UserSession
+from finbot.core.data.database import SessionLocal
 from finbot.config import settings
 
 # Constants
@@ -130,41 +131,38 @@ def test_session_rotation_preserves_hmac(db):
     5. Calculated HMAC-SHA256 matches new_session.signature exactly
     6. Old session query returns no results (record deleted from database)
     """
-    
     # Create a session
     old_session_ctx = session_manager.create_session(
         email="rotation_test@example.com",
         user_agent="Mozilla/5.0"
     )
-    
-    # Force session rotation
-    old_session = db.query(UserSession).filter(
-        UserSession.session_id == old_session_ctx.session_id
-    ).first()
-    
-    # Simulate rotation by calling internal method
-    new_session_ctx = session_manager._rotate_session(old_session_ctx, db)
-    
-    # Verify new session has valid signature
-    new_session = db.query(UserSession).filter(
-        UserSession.session_id == new_session_ctx.session_id
-    ).first()
-    
-    assert new_session is not None, "Rotated session not found in database"
-    assert new_session.signature is not None, "Rotated session has no signature"
-    
-    # Verify signature is valid
-    expected_signature = verify_hmac_signature(new_session.session_data, new_session.signature)
-    assert new_session.signature == expected_signature, \
-        "Rotated session signature does not match HMAC"
-    
-    # Verify old session was deleted
-    old_session_check = db.query(UserSession).filter(
-        UserSession.session_id == old_session_ctx.session_id
-    ).first()
-    assert old_session_check is None, "Old session should be deleted after rotation"
-    
-    db.close()
+
+    # Use a fresh DB session to avoid SQLite locking conflicts
+    db = SessionLocal()
+    try:
+        # Simulate rotation by calling internal method
+        new_session_ctx = session_manager._rotate_session(old_session_ctx, db)
+
+        # Verify new session has valid signature
+        new_session = db.query(UserSession).filter_by(
+            session_id=new_session_ctx.session_id
+        ).first()
+
+        assert new_session is not None, "Rotated session not found in database"
+        assert new_session.signature is not None, "Rotated session has no signature"
+
+        # Verify signature is valid
+        expected_signature = verify_hmac_signature(new_session.session_data, new_session.signature)
+        assert new_session.signature == expected_signature, \
+            "Rotated session signature does not match HMAC"
+
+        # Verify old session was deleted
+        old_session_check = db.query(UserSession).filter_by(
+            session_id=old_session_ctx.session_id
+        ).first()
+        assert old_session_check is None, "Old session should be deleted after rotation"
+    finally:
+        db.close()
 
 
 # ============================================================================

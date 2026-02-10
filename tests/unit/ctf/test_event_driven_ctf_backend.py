@@ -1477,7 +1477,7 @@ def test_websocket_event_factory_functions():
 # ============================================================================
 @pytest.mark.unit
 def test_google_sheets_integration_verification():
-    """EDR-GS-001: Google Sheets Integration Verification
+    """EDR-GSI-001: Google Sheets Integration Verification
 
     Verify that test results are properly recorded in Google Sheets.
 
@@ -1486,7 +1486,7 @@ def test_google_sheets_integration_verification():
     2. Open the Summary worksheet
     3. Verify the latest row contains today's test run
     4. Check that passed/failed counts match expected values
-    5. Verify the CTF Challenge Validation worksheet has test markers
+    5. Verify the Event Driven CTF worksheet has test markers
 
     Expected Results:
     1. Google Sheets connection successful
@@ -1521,11 +1521,11 @@ def test_google_sheets_integration_verification():
 
         assert len(summary_data) > 1, "Summary sheet should have data"
 
-        # Check CTF Challenge Validation sheet
-        ctf_sheet = sheet.worksheet('CTF Challenge Validation')
+        # Check Event Driven CTF sheet
+        ctf_sheet = sheet.worksheet('Event Driven CTF')
         ctf_data = ctf_sheet.get_all_values()
 
-        assert len(ctf_data) > 0, "CTF Challenge Validation should have data"
+        assert len(ctf_data) > 0, "Event Driven CTF should have data"
 
         # Verify automation_status column exists
         headers = ctf_data[0]

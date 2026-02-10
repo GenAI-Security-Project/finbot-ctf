@@ -5,7 +5,6 @@ from datetime import datetime, timedelta, timezone
 from finbot.core.auth.session import session_manager
 from finbot.core.data.repositories import InvoiceRepository
 from finbot.core.data.models import UserSession
-from tests.unit.conftest import db
 
 
 VENDOR_API_PREFIX = "/vendor/api/v1"
