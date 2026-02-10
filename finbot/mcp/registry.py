@@ -1,35 +1,24 @@
+from typing import Dict, Any
 
-
-import os
-import sys
-from typing import Dict, List
 
 class MCPRegistry:
+    """
+    In-memory registry for MCP servers and their configuration.
+    """
+
     def __init__(self):
-        self._servers: Dict[str, Dict] = {
-            "payments": {
-                "enabled": True,
-                "command": sys.executable,
-                "args": ["finbot/mock_mcp_servers/payments_mcp/server.py"],
-            },
-            "drive": {
-                "enabled": True,
-                "command": sys.executable,
-                "args": ["finbot/mock_mcp_servers/drive_mcp/server.py"],
-            },
-        }
+        self._servers: Dict[str, Dict[str, Any]] = {}
 
-    def list_servers(self) -> List[str]:
-        return [name for name, cfg in self._servers.items() if cfg.get("enabled")]
+    def register_server(self, name: str, config: Dict[str, Any]) -> None:
+        self._servers[name] = config
 
-    def get_server(self, name: str) -> Dict:
+    def has_server(self, name: str) -> bool:
+        return name in self._servers
+
+    def get_server(self, name: str) -> Dict[str, Any]:
         if name not in self._servers:
-            raise KeyError(f"Server '{name}' not found")
+            raise KeyError(f"MCP server '{name}' not registered")
+        return self._servers[name]
 
-        cfg = self._servers[name].copy()
-
-        # Resolve absolute script path
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
-        cfg["args"] = [os.path.join(project_root, cfg["args"][0])]
-
-        return cfg
+    def list_servers(self):
+        return list(self._servers.keys())

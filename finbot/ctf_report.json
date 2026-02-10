@@ -1,0 +1,79 @@
+[
+  {
+    "timestamp": 1770698502.054632,
+    "event_type": "RECON",
+    "payload": {
+      "agent": "ReconAgent",
+      "server": "payments",
+      "findings": {
+        "tools": [
+          {
+            "name": "create_payment",
+            "description": "",
+            "parameters": [
+              "amount"
+            ]
+          },
+          {
+            "name": "refund_payment",
+            "description": "",
+            "parameters": [
+              "payment_id"
+            ]
+          }
+        ],
+        "high_risk_tools": [
+          "refund_payment"
+        ]
+      }
+    }
+  },
+  {
+    "timestamp": 1770698502.0546448,
+    "event_type": "RECON",
+    "payload": {
+      "agent": "ReconAgent",
+      "server": "drive",
+      "findings": {
+        "tools": [
+          {
+            "name": "read_file",
+            "description": "",
+            "parameters": [
+              "user_id",
+              "filename"
+            ]
+          }
+        ],
+        "high_risk_tools": [
+          "read_file"
+        ]
+      }
+    }
+  },
+  {
+    "timestamp": 1770698502.054723,
+    "event_type": "ATTACK",
+    "payload": {
+      "agent": "OffensiveAgent",
+      "server": "payments",
+      "attack": "unauthorized_refund",
+      "success": false,
+      "evidence": "{\n  \"status\": \"error\",\n  \"message\": \"Payment not found\"\n}"
+    }
+  },
+  {
+    "timestamp": 1770698502.0547378,
+    "event_type": "AUDIT",
+    "payload": {
+      "agent": "AuditorAgent",
+      "incidents": [
+        {
+          "issue": "Audit execution failed",
+          "error": "Unknown tool: list_transactions"
+        }
+      ],
+      "score_impact": 1
+    }
+  }
+]

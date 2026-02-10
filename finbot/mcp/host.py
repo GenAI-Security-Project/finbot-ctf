@@ -1,50 +1,68 @@
-from finbot.core.auth import session
+import logging
 
 
 class MCPHost:
     """
-    Central registry and execution layer for MCP servers.
-
-    This class acts as the coordination point between agents
-    and individual MCP servers, abstracting server lookup
-    and tool invocation.
+    Central MCP authority responsible for routing tool calls
+    through per-agent scoped MCP clients.
     """
 
-    def __init__(self):
-        """
-        Initialize the MCP host.
+    def __init__(self, telemetry=None):
+        self._agent_clients = {}
+        self.telemetry = telemetry
+        self.logger = logging.getLogger("MCPHost")
 
-        Maintains an in-memory registry of MCP servers
-        indexed by logical server name.
-        """
-        self.servers = {}
+    def register_agent_client(self, agent_name: str, mcp_client) -> None:
+        self._agent_clients[agent_name] = mcp_client
+        self.logger.info(f"Registered MCP client for agent '{agent_name}'")
 
-    def register(self, name: str, server):
-        """
-        Register an MCP server with the host.
+    async def call_tool(
+        self,
+        agent_name: str,
+        server_name: str,
+        tool_name: str,
+        args: dict,
+    ):
+        if agent_name not in self._agent_clients:
+            raise PermissionError(
+                f"Agent '{agent_name}' is not registered with MCPHost"
+            )
 
-        Args:
-            name (str):
-                Logical name used by agents to reference the server.
-            server (object):
-                MCP server instance exposing callable tools.
-        """
-        self.servers[name] = session
+        mcp_client = self._agent_clients[agent_name]
 
-    async def call_tool(self, server_name: str, tool_name: str, args: dict):
-        """
-        Invoke a tool on a registered MCP server.
+        if self.telemetry:
+            try:
+                self.telemetry.record_call_attempt(
+                    agent=agent_name,
+                    server=server_name,
+                    tool=tool_name,
+                )
+            except Exception:
+                pass
 
-        Args:
-            server_name (str):
-                Name of the registered MCP server.
-            tool_name (str):
-                Tool identifier to execute on the server.
-            args (dict):
-                Arguments to pass to the tool.
+        result = await mcp_client.call_tool(
+            server_name=server_name,
+            tool_name=tool_name,
+            args=args,
+        )
 
-        Returns:
-            Any:
-                Raw result returned by the MCP server tool.
-        """
-        return await self.servers[server_name].call_tool(tool_name, args)
+        if self.telemetry:
+            try:
+                self.telemetry.record_call_result(
+                    agent=agent_name,
+                    server=server_name,
+                    tool=tool_name,
+                    result=result,
+                )
+            except Exception:
+                pass
+
+        return result
+
+    def has_agent(self, agent_name: str) -> bool:
+        return agent_name in self._agent_clients
+
+    def unregister_agent(self, agent_name: str) -> None:
+        if agent_name in self._agent_clients:
+            del self._agent_clients[agent_name]
+            self.logger.info(f"Unregistered MCP client for agent '{agent_name}'")

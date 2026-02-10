@@ -1,69 +1,52 @@
-class MCPAuditorAgent:
+from finbot.agents_mcp.base_mcp_agent import BaseMCPAgent
+
+
+class MCPAuditorAgent(BaseMCPAgent):
     """
-    Auditor agent responsible for reviewing attack results,
-    determining system security status, and producing a final audit report.
+    Auditor agent responsible for validating security incidents
+    discovered during reconnaissance and offensive phases.
     """
 
     def __init__(self, telemetry=None):
+        super().__init__("AuditorAgent", telemetry)
+        
+        # Define the limited scope of servers this agent is permitted to access
+        self.required_mcp_servers = ["payments"]
+
+    async def run(self):
         """
-        Initialize the auditor agent.
-
-        Args:
-            telemetry (object, optional):
-                Telemetry or monitoring interface used to record audit results.
-                If not provided, audit data will not be externally recorded.
+        Executes audit checks against the payments server to detect 
+        unauthorized financial activity like suspicious refunds.
         """
-        self.telemetry = telemetry
-        self.name = "AuditorAgent"
+        if not self.mcp:
+            raise RuntimeError("MCP client not initialized for AuditorAgent")
 
-    async def run(self, attack_results):
-        """
-        Analyze attack results from offensive agents and generate
-        a consolidated security audit report.
+        incidents = []
 
-        Args:
-            attack_results (dict):
-                Dictionary containing exploit results per MCP server.
-                Expected structure:
-                {
-                    "server_name": {
-                        "exploits": [<exploit_identifier>, ...]
-                    }
-                }
+        try:
+            # Query the payments server for transaction history
+            result = await self.mcp.call_tool(
+                server_name="payments",
+                tool_name="list_transactions",
+                args={},
+            )
 
-        Returns:
-            dict:
-                Final audit report including system status, breach count,
-                and critical findings.
-        """
+            text = self._extract_text(result)
 
-        # Initialize default audit report assuming a secure system
-        report = {
-            "system_status": "SECURE",
-            "total_breaches": 0,
-            "critical_findings": []
-        }
+            # Heuristic check: Flag results that indicate potential exploit success
+            if "refund" in text.lower():
+                incidents.append(
+                    {"issue": "Suspicious refund activity detected"}
+                )
 
-        # Iterate through each MCP server's attack results
-        for server, data in attack_results.items():
-            for exploit in data.get("exploits", []):
-                # Each exploit represents a confirmed security breach
-                report["total_breaches"] += 1
-                report["system_status"] = "COMPROMISED"
+        except Exception as e:
+            incidents.append(
+                {"issue": "Audit execution failed", "error": str(e)}
+            )
 
-                # Classify severity based on exploit type
-                report["critical_findings"].append({
-                    "target": server,
-                    "vulnerability": exploit,
-                    "severity": "CRITICAL" if "bola" in exploit else "HIGH"
-                })
-
-        # Record audit results to telemetry system if available
         if self.telemetry:
             self.telemetry.record_audit(
                 agent_name=self.name,
-                incidents=report["critical_findings"],
-                score_impact=report["total_breaches"]
+                incidents=incidents,
+                score_impact=len(incidents),
             )
-
-        return report

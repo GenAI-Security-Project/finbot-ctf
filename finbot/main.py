@@ -27,6 +27,7 @@ from finbot.ctf.processor import start_processor_task
 
 # Logging
 from finbot.logging_config import setup_logging
+from mcp_runtime.orchestrator import run_ctf_scenario
 
 setup_logging()
 
@@ -148,6 +149,11 @@ async def session_status(
         "csrf_token": session_context.csrf_token,
     }
 
+
+@app.post("/api/run-ctf")
+async def run_ctf():
+    result = await run_ctf_scenario()
+    return {"status": "completed", "result": result}
 
 if __name__ == "__main__":
     import uvicorn

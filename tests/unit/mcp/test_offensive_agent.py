@@ -1,49 +1,35 @@
 import pytest
-from types import SimpleNamespace
 from finbot.agents_mcp.offensive_agent import MCPOffensiveAgent
 
 
+class FakeMCPClient:
+    def __init__(self):
+        self.calls = []
 
-def mcp_result(text: str):
-    return [SimpleNamespace(text=text)]
-
-
-class FakeHost:
-    async def call_tool(self, server, tool, args):
-        if tool == "create_payment":
-            return mcp_result(
-                "Success: Payment 123e4567-e89b-12d3-a456-426614174000 created."
-            )
-        if tool == "refund_payment":
-            return mcp_result("Success: refunded")
-        if tool == "read_file":
-            return mcp_result("Success: CTF{BOLA_FLAG}")
-        raise RuntimeError(f"Unknown tool: {tool}")
+    async def call_tool(self, server_name, tool_name, args):
+        self.calls.append((server_name, tool_name, args))
+        return {"status": "success"}
 
 
-@pytest.mark.asyncio
-async def test_double_refund_exploit_success():
-    agent = MCPOffensiveAgent(FakeHost())
+class FakeTelemetry:
+    def __init__(self):
+        self.events = []
 
-    recon = {
-        "payments": {"high_risk_tools": ["refund_payment"]},
-        "drive": {"high_risk_tools": []},
-    }
-
-    results = await agent.run(recon)
-
-    assert results["payments"]["exploits"] == ["double_refund"]
+    def record_attack(self, agent_name, server, attack_name, success, evidence):
+        self.events.append(
+            (agent_name, server, attack_name, success, evidence)
+        )
 
 
 @pytest.mark.asyncio
-async def test_bola_read_exploit_success():
-    agent = MCPOffensiveAgent(FakeHost())
+async def test_offensive_agent_executes_attack():
+    telemetry = FakeTelemetry()
+    agent = MCPOffensiveAgent(telemetry=telemetry)
 
-    recon = {
-        "drive": {"high_risk_tools": ["read_file"]},
-        "payments": {"high_risk_tools": []},
-    }
+    agent.set_mcp_client(FakeMCPClient())
 
-    results = await agent.run(recon)
+    await agent.run()
 
-    assert results["drive"]["exploits"] == ["bola_read"]
+    assert agent.mcp.calls
+    assert agent.mcp.calls[0][0] == "payments"
+    assert telemetry.events

