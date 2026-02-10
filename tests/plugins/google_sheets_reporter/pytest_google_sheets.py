@@ -166,7 +166,7 @@ def extract_iso_code(docstring: Optional[str]) -> Optional[str]:
     """Extract test code from docstring (ISO-*, SSM-*, etc.)."""
     if not docstring:
         return None
-    # Match patterns like: ISO-DAT-001, SSM-HMC-001, etc.
+    # Match patterns like: ISO-DAT-001, SSM-HMC-001, DBP-ENV-001, etc.
     match = re.search(r'([A-Z][A-Z0-9]*-[A-Z0-9]+-\d+)', docstring)
     return match.group(1) if match else None
 
@@ -176,6 +176,7 @@ def detect_test_category(item) -> str:
     fspath = str(item.fspath).lower()
     
     path_worksheet_map = {
+        'database': 'Multi-DB-Support',
         'vendor': 'Isolation Testing Framework TCs',
         'auth': 'Secure Session Management',
         'security': 'Security Penetration Testing',
@@ -184,7 +185,7 @@ def detect_test_category(item) -> str:
         'browser': 'Cross_Browser',
         'e2e': 'End-To-End',
         'integration': 'End-To-End',
-        'summary': 'Summary'
+        'summary': 'Summary',
     }
     
     for keyword, worksheet in path_worksheet_map.items():
@@ -208,6 +209,7 @@ class GoogleSheetsPlugin:
             worksheets = [
                 'Isolation Testing Framework TCs',
                 'Secure Session Management',
+                'Multi-DB-Support',
                 'Security Penetration Testing',
                 'CTF Challenge Validation',
                 'Performance Testing',
