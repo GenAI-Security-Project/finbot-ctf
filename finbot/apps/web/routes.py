@@ -1,8 +1,12 @@
-from fastapi import Request, Form, HTTPException
+from fastapi import Request, Form, HTTPException, Depends
 from finbot.agents.workflow_runner import run_invoice_lifecycle_workflow
 from finbot.core.templates import TemplateResponse
 from fastapi.responses import HTMLResponse
 from fastapi import APIRouter
+from finbot.core.auth.middleware import get_session_context
+from finbot.core.auth.session import SessionContext
+from finbot.core.data.database import get_db
+from finbot.core.data.repositories import InvoiceRepository
 router = APIRouter()
 
 import asyncio
@@ -15,9 +19,14 @@ async def admin_dashboard(request: Request):
     return template_response(request, "pages/admin-dashboard.html", {"fraud_enabled": True})
 
 @router.post("/admin-dashboard", response_class=HTMLResponse)
-async def admin_dashboard_post(request: Request, csrf_token: str = Form(None)):
+async def admin_dashboard_post(
+    request: Request, 
+    csrf_token: str = Form(None),
+    session_context: SessionContext = Depends(get_session_context)
+):
     # Debug: Log what we receive
     import logging
+    import json
     logger = logging.getLogger(__name__)
     
     # Get form data from request.state (set by CSRF middleware)
@@ -41,8 +50,43 @@ async def admin_dashboard_post(request: Request, csrf_token: str = Form(None)):
     logger.info(f"Calculated fraud_enabled: {fraud_enabled}")
     logger.info(f"Will pass to template: fraud_enabled={fraud_enabled}")
     
-    # Run workflow and save settings
-    result = await run_invoice_lifecycle_workflow(enable_fraud_agent=fraud_enabled)
+    # Get the latest invoice to analyze
+    db = next(get_db())
+    try:
+        invoice_repo = InvoiceRepository(db, session_context)
+        invoices = invoice_repo.list_all_invoices_for_user()
+        latest_invoice_id = invoices[0].id if invoices else None
+        
+        if latest_invoice_id:
+            logger.info(f"Processing invoice ID: {latest_invoice_id}")
+            result = await run_invoice_lifecycle_workflow(
+                enable_fraud_agent=fraud_enabled,
+                invoice_id=latest_invoice_id,
+                session_context=session_context
+            )
+        else:
+            logger.warning("No invoices found, using test data")
+            result = await run_invoice_lifecycle_workflow(enable_fraud_agent=fraud_enabled)
+        
+        # Get all invoices with fraud analysis for history display
+        invoice_history = []
+        for inv in invoices:
+            if inv.fraud_analyzed_at:  # Only include analyzed invoices
+                try:
+                    risk_reasons = json.loads(inv.fraud_risk_reasons) if inv.fraud_risk_reasons else []
+                except:
+                    risk_reasons = []
+                
+                invoice_history.append({
+                    "invoice_number": inv.invoice_number or f"INV-{inv.id}",
+                    "amount": float(inv.amount),
+                    "risk_level": inv.fraud_risk_level,
+                    "risk_reasons": risk_reasons,
+                    "analyzed_at": inv.fraud_analyzed_at.strftime("%Y-%m-%d %H:%M") if inv.fraud_analyzed_at else None,
+                    "status": inv.status,
+                })
+    finally:
+        db.close()
     
     # Log what we're about to return
     logger.info(f"Returning to template with fraud_enabled={fraud_enabled}")
@@ -51,7 +95,8 @@ async def admin_dashboard_post(request: Request, csrf_token: str = Form(None)):
     return template_response(request, "pages/admin-dashboard.html", {
         "result": result, 
         "fraud_enabled": fraud_enabled,
-        "settings_saved": True
+        "settings_saved": True,
+        "invoice_history": invoice_history,
     })
 
 

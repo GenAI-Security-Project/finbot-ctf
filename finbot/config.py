@@ -89,8 +89,8 @@ class Settings(BaseSettings):
     EVENT_BUFFER_SIZE: int = 10000
 
     # LLM Config
-    LLM_PROVIDER: str = "openai"
-    LLM_DEFAULT_MODEL: str = "gpt-5-nano"
+    LLM_PROVIDER: str = "ollama"
+    LLM_DEFAULT_MODEL: str = "llama3.2"
     LLM_DEFAULT_TEMPERATURE: float = 1
     LLM_MAX_TOKENS: int = 5000
     LLM_TIMEOUT: int = 30
@@ -98,10 +98,7 @@ class Settings(BaseSettings):
     # Agent Config
     AGENT_MAX_ITERATIONS: int = 10
 
-    # OpenAI Config
-    OPENAI_API_KEY: str = ""
-
-    # Ollama
+    # Ollama Config (local LLM - free and private)
     OLLAMA_BASE_URL: str = "http://localhost:11434"
 
     # Development Config

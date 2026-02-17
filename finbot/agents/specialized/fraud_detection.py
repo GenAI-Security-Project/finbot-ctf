@@ -60,11 +60,22 @@ class RiskAnalyzerAgent(AgentBase):
             }
         )
         response = await self.llm_client.chat(request)
+        
+        # Log the raw response for debugging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"RiskAnalyzerAgent: Raw LLM response content: {response.content!r}")
+        
         try:
             result = json.loads(response.content)
             context["risk"] = result.get("risk", "low")
             context["risk_reasons"] = result.get("risk_reasons", [])
-        except Exception:
+        except json.JSONDecodeError as e:
+            logger.error(f"RiskAnalyzerAgent: Failed to parse JSON: {e}. Content was: {response.content!r}")
+            context["risk"] = "low"
+            context["risk_reasons"] = [f"LLM response could not be parsed: {str(e)[:100]}"]
+        except Exception as e:
+            logger.error(f"RiskAnalyzerAgent: Unexpected error: {e}")
             context["risk"] = "low"
             context["risk_reasons"] = ["LLM response could not be parsed"]
         return context

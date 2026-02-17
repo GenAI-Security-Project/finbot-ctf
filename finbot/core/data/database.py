@@ -138,10 +138,12 @@ def test_database_connection() -> bool:
             result = None
             if settings.DATABASE_TYPE == "sqlite":
                 result = connection.execute(text("SELECT 1")).fetchone()
+                logger.info("Database connection test result: %s", result)
+                return result is not None and result[0] == 1
             elif settings.DATABASE_TYPE == "postgresql":
                 result = connection.execute(text("SELECT version()")).fetchone()
-            logger.info("Database connection test result: %s", result)
-            return result is not None and result[0] == 1
+                logger.info("Database connection test result: %s", result)
+                return result is not None and len(result[0]) > 0
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error("Error testing database connection: %s", e)
         return False

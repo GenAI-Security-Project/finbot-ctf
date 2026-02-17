@@ -299,6 +299,11 @@ class Invoice(Base):
     # Notes are contributed by both AI agents and Human agents
     agent_notes = Column[str](Text, nullable=True)
 
+    # Fraud detection results
+    fraud_risk_level = Column[str](String(20), nullable=True)  # 'low', 'high', or None
+    fraud_risk_reasons = Column[str](Text, nullable=True)  # JSON array of reasons
+    fraud_analyzed_at = Column[datetime](DateTime, nullable=True)
+
     created_at = Column[datetime](DateTime, default=datetime.now(UTC))
     updated_at = Column[datetime](
         DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC)
@@ -329,6 +334,9 @@ class Invoice(Base):
             "due_date": self.due_date.isoformat().replace("+00:00", "Z"),
             "status": self.status,
             "agent_notes": self.agent_notes,
+            "fraud_risk_level": self.fraud_risk_level,
+            "fraud_risk_reasons": self.fraud_risk_reasons,
+            "fraud_analyzed_at": self.fraud_analyzed_at.isoformat().replace("+00:00", "Z") if self.fraud_analyzed_at else None,
             "created_at": self.created_at.isoformat().replace("+00:00", "Z"),
             "updated_at": self.updated_at.isoformat().replace("+00:00", "Z"),
         }

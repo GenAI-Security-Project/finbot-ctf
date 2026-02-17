@@ -185,6 +185,68 @@
             </div>
         </div>
         {% endif %}
+
+        <!-- Invoice History Section -->
+        {% if invoice_history %}
+        <div class="results-card mt-8">
+            <h2 class="text-2xl font-bold mb-4">
+                <span class="bg-gradient-to-r from-cine-gold via-yellow-400 to-cine-gold bg-clip-text text-transparent">
+                    Fraud Analysis History
+                </span>
+            </h2>
+            
+            <!-- Scrollable history container -->
+            <div class="max-h-96 overflow-y-auto border border-gray-700 rounded-lg">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-900 sticky top-0 z-10">
+                        <tr class="text-left text-gray-400 border-b border-gray-700">
+                            <th class="px-4 py-3 font-semibold">Invoice #</th>
+                            <th class="px-4 py-3 font-semibold text-right">Amount</th>
+                            <th class="px-4 py-3 font-semibold">Risk Level</th>
+                            <th class="px-4 py-3 font-semibold">Status</th>
+                            <th class="px-4 py-3 font-semibold">Analyzed</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-800">
+                        {% for invoice in invoice_history %}
+                        <tr class="hover:bg-gray-900/50 transition-colors">
+                            <td class="px-4 py-3 text-white font-mono">{{ invoice.invoice_number }}</td>
+                            <td class="px-4 py-3 text-right text-gray-300">${{ "%.2f"|format(invoice.amount) }}</td>
+                            <td class="px-4 py-3">
+                                <span class="{% if invoice.risk_level == 'high' %}risk-high{% else %}risk-low{% endif %} px-2 py-1 rounded text-xs font-bold">
+                                    {{ invoice.risk_level|upper if invoice.risk_level else 'N/A' }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3">
+                                <span class="text-gray-400 capitalize">{{ invoice.status }}</span>
+                            </td>
+                            <td class="px-4 py-3 text-gray-500 text-xs">{{ invoice.analyzed_at }}</td>
+                        </tr>
+                        <!-- Expandable risk reasons row -->
+                        {% if invoice.risk_reasons %}
+                        <tr class="bg-gray-900/30">
+                            <td colspan="5" class="px-4 py-2">
+                                <div class="text-xs text-gray-400">
+                                    <span class="font-semibold">Risk Factors:</span>
+                                    <ul class="list-disc list-inside mt-1 ml-2 space-y-0.5">
+                                        {% for reason in invoice.risk_reasons %}
+                                        <li>{{ reason }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="mt-3 text-sm text-gray-500">
+                Total analyzed invoices: {{ invoice_history|length }}
+            </div>
+        </div>
+        {% endif %}
     </div>
 </section>
 {% endblock %}

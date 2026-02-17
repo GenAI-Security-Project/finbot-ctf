@@ -7,6 +7,19 @@ import os
 import sys
 from pathlib import Path
 
+# Parse args BEFORE importing settings so we can set env vars
+parser = argparse.ArgumentParser(description="Setup the FinBot database")
+parser.add_argument(
+    "--db-type",
+    choices=["sqlite", "postgresql"],
+    help="Database type to use (overrides DATABASE_TYPE env var)",
+)
+args = parser.parse_args()
+
+# Set environment variable BEFORE importing settings
+if args.db_type:
+    os.environ["DATABASE_TYPE"] = args.db_type
+
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 

@@ -36,13 +36,6 @@ def add_session_middleware(app: FastAPI):
         request.state.session_context = session_context
         request.state.session_status = status
 
-        # If session is not found or hijacked, handle gracefully and do not set/rotate cookies
-        if session_context is None or status in ["session_not_found", "session_hijacked"]:
-            logger.warning(f"SessionMiddleware: Invalid session (status={status}), skipping session cookie set.")
-            response = await call_next(request)
-            add_security_headers_static(response)
-            return response
-
         # Process the request
         response = await call_next(request)
 
@@ -79,12 +72,24 @@ async def get_or_create_session_static(request: Request) -> tuple[SessionContext
         ).encode()
     ).hexdigest()[:16]
     if session_id:
-        session_context, status = session_manager.get_session(
+        session_context, status = session_manager.get_session_with_vendor_context(
             session_id,
-            current_strict_fingerprint,
-            current_loose_fingerprint,
-            current_ip,
+            current_strict_fingerprint=current_strict_fingerprint,
+            current_loose_fingerprint=current_loose_fingerprint,
+            current_ip=current_ip,
         )
+        # If session not found or invalid, create a new one
+        if session_context is None or status in ["session_not_found", "session_hijacked"]:
+            logger.info(f"Creating new session (old session status: {status})")
+            session_context = session_manager.create_session(
+                user_agent=user_agent,
+                ip_address=current_ip,
+                accept_language=accept_language,
+                accept_encoding=accept_encoding,
+            )
+            # Load vendor context for new sessions too
+            session_context = session_manager.load_vendor_context(session_context)
+            status = "session_created"
     else:
         session_context = session_manager.create_session(
             user_agent=user_agent,
@@ -92,6 +97,8 @@ async def get_or_create_session_static(request: Request) -> tuple[SessionContext
             accept_language=accept_language,
             accept_encoding=accept_encoding,
         )
+        # Load vendor context for new sessions too
+        session_context = session_manager.load_vendor_context(session_context)
         status = "session_created"
     return session_context, status
 
