@@ -15,8 +15,8 @@ from finbot.apps.ctf import ctf_app
 from finbot.apps.vendor.main import app as vendor_app
 from finbot.apps.web.auth import router as auth_router
 from finbot.apps.web.routes import router as web_router
-from finbot.core.auth.csrf import CSRFProtectionMiddleware
-from finbot.core.auth.middleware import SessionMiddleware, get_session_context
+from finbot.core.auth.csrf import add_csrf_protection_middleware
+from finbot.core.auth.middleware import get_session_context
 from finbot.core.auth.session import SessionContext, session_manager
 from finbot.core.error_handlers import register_error_handlers
 from finbot.core.websocket import websocket_router
@@ -93,9 +93,11 @@ app = FastAPI(
 )
 
 # Add middleware - last in, first out order
-# Execute session first, then CSRF
-app.add_middleware(CSRFProtectionMiddleware)
-app.add_middleware(SessionMiddleware)
+# Session middleware added LAST so it executes FIRST
+# CSRF middleware added FIRST so it executes LAST (after session is populated)
+from finbot.core.auth.middleware import add_session_middleware
+add_csrf_protection_middleware(app)
+add_session_middleware(app)
 
 # Register error handlers
 register_error_handlers(app)

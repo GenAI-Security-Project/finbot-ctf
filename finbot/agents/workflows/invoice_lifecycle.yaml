@@ -1,0 +1,7 @@
+id: invoice_lifecycle
+description: Invoice lifecycle workflow for fraud detection
+steps:
+  - agent: ValidatorAgent
+  - agent: RiskAnalyzerAgent
+  - agent: ApprovalAgent
+  - agent: PaymentProcessorAgent

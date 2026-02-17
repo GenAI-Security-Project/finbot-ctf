@@ -16,115 +16,105 @@ from finbot.core.utils import create_fingerprint_data
 logger = logging.getLogger(__name__)
 
 
-class SessionMiddleware(BaseHTTPMiddleware):
-    """Middleware that automatically handles session cookies and rotation"""
 
-    async def dispatch(self, request: Request, call_next):
-        """Dispatch request and handle session management"""
+# Function-based SessionMiddleware for FastAPI
+from fastapi import FastAPI
 
-        # Skip WebSocket upgrade requests - BaseHTTPMiddleware doesn't handle them
+def add_session_middleware(app: FastAPI):
+    @app.middleware("http")
+    async def session_middleware(request: Request, call_next):
+        # Skip WebSocket upgrade requests
         if request.headers.get("upgrade", "").lower() == "websocket":
             return await call_next(request)
 
-        session_context, status = await self._get_or_create_session(request)
-
+        # Create or get session for this request
+        session_context, status = await get_or_create_session_static(request)
+        logger.debug(
+            f"SessionMiddleware: session_id={getattr(session_context, 'session_id', None)}, "
+            f"status={status}, cookies={request.cookies}"
+        )
         request.state.session_context = session_context
         request.state.session_status = status
 
-        # Process request
+        # If session is not found or hijacked, handle gracefully and do not set/rotate cookies
+        if session_context is None or status in ["session_not_found", "session_hijacked"]:
+            logger.warning(f"SessionMiddleware: Invalid session (status={status}), skipping session cookie set.")
+            response = await call_next(request)
+            add_security_headers_static(response)
+            return response
+
+        # Process the request
         response = await call_next(request)
 
+        # Set or update session cookie if needed
         if (
             session_context.needs_cookie_update
             or session_context.was_rotated
             or status in ["session_created", "session_rotated"]
         ):
-            self._set_secure_session_cookie(response, session_context)
-
+            logger.debug(f"SessionMiddleware: Setting session cookie for session_id={session_context.session_id}")
+            set_secure_session_cookie_static(response, session_context)
             if session_context.was_rotated:
                 logger.info("🔄 Session rotated: %s", session_context.user_id)
 
-        self._add_security_headers(response)
-
+        # Add security headers to response
+        add_security_headers_static(response)
         return response
 
-    async def _get_or_create_session(
-        self, request: Request
-    ) -> tuple[SessionContext, str]:
-        """Get existing session or create new one with tiered security validation"""
-
-        session_id = request.cookies.get(settings.SESSION_COOKIE_NAME)
-        current_ip = request.client.host if request.client else ""
-
-        # Create fingerprint types for validation
-        user_agent = request.headers.get("User-Agent")
-        accept_language = request.headers.get("Accept-Language")
-        accept_encoding = request.headers.get("Accept-Encoding")
-
-        current_strict_fingerprint = hashlib.sha256(
-            create_fingerprint_data(
-                user_agent, accept_language, accept_encoding, "strict"
-            ).encode()
-        ).hexdigest()[:16]
-        current_loose_fingerprint = hashlib.sha256(
-            create_fingerprint_data(
-                user_agent, accept_language, accept_encoding, "loose"
-            ).encode()
-        ).hexdigest()[:16]
-
-        if session_id:
-            session_context, status = session_manager.get_session(
-                session_id,
-                current_strict_fingerprint,
-                current_loose_fingerprint,
-                current_ip,
-            )
-
-            if session_context:
-                # ideally we should separate this and load only for vendor portal
-                # but this info may be useful for other parts of the application
-                session_context = session_manager.load_vendor_context(session_context)
-                return session_context, status
-            logger.warning("Session validation failed: %s", status)
-
-        # Create new session with enhanced fingerprinting
-        new_session = session_manager.create_session(
+# Move static helpers outside the class for direct use
+async def get_or_create_session_static(request: Request) -> tuple[SessionContext, str]:
+    session_id = request.cookies.get(settings.SESSION_COOKIE_NAME)
+    current_ip = request.client.host if request.client else ""
+    user_agent = request.headers.get("User-Agent")
+    accept_language = request.headers.get("Accept-Language")
+    accept_encoding = request.headers.get("Accept-Encoding")
+    current_strict_fingerprint = hashlib.sha256(
+        create_fingerprint_data(
+            user_agent, accept_language, accept_encoding, "strict"
+        ).encode()
+    ).hexdigest()[:16]
+    current_loose_fingerprint = hashlib.sha256(
+        create_fingerprint_data(
+            user_agent, accept_language, accept_encoding, "loose"
+        ).encode()
+    ).hexdigest()[:16]
+    if session_id:
+        session_context, status = session_manager.get_session(
+            session_id,
+            current_strict_fingerprint,
+            current_loose_fingerprint,
+            current_ip,
+        )
+    else:
+        session_context = session_manager.create_session(
             user_agent=user_agent,
             ip_address=current_ip,
             accept_language=accept_language,
             accept_encoding=accept_encoding,
         )
-        # load vendor context for new session
-        new_session = session_manager.load_vendor_context(new_session)
+        status = "session_created"
+    return session_context, status
 
-        return new_session, "session_created"
+def set_secure_session_cookie_static(response: Response, session_context: SessionContext):
+    # Use the appropriate timeout based on session type
+    max_age = settings.TEMP_SESSION_TIMEOUT if session_context.is_temporary else settings.PERM_SESSION_TIMEOUT
+    
+    response.set_cookie(
+        key=settings.SESSION_COOKIE_NAME,
+        value=session_context.session_id,
+        max_age=max_age,
+        expires=max_age,
+        path="/",
+        secure=settings.SESSION_COOKIE_SECURE,
+        httponly=True,
+        samesite=settings.SESSION_COOKIE_SAMESITE,
+    )
 
-    def _set_secure_session_cookie(
-        self, response: Response, session_context: SessionContext
-    ):
-        """Automatically set secure session cookie"""
-
-        max_age = (
-            settings.TEMP_SESSION_TIMEOUT
-            if session_context.is_temporary
-            else settings.PERM_SESSION_TIMEOUT
-        )
-
-        response.set_cookie(
-            key=settings.SESSION_COOKIE_NAME,
-            value=session_context.session_id,
-            max_age=max_age,
-            httponly=settings.SESSION_COOKIE_HTTP_ONLY,
-            secure=settings.SESSION_COOKIE_SECURE,
-            samesite=settings.SESSION_COOKIE_SAMESITE,
-            path="/",
-        )
-
-    def _add_security_headers(self, response: Response):
-        """Add security headers"""
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
+def add_security_headers_static(response: Response):
+    """Add security headers to response"""
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
 
 
 # Dependencies for FastAPI routes

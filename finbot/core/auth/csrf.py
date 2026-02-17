@@ -14,168 +14,126 @@ from finbot.core.auth.session import SessionContext
 logger = logging.getLogger(__name__)
 
 
-class CSRFProtectionMiddleware(BaseHTTPMiddleware):
-    """CSRF Protection Middleware
 
-    Validates CSRF tokens for state-changing requests (POST, PUT, DELETE, PATCH)
-    """
+# Function-based CSRF protection middleware for FastAPI
+from fastapi import FastAPI
 
-    # Methods that require CSRF protection
-    PROTECTED_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
+PROTECTED_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
+EXEMPT_PATHS = {"/api/health", "/api/status", "/static/", "/favicon.ico", "/auth/"}
 
-    # Paths that are exempt from CSRF protection
-    # Note: /auth/ is exempt because magic link tokens are single-use and emailed
-    EXEMPT_PATHS = {"/api/health", "/api/status", "/static/", "/favicon.ico", "/auth/"}
-
-    def __init__(self, app):
-        super().__init__(app)
-        self.enabled = settings.ENABLE_CSRF_PROTECTION
-
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """Dispatch request with CSRF validation"""
-
-        if not self.enabled:
+def add_csrf_protection_middleware(app: FastAPI):
+    @app.middleware("http")
+    async def csrf_protection_middleware(request: Request, call_next):
+        # Skip CSRF for disabled protection
+        if not settings.ENABLE_CSRF_PROTECTION:
             return await call_next(request)
-
+        
         # Skip WebSocket upgrade requests
         if request.headers.get("upgrade", "").lower() == "websocket":
             return await call_next(request)
-
+        
         # Skip for safe methods (GET, HEAD, OPTIONS)
-        if request.method not in self.PROTECTED_METHODS:
+        if request.method not in PROTECTED_METHODS:
             return await call_next(request)
-
-        # Skip for exempt paths
-        if self._is_exempt_path(request.url.path):
+        
+        # Skip for exempt paths (static files, health checks, auth endpoints)
+        if _is_exempt_path(request.url.path):
             return await call_next(request)
-
-        # Validate CSRF token
+        
+        # Debug logging for protected requests
+        logger.debug(
+            f"CSRF check: {request.method} {request.url.path}, "
+            f"session_cookie={'finbot_session' in request.cookies}"
+        )
+        
+        # Validate CSRF token for protected requests
         try:
-            self._validate_csrf_token(request)
+            await _validate_csrf_token(request)
         except HTTPException as e:
             logger.warning(
-                "CSRF validation failed for %s %s from %s: %s",
-                request.method,
-                request.url.path,
-                request.client.host if request.client else "unknown",
-                e.detail,
+                f"CSRF validation failed for {request.method} {request.url.path} "
+                f"from {request.client.host if request.client else 'unknown'}: {e.detail}"
             )
-            # Handle CSRF error directly in middleware instead of letting it bubble up
-            return self._create_csrf_error_response(request, e)
+            return _create_csrf_error_response(request, e)
+        
+        # CSRF validation passed, proceed with request
+        return await call_next(request)
 
-        # Process request
-        response = await call_next(request)
-        return response
+def _is_exempt_path(path: str) -> bool:
+    """Check if path is exempt from CSRF protection"""
+    # Exempt static files and favicon
+    if path.startswith("/static/") or path.endswith((".ico", ".css", ".js", ".png", ".jpg", ".svg")):
+        return True
+    
+    # Exempt explicitly listed paths
+    return any(path.startswith(exempt) for exempt in EXEMPT_PATHS)
 
-    def _is_exempt_path(self, path: str) -> bool:
-        """Check if path is exempt from CSRF protection"""
-        return any(path.startswith(exempt) for exempt in self.EXEMPT_PATHS)
+async def _validate_csrf_token(request: Request) -> None:
+    session_context: SessionContext | None = getattr(request.state, "session_context", None)
+    if not session_context:
+        raise HTTPException(status_code=403, detail="No session found - CSRF validation failed")
+    expected_token = session_context.csrf_token
+    if not expected_token:
+        raise HTTPException(status_code=403, detail="No CSRF token in session")
+    request_token = await _extract_csrf_token(request)
+    if not request_token:
+        raise HTTPException(status_code=403, detail="CSRF token missing from request")
+    if not _compare_tokens(expected_token, request_token):
+        raise HTTPException(status_code=403, detail="CSRF token mismatch")
+    logger.debug("CSRF validation successful for %s %s", request.method, request.url.path)
 
-    def _validate_csrf_token(self, request: Request) -> None:
-        """Validate CSRF token from request"""
+async def _extract_csrf_token(request: Request) -> str | None:
+    token = request.headers.get(settings.CSRF_HEADER_NAME)
+    if token:
+        return token
+    content_type = request.headers.get("content-type", "").lower()
+    if (
+        "application/x-www-form-urlencoded" in content_type
+        or "multipart/form-data" in content_type
+    ):
+        try:
+            form = await request.form()
+            # Store form data in request.state so route handlers can access it
+            request.state.form_data = form
+            token = form.get(settings.CSRF_TOKEN_NAME)
+            if token:
+                return token
+        except Exception as e:
+            logger.warning(f"CSRF: Failed to parse form data: {e}")
+    return None
 
-        # Get session context (should be set by SessionMiddleware)
-        session_context: SessionContext | None = getattr(
-            request.state, "session_context", None
+def _compare_tokens(expected: str, actual: str) -> bool:
+    return hmac.compare_digest(expected, actual)
+
+def _create_csrf_error_response(request: Request, exc: HTTPException) -> Response:
+    if _is_api_request(request):
+        return JSONResponse(
+            content={
+                "error": {
+                    "code": 403,
+                    "message": "CSRF token validation failed",
+                    "type": "csrf_error",
+                    "details": exc.detail,
+                }
+            },
+            status_code=403,
         )
-        if not session_context:
-            raise HTTPException(
-                status_code=403, detail="No session found - CSRF validation failed"
-            )
-
-        # Get expected CSRF token from session
-        expected_token = session_context.csrf_token
-        if not expected_token:
-            raise HTTPException(status_code=403, detail="No CSRF token in session")
-
-        # Get CSRF token from request
-        request_token = self._extract_csrf_token(request)
-        if not request_token:
-            raise HTTPException(
-                status_code=403, detail="CSRF token missing from request"
-            )
-
-        # Validate token
-        if not self._compare_tokens(expected_token, request_token):
-            raise HTTPException(status_code=403, detail="CSRF token mismatch")
-
-        logger.debug(
-            "CSRF validation successful for %s %s", request.method, request.url.path
-        )
-
-    def _extract_csrf_token(self, request: Request) -> str | None:
-        """Extract CSRF token from request headers or form data"""
-
-        # Try header first (for AJAX requests)
-        token = request.headers.get(settings.CSRF_HEADER_NAME)
-        if token:
-            return token
-
-        # Try form data (for regular form submissions)
-        # Note: Form parsing in middleware is complex, so we primarily rely on header-based CSRF
-        # Form-based CSRF tokens are handled by JavaScript submission or custom form parsing
-
-        # For content-type application/x-www-form-urlencoded or multipart/form-data
-        content_type = request.headers.get("content-type", "").lower()
-        if (
-            "application/x-www-form-urlencoded" in content_type
-            or "multipart/form-data" in content_type
-        ):
-            # We'll need to parse form data, but this is tricky in middleware
-            # For now, rely on header-based CSRF for API endpoints
-            # Form-based CSRF will be handled by template injection
-            pass
-
-        return None
-
-    def _compare_tokens(self, expected: str, actual: str) -> bool:
-        """Securely compare CSRF tokens using constant-time comparison"""
-        return hmac.compare_digest(expected, actual)
-
-    def _create_csrf_error_response(
-        self, request: Request, exc: HTTPException
-    ) -> Response:
-        """Create appropriate CSRF error response based on request type
-        - Middleware error responses are not caught by FastAPI/Starlette default exception handlers
-        - This is a workaround to handle CSRF errors in the middleware
-        """
-
-        # Check if this is an API request
-        if self._is_api_request(request):
-            return JSONResponse(
-                content={
-                    "error": {
-                        "code": 403,
-                        "message": "CSRF token validation failed",
-                        "type": "csrf_error",
-                        "details": exc.detail,
-                    }
-                },
+    else:
+        try:
+            with open(
+                "finbot/static/pages/error/403_csrf.html", "r", encoding="utf-8"
+            ) as f:
+                content = f.read()
+            return HTMLResponse(content=content, status_code=403)
+        except FileNotFoundError:
+            return HTMLResponse(
+                content="<h1>403 Forbidden</h1><p>Security validation failed. Please refresh the page and try again.</p>",
                 status_code=403,
             )
-        else:
-            # For web requests, show a dedicated CSRF error page
-            try:
-                with open(
-                    "finbot/static/pages/error/403_csrf.html", "r", encoding="utf-8"
-                ) as f:
-                    content = f.read()
-                return HTMLResponse(content=content, status_code=403)
-            except FileNotFoundError:
-                # Fallback if CSRF error page is missing
-                return HTMLResponse(
-                    content="<h1>403 Forbidden</h1><p>Security validation failed. Please refresh the page and try again.</p>",
-                    status_code=403,
-                )
 
-    def _is_api_request(self, request: Request) -> bool:
-        """Determine if the request is for an API endpoint"""
-        return (
-            request.url.path.startswith("/api/")
-            or request.url.path.startswith("/vendor/api/")
-            or "application/json" in request.headers.get("content-type", "")
-            or "application/json" in request.headers.get("accept", "")
-        )
+def _is_api_request(request: Request) -> bool:
+    """Determine if the request is for an API endpoint"""
+    return request.url.path.startswith("/api/")
 
 
 def get_csrf_token(request: Request) -> str:

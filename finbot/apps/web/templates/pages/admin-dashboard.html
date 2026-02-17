@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - CineFlow Productions{% endblock %}
+
+{% block extra_css %}
+<style>
+    .admin-card {
+        background: linear-gradient(145deg, #1A1A1A, #0F0F0F);
+        border: 1px solid rgba(212, 175, 55, 0.2);
+        transition: all 0.3s ease;
+    }
+    .admin-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 20px 40px rgba(212, 175, 55, 0.2);
+        border-color: rgba(212, 175, 55, 0.5);
+    }
+    .admin-card-disabled {
+        background: linear-gradient(145deg, #1A1A1A, #0F0F0F);
+        border: 1px solid rgba(100, 100, 100, 0.2);
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+    .admin-toggle {
+        accent-color: #D4AF37;
+        margin-right: 8px;
+    }
+    .results-card {
+        background: linear-gradient(145deg, #1A1A1A, #0F0F0F);
+        border: 1px solid rgba(212, 175, 55, 0.3);
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+        margin-top: 2rem;
+    }
+    .risk-high {
+        color: #EF4444;
+        font-weight: bold;
+    }
+    .risk-low {
+        color: #10B981;
+        font-weight: bold;
+    }
+    .status-approved {
+        color: #10B981;
+    }
+    .status-rejected {
+        color: #EF4444;
+    }
+    .result-label {
+        color: #D4AF37;
+        font-weight: 600;
+        margin-right: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="hero-gradient pt-28 pb-16 min-h-[calc(100vh-5rem)]">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-full">
+        <h1 class="font-display text-3xl md:text-4xl font-bold mb-6">
+            <span class="bg-gradient-to-r from-cine-gold via-yellow-400 to-cine-gold bg-clip-text text-transparent">
+                Admin Dashboard
+            </span>
+        </h1>
+        <p class="text-gray-400 mb-8">
+            Manage agent toggles for workflow execution.
+        </p>
+        <!-- DEBUG: Show what template received -->
+        {% if fraud_enabled is defined %}
+        <div class="text-xs text-gray-600 mb-2">DEBUG: fraud_enabled = {{ fraud_enabled }} (type: {{ fraud_enabled.__class__.__name__ }})</div>
+        {% else %}
+        <div class="text-xs text-gray-600 mb-2">DEBUG: fraud_enabled is NOT defined</div>
+        {% endif %}
+        
+        <form method="post" action="/admin-dashboard" id="adminForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <!-- Hidden field ensures 'false' is sent when checkbox is unchecked -->
+            <input type="hidden" name="enable_fraud_agent" value="false">
+            <div class="space-y-6">
+                <!-- Fraud Agent Toggle -->
+                <div class="admin-card rounded-xl p-5 flex items-center gap-5">
+                    <!-- Checkbox will override hidden field when checked -->
+                    <input type="checkbox" class="admin-toggle" name="enable_fraud_agent" id="enable_fraud_agent" value="true" {% if fraud_enabled %}checked{% endif %}>
+                    <label for="enable_fraud_agent" class="flex-1 min-w-0 text-lg font-bold text-white">
+                        Enable Fraud Detection Agent
+                    </label>
+                </div>
+                <!-- Payment Processing Placeholder -->
+                <div class="admin-card-disabled rounded-xl p-5 flex items-center gap-5">
+                    <input type="checkbox" class="admin-toggle" name="enable_payment_agent" id="enable_payment_agent" value="true" disabled>
+                    <label for="enable_payment_agent" class="flex-1 min-w-0 text-lg font-bold text-gray-400">
+                        Enable Payment Processing Agent (Coming Soon)
+                    </label>
+                </div>
+                <!-- Communications Placeholder -->
+                <div class="admin-card-disabled rounded-xl p-5 flex items-center gap-5">
+                    <input type="checkbox" class="admin-toggle" name="enable_communications_agent" id="enable_communications_agent" value="true" disabled>
+                    <label for="enable_communications_agent" class="flex-1 min-w-0 text-lg font-bold text-gray-400">
+                        Enable Communications Agent (Coming Soon)
+                    </label>
+                </div>
+            </div>
+            <button type="submit" class="mt-8 bg-cine-gold text-cine-dark px-6 py-2 rounded-full font-semibold hover:bg-yellow-400 transition-colors duration-300">
+                Save Settings & Run Workflow
+            </button>
+        </form>
+
+        {% if settings_saved %}
+        <div class="mt-4 text-gray-300">
+            <span class="result-label">Status:</span>
+            <span class="status-approved">✓ Settings saved</span>
+            <span class="text-gray-400">— Fraud Detection Agent is {% if fraud_enabled %}ENABLED{% else %}DISABLED{% endif %}</span>
+        </div>
+        {% endif %}
+
+        {% if result %}
+        <!-- Workflow Results -->
+        <div class="results-card">
+            <h2 class="text-2xl font-bold mb-4">
+                <span class="bg-gradient-to-r from-cine-gold via-yellow-400 to-cine-gold bg-clip-text text-transparent">
+                    Workflow Results
+                </span>
+            </h2>
+            
+            <div class="space-y-4">
+                <!-- Invoice ID -->
+                <div class="text-gray-300">
+                    <span class="result-label">Invoice ID:</span>
+                    <span class="text-white">{{ result.invoice_id }}</span>
+                </div>
+
+                <!-- Validation Status -->
+                {% if result.validated %}
+                <div class="text-gray-300">
+                    <span class="result-label">Validation:</span>
+                    <span class="status-approved">✓ Passed</span>
+                    <span class="text-gray-400">({{ result.validation_result }})</span>
+                </div>
+                {% endif %}
+
+                <!-- Fraud Detection Results -->
+                {% if result.risk %}
+                <div class="text-gray-300">
+                    <span class="result-label">Fraud Detection:</span>
+                    <span class="{% if result.risk == 'high' %}risk-high{% else %}risk-low{% endif %}">
+                        {{ result.risk|upper }} RISK
+                    </span>
+                </div>
+
+                {% if result.risk_reasons %}
+                <div class="ml-4 mt-2">
+                    <span class="result-label">Risk Factors:</span>
+                    <ul class="list-disc list-inside text-gray-400 mt-2 space-y-1">
+                        {% for reason in result.risk_reasons %}
+                        <li>{{ reason }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+                {% elif not fraud_enabled %}
+                <div class="text-gray-300">
+                    <span class="result-label">Fraud Detection:</span>
+                    <span class="text-gray-500">⊘ Skipped (disabled)</span>
+                </div>
+                {% endif %}
+
+                <!-- Approval Status -->
+                {% if result.approved is not none %}
+                <div class="text-gray-300">
+                    <span class="result-label">Approval:</span>
+                    <span class="{% if result.approved %}status-approved{% else %}status-rejected{% endif %}">
+                        {% if result.approved %}✓ Approved{% else %}✗ Rejected{% endif %}
+                    </span>
+                </div>
+                {% endif %}
+
+                <!-- Payment Status -->
+                {% if result.payment_status %}
+                <div class="text-gray-300">
+                    <span class="result-label">Payment:</span>
+                    <span class="{% if result.payment_status == 'processed' %}status-approved{% else %}text-gray-400{% endif %}">
+                        {{ result.payment_status|replace('_', ' ')|title }}
+                    </span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

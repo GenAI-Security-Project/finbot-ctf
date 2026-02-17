@@ -1,15 +1,58 @@
-"""
-Route handlers for the CineFlow Productions web app
-"""
-
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import HTMLResponse
-
+from fastapi import Request, Form, HTTPException
+from finbot.agents.workflow_runner import run_invoice_lifecycle_workflow
 from finbot.core.templates import TemplateResponse
+from fastapi.responses import HTMLResponse
+from fastapi import APIRouter
+router = APIRouter()
+
+import asyncio
 
 template_response = TemplateResponse("finbot/apps/web/templates")
 
-router = APIRouter()
+@router.get("/admin-dashboard", response_class=HTMLResponse)
+async def admin_dashboard(request: Request):
+    # Default to fraud agent enabled on initial load
+    return template_response(request, "pages/admin-dashboard.html", {"fraud_enabled": True})
+
+@router.post("/admin-dashboard", response_class=HTMLResponse)
+async def admin_dashboard_post(request: Request, csrf_token: str = Form(None)):
+    # Debug: Log what we receive
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Get form data from request.state (set by CSRF middleware)
+    form_data = getattr(request.state, 'form_data', None)
+    
+    if form_data is None:
+        # Fallback: try to read it ourselves (shouldn't happen)
+        logger.warning("Form data not found in request.state, reading directly")
+        form_data = await request.form()
+    
+    logger.info(f"Full form data: {dict(form_data)}")
+    logger.info(f"enable_fraud_agent values: {form_data.getlist('enable_fraud_agent')}")
+    
+    # Get the last value (checkbox overrides hidden field if checked)
+    all_values = form_data.getlist('enable_fraud_agent')
+    fraud_agent_value = all_values[-1] if all_values else "false"
+    logger.info(f"Using value: {fraud_agent_value!r}")
+    
+    # Convert to boolean
+    fraud_enabled = fraud_agent_value == "true"
+    logger.info(f"Calculated fraud_enabled: {fraud_enabled}")
+    logger.info(f"Will pass to template: fraud_enabled={fraud_enabled}")
+    
+    # Run workflow and save settings
+    result = await run_invoice_lifecycle_workflow(enable_fraud_agent=fraud_enabled)
+    
+    # Log what we're about to return
+    logger.info(f"Returning to template with fraud_enabled={fraud_enabled}")
+    
+    # Return with saved state and results
+    return template_response(request, "pages/admin-dashboard.html", {
+        "result": result, 
+        "fraud_enabled": fraud_enabled,
+        "settings_saved": True
+    })
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -96,3 +139,10 @@ async def test_500():
 async def test_503():
     """Test 503 error page"""
     raise HTTPException(status_code=503, detail="Test 503 error")
+
+
+@router.post("/run-workflow")
+async def run_workflow(request: Request, enable_fraud_agent: bool = Form(True)):
+    # Call the runner with the flag
+    result = await run_invoice_lifecycle_workflow(enable_fraud_agent=enable_fraud_agent)
+    return template_response(request, "pages/workflow_result.html", {"result": result})
