@@ -37,7 +37,8 @@ class OllamaClient:
             model = request.model or self.default_model
             temperature = self.default_temperature if request.temperature is None else request.temperature
             
-            # Shallow copy — never mutate the caller's input list
+            # Create a shallow copy to avoid mutating request.messages.
+            # Prevents history leakage when the same LLMRequest object is reused.
             messages: list[dict[str,Any]] = list(request.messages) if request.messages else []
 
             options = {
@@ -97,7 +98,7 @@ class OllamaClient:
                     type(raw_tool_calls),
                 )
 
-             # tool_calls is already plain dicts — safe for json.dumps()
+            # tool_calls normalized to plain dicts — JSON-serializable
             history_entry: dict[str,Any] = {
                 "role": "assistant",
                 "content": content,
