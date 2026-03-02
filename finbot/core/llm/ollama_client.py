@@ -62,8 +62,8 @@ class OllamaClient:
 
             response = await self._client.chat(**chat_params)
 
-
-            # Structured ValueError instead of AttributeError on None.
+            # Guard against invalid SDK responses.
+            # Prevents AttributeError and centralizes response validation.
             if not response or not getattr(response, "message", None):
                 logger.warning("Invalid Ollama response: message is None")
                 return LLMResponse(
