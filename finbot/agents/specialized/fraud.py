@@ -160,7 +160,7 @@ class FraudComplianceAgent(BaseAgent):
         """
         return system_prompt
 
-    def _get_user_prompt(self, task_data: dict[str, Any] | None = None) -> str:
+    async def _get_user_prompt(self, task_data: dict[str, Any] | None = None) -> str:
         """Get the user prompt for the fraud agent
         Args:
             task_data: The task data to process in the form of a dictionary

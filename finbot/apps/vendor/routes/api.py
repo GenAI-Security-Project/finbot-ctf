@@ -6,7 +6,7 @@ from datetime import datetime
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 
-from finbot.agents.runner import run_invoice_agent, run_onboarding_agent
+from finbot.agents.runner import run_orchestrator_agent
 from finbot.core.auth.middleware import get_session_context
 from finbot.core.auth.session import SessionContext
 from finbot.core.data.database import get_db
@@ -101,15 +101,13 @@ async def register_vendor(
             phone=vendor_data.phone,
         )
 
-        # Run the onboarding agent
         workflow_id = f"wf_{secrets.token_urlsafe(12)}"
 
-        # queue background task to run the onboarding agent
         background_tasks.add_task(
-            run_onboarding_agent,
+            run_orchestrator_agent,
             task_data={
                 "vendor_id": vendor.id,
-                "description": "Evaluate and onboard a new vendor with provided vendor_id",
+                "description": "A new vendor has registered. Evaluate and onboard the vendor, then notify them of the decision.",
             },
             session_context=session_context,
             workflow_id=workflow_id,
@@ -319,12 +317,11 @@ async def request_vendor_review(
         # Generate workflow ID for tracking
         workflow_id = f"wf_review_{secrets.token_urlsafe(12)}"
 
-        # Queue background task to run the onboarding agent
         background_tasks.add_task(
-            run_onboarding_agent,
+            run_orchestrator_agent,
             task_data={
                 "vendor_id": vendor.id,
-                "description": "Re-evaluate vendor profile and update status based on current data",
+                "description": "Vendor requested a re-review of their profile. Re-evaluate the vendor and notify them of the outcome.",
             },
             session_context=session_context,
             workflow_id=workflow_id,
@@ -471,15 +468,14 @@ async def create_invoice(
 
         invoice = invoice_repo.create_invoice_for_current_vendor(**invoice_dict)
 
-        # Run the invoice processing agent
         workflow_id = f"wf_{secrets.token_urlsafe(12)}"
 
-        # queue background task to run the process invoice
         background_tasks.add_task(
-            run_invoice_agent,
+            run_orchestrator_agent,
             task_data={
                 "invoice_id": invoice.id,
-                "description": "Please process a new invoice for this vendor with provided invoice_id",
+                "vendor_id": session_context.current_vendor_id,
+                "description": "A new invoice has been submitted. Process the invoice and notify the vendor of the decision.",
             },
             session_context=session_context,
             workflow_id=workflow_id,
@@ -645,12 +641,12 @@ async def reprocess_invoice(
     # Create workflow ID for tracking
     workflow_id = f"wf_{secrets.token_urlsafe(12)}"
 
-    # Queue background task to run the invoice processing agent
     background_tasks.add_task(
-        run_invoice_agent,
+        run_orchestrator_agent,
         task_data={
             "invoice_id": invoice.id,
-            "description": "Please re-process this invoice and update the status and review notes",
+            "vendor_id": session_context.current_vendor_id,
+            "description": "Vendor requested invoice re-processing. Re-evaluate the invoice and notify the vendor of the updated decision.",
         },
         session_context=session_context,
         workflow_id=workflow_id,

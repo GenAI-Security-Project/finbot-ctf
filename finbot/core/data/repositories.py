@@ -420,7 +420,7 @@ class VendorMessageRepository(NamespacedRepository):
             query = query.filter(VendorMessage.is_read == is_read)
 
         return (
-            query.order_by(VendorMessage.created_at.desc())
+            query.order_by(VendorMessage.created_at.desc(), VendorMessage.id.desc())
             .offset(offset)
             .limit(limit)
             .all()
@@ -528,7 +528,7 @@ class VendorMessageRepository(NamespacedRepository):
                 self.db.query(VendorMessage), VendorMessage
             )
             .filter(VendorMessage.vendor_id == vendor_id)
-            .order_by(VendorMessage.created_at.desc())
+            .order_by(VendorMessage.created_at.desc(), VendorMessage.id.desc())
             .offset(offset)
             .limit(limit)
             .all()

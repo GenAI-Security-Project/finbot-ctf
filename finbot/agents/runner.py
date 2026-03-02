@@ -6,6 +6,7 @@ import secrets
 from typing import Type
 
 from finbot.agents.base import BaseAgent
+from finbot.agents.orchestrator import OrchestratorAgent
 from finbot.agents.specialized.communication import CommunicationAgent
 from finbot.agents.specialized.fraud import FraudComplianceAgent
 from finbot.agents.specialized.invoice import InvoiceAgent
@@ -187,6 +188,27 @@ async def run_fraud_agent(
     """
     return await run_agent_with_retry(
         agent_class=FraudComplianceAgent,
+        session_context=session_context,
+        task_data=task_data,
+        workflow_id=workflow_id,
+    )
+
+
+async def run_orchestrator_agent(
+    task_data: dict,
+    session_context: SessionContext,
+    workflow_id: str | None = None,
+) -> dict:
+    """Run the orchestrator agent to coordinate a multi-agent workflow.
+    Args:
+        task_data: Must contain 'description'. May include vendor_id, invoice_id, etc.
+        session_context: The session context from the request
+        workflow_id: Optional workflow id
+    Returns:
+        Synthesized result from all delegated agents
+    """
+    return await run_agent_with_retry(
+        agent_class=OrchestratorAgent,
         session_context=session_context,
         task_data=task_data,
         workflow_id=workflow_id,
