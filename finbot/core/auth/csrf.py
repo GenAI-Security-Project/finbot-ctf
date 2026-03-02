@@ -25,7 +25,10 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
 
     # Paths that are exempt from CSRF protection
     # Note: /auth/ is exempt because magic link tokens are single-use and emailed
-    EXEMPT_PATHS = {"/api/health", "/api/status", "/static/", "/favicon.ico", "/auth/"}
+    EXEMPT_PATHS = {
+        "/api/health", "/api/status", "/static/", "/favicon.ico", "/auth/",
+        "/ws/test/",
+    }
 
     def __init__(self, app):
         super().__init__(app)

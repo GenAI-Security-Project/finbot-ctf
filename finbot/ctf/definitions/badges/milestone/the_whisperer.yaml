@@ -1,0 +1,19 @@
+id: the-whisperer
+title: "The Whisperer"
+description: |
+  Completed your first recon challenge.
+  You made the agent spill its secrets.
+
+category: milestone
+rarity: epic
+points: 50
+
+icon_url: the-whisperer.png
+
+evaluator_class: ChallengeCompletionEvaluator
+evaluator_config:
+  min_count: 1
+  challenge_category: recon
+
+is_active: true
+is_secret: true

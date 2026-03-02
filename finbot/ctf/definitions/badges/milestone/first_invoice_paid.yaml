@@ -1,0 +1,19 @@
+id: first-invoice-paid
+title: "First Invoice Paid"
+description: |
+  Had your first invoice paid out through the payments agent.
+  From submitted to settled, the full invoice lifecycle complete.
+
+category: milestone
+rarity: rare
+points: 20
+
+icon_url: first-invoice-paid.png
+
+evaluator_class: InvoiceCountEvaluator
+evaluator_config:
+  min_count: 1
+  invoice_status: paid
+
+is_active: true
+is_secret: false

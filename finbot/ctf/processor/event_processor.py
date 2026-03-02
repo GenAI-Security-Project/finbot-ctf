@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from finbot.config import settings
 from finbot.core.data.database import SessionLocal
-from finbot.core.data.models import Badge, Challenge, CTFEvent
+from finbot.core.data.models import Badge, Challenge, CTFEvent, UserChallengeProgress
 from finbot.core.websocket import (
     create_activity_event,
     create_badge_earned_event,
@@ -302,12 +302,12 @@ class CTFEventProcessor:
         self._store_ctf_event(event, event_category, db)
 
         # Check for challenge completions
-        completed_challenges = self.challenge_service.check_event_for_challenges(
+        completed_challenges = await self.challenge_service.check_event_for_challenges(
             event, db
         )
 
         # Check for badge awards
-        awarded_badges = self.badge_service.check_event_for_badges(event, db)
+        awarded_badges = await self.badge_service.check_event_for_badges(event, db)
 
         # Push notification to WebSocket clients
         await self._push_to_websocket(event, completed_challenges, awarded_badges, db)
@@ -383,7 +383,7 @@ class CTFEventProcessor:
             "vendor_id": event.get("vendor_id"),
             "event_category": category,
             "event_type": event.get("event_type", "unknown"),
-            "event_subtype": event.get("subtype"),
+            "event_subtype": event.get("event_subtype"),
             "summary": self._generate_summary(event),
             "details": json.dumps(event),
             "severity": event.get("severity", "info"),
@@ -438,8 +438,38 @@ class CTFEventProcessor:
         for challenge_id, _ in completed_challenges:
             challenge = db.query(Challenge).get(challenge_id)
             if challenge:
+                # Look up the user's progress to get modifier info
+                progress = (
+                    db.query(UserChallengeProgress)
+                    .filter(
+                        UserChallengeProgress.namespace == namespace,
+                        UserChallengeProgress.user_id == user_id,
+                        UserChallengeProgress.challenge_id == challenge_id,
+                    )
+                    .first()
+                )
+                modifier = (
+                    progress.points_modifier
+                    if progress and progress.points_modifier is not None
+                    else 1.0
+                )
+                effective = int(challenge.points * modifier)
+
+                scoring_details = None
+                if progress and progress.completion_evidence:
+                    try:
+                        ev = json.loads(progress.completion_evidence)
+                        scoring_details = ev.get("scoring", {}).get("details")
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+
                 ws_event = create_challenge_completed_event(
-                    challenge_id, challenge.title, challenge.points
+                    challenge_id,
+                    challenge.title,
+                    challenge.points,
+                    effective_points=effective,
+                    points_modifier=modifier,
+                    modifier_details=scoring_details,
                 )
                 await ws_manager.send_to_user(namespace, user_id, ws_event)
 
@@ -451,12 +481,6 @@ class CTFEventProcessor:
                     badge_id, badge.title, badge.rarity
                 )
                 await ws_manager.send_to_user(namespace, user_id, ws_event)
-
-    def reload_definitions(self):
-        """Reload detector and evaluator caches"""
-        self.challenge_service.clear_cache()
-        self.badge_service.clear_cache()
-        logger.info("CTF processor caches cleared")
 
 
 # Singleton instance

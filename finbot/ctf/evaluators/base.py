@@ -1,5 +1,6 @@
 """Base Badge Evaluator"""
 
+import fnmatch
 import logging
 from abc import ABC, abstractmethod
 from typing import Any
@@ -12,12 +13,12 @@ logger = logging.getLogger(__name__)
 
 
 class BaseEvaluator(ABC):
-    """ "
+    """
     Abstract base class for badge evaluators.
 
     Evaluators check if a user has met the criteria for earning a badge.
-    Unlike detectors, evaluators typically query aggregate data rather than
-    checking individual events.
+    Each evaluator decides whether to check just the current event or
+    query aggregate data from the database.
     """
 
     def __init__(self, badge_id: str, config: dict[str, Any] | None = None):
@@ -43,36 +44,20 @@ class BaseEvaluator(ABC):
             List of event type strings (supports wildcards like "agent.*")
         """
 
-    def check_event(self, event: dict[str, Any], db: Session) -> DetectionResult:
+    @abstractmethod
+    async def check_event(self, event: dict[str, Any], db: Session) -> DetectionResult:
         """Check if the user has met the criteria for earning the badge.
 
-        Override for badges that can be earned from specific events.
-        Default implementation calls check_aggregate
+        Called for each relevant event. The evaluator decides whether to:
+        - Just analyze the current event
+        - Query aggregate data from the database
+        - Use an LLM judge for semantic evaluation
+        - Any combination of the above
 
         Args:
             event: The event data dictionary to check
-            db: The database session to use
-        Returns:
-            DetectionResult object containing detection status and confidence
-        """
-        namespace = event.get("namespace")
-        user_id = event.get("user_id")
-        if not namespace or not user_id:
-            return DetectionResult(
-                detected=False, message="Namespace or user ID not found in event"
-            )
-        return self.check_aggregate(namespace, user_id, db)
+            db: Database session for querying data if needed
 
-    @abstractmethod
-    def check_aggregate(
-        self, namespace: str, user_id: str, db: Session
-    ) -> DetectionResult:
-        """Check aggregate data for badge completion.
-
-        Args:
-            namespace: The namespace of the user
-            user_id: The ID of the user
-            db: The database session to use
         Returns:
             DetectionResult object containing detection status and confidence
         """
@@ -94,14 +79,14 @@ class BaseEvaluator(ABC):
         }
 
     def matches_event_type(self, event_type: str) -> bool:
-        """Check if an event type matches this evaluator's relevant types"""
+        """Check if an event type matches this evaluator's relevant types.
+        Patterns may use '*' to match any sequence of characters (glob-style).
+        """
         relevant = self.get_relevant_event_types()
 
         for pattern in relevant:
-            if pattern.endswith("*"):
-                # Wildcard match
-                prefix = pattern[:-1]
-                if event_type.startswith(prefix):
+            if "*" in pattern:
+                if fnmatch.fnmatch(event_type, pattern):
                     return True
             elif pattern == event_type:
                 return True

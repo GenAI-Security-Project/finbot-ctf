@@ -18,6 +18,10 @@ from finbot.apps.web.routes import router as web_router
 from finbot.core.auth.csrf import CSRFProtectionMiddleware
 from finbot.core.auth.middleware import SessionMiddleware, get_session_context
 from finbot.core.auth.session import SessionContext, session_manager
+from finbot.core.data import (
+    models as _models,  # noqa: F401 — register all tables with Base
+)
+from finbot.core.data.database import create_tables
 from finbot.core.error_handlers import register_error_handlers
 from finbot.core.websocket import websocket_router
 
@@ -35,40 +39,40 @@ setup_logging()
 async def lifespan(app: FastAPI):
     """Application lifecycle management"""
 
-    # === STARTUP ===
+    # 1. Ensure all database tables exist (safe no-op if they already do)
+    create_tables()
 
-    # 1. Cleanup expired sessions
+    # 2. Cleanup expired sessions
     try:
         cleaned_count = session_manager.cleanup_expired_sessions()
         if cleaned_count > 0:
             print(f"🧹 Cleaned up {cleaned_count} expired sessions on startup")
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"⚠️ Session cleanup skipped: {e}")
 
-    # 2. Load CTF definitions from YAML
+    # 3. Load CTF definitions from YAML
     try:
         result = load_definitions_on_startup()
         print(
             f"🎯 CTF loaded: {len(result['challenges'])} challenges, "
             f"{len(result['badges'])} badges"
         )
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"⚠️ CTF definition loading failed: {e}")
 
-    # 3. Start CTF event processor as async task
+    # 4. Start CTF event processor as async task
     processor_task = None
     try:
         processor_task = start_processor_task()
         print("🚀 CTF event processor started")
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"⚠️ CTF processor start failed: {e}")
 
     yield  # App is running
 
-    # === SHUTDOWN ===
-
     # Stop CTF event processor gracefully
     try:
+        # pylint: disable=import-outside-toplevel
         from finbot.ctf.processor import get_processor
 
         processor = get_processor()
@@ -81,7 +85,7 @@ async def lifespan(app: FastAPI):
             except Exception:  # pylint: disable=broad-exception-caught
                 pass  # Task cancelled
             print("🛑 CTF event processor stopped")
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"⚠️ CTF processor stop failed: {e}")
 
 

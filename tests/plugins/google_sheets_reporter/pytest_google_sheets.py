@@ -72,6 +72,7 @@ class GoogleSheetsReporter:
                 'Statuses'
             ]
         else:
+            # Standard test case headers - NOW INCLUDES COLUMNS K, L, M
             headers = [
                 'US ID',
                 'Dependency',
@@ -181,15 +182,15 @@ class GoogleSheetsReporter:
         statuses_str = "\n".join([r['status'] for r in results])
         
         summary_row = [
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            total_tests,
-            passed_tests,
-            failed_tests,
-            f"{pass_rate:.1f}%",
-            f"{total_duration:.2f}",
-            worksheet_name,
-            test_names,
-            statuses_str
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),  # Timestamp
+            total_tests,                                    # Total Tests
+            passed_tests,                                   # Passed
+            failed_tests,                                   # Failed
+            f"{pass_rate:.1f}%",                           # Pass Rate
+            f"{total_duration:.2f}",                        # Duration
+            worksheet_name,                                 # Test Suite
+            test_names,                                     # Test Details
+            statuses_str                                    # Statuses
         ]
         self.worksheet.insert_row(summary_row, index=2)
 

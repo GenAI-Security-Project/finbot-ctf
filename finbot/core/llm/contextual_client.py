@@ -57,6 +57,42 @@ class ContextualLLMClient:
             self.workflow_id[:8],
         )
 
+    def _extract_user_message_info(self, messages: list[dict] | None) -> dict[str, Any]:
+        """Extract user message info for event tracking.
+        Returns info about the last user message and message role breakdown.
+        This enables CTF detections.
+        """
+        if not messages:
+            return {
+                "user_message": None,
+                "user_message_length": 0,
+                "message_roles": [],
+            }
+
+        # Extract all roles for conversation structure visibility
+        message_roles = [m.get("role", "unknown") for m in messages]
+
+        # Find the last user message (the most recent attack vector)
+        last_user_message = None
+        for msg in reversed(messages):
+            if msg.get("role") == "user":
+                content = msg.get("content", "")
+                # Handle both string and list content (some APIs use list format)
+                if isinstance(content, list):
+                    content = " ".join(
+                        item.get("text", "")
+                        for item in content
+                        if isinstance(item, dict)
+                    )
+                last_user_message = content
+                break
+
+        return {
+            "user_message": last_user_message,
+            "user_message_length": len(last_user_message) if last_user_message else 0,
+            "message_roles": message_roles,
+        }
+
     async def chat(
         self,
         request: LLMRequest,
@@ -83,6 +119,8 @@ class ContextualLLMClient:
         if not request.temperature:
             request.temperature = self.llm_client.default_temperature
 
+        user_message_info = self._extract_user_message_info(request.messages)
+
         event_data = {
             "interaction_id": interaction_id,
             "model": request.model or self.llm_client.default_model,
@@ -92,6 +130,10 @@ class ContextualLLMClient:
             "call_count": self.call_count,
             "request_dump": request.model_dump_json(),
             "metadata": event_metadata or {},
+            # User input tracking for CTF detection
+            "user_message": user_message_info["user_message"],
+            "user_message_length": user_message_info["user_message_length"],
+            "message_roles": user_message_info["message_roles"],
         }
 
         # Emit start event

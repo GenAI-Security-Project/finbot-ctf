@@ -7,6 +7,7 @@ from finbot.ctf.processor.event_processor import (
     get_processor,
     start_processor_task,
 )
+from finbot.ctf.processor.scoring import ScoringResult, apply_modifiers
 
 __all__ = [
     "CTFEventProcessor",
@@ -14,4 +15,6 @@ __all__ = [
     "start_processor_task",
     "ChallengeService",
     "BadgeService",
+    "ScoringResult",
+    "apply_modifiers",
 ]

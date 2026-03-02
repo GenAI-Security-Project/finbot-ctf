@@ -56,10 +56,11 @@ def get_user_stats(
 
     # Get user progress stats
     progress_stats = progress_repo.get_stats()
-    completed_ids = progress_stats["completed_ids"]
+    completed_progress = progress_repo.get_completed_challenges()
+    completed_ids = {p.challenge_id for p in completed_progress}
 
-    # Calculate challenge points
-    challenge_points = challenge_repo.get_total_points(completed_ids)
+    # Calculate challenge points (with modifiers applied)
+    challenge_points = challenge_repo.get_effective_points(completed_progress)
 
     # Get badge stats
     earned_badge_ids = list(user_badge_repo.get_earned_badge_ids())

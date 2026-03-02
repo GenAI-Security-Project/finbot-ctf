@@ -197,6 +197,27 @@
         color: #fbbf24;
     }
 
+    /* Earned secret badge */
+    .badge-card.earned.secret-earned {
+        border-color: rgba(245, 158, 11, 0.4);
+        background: linear-gradient(135deg, #1a1520, #1e1028, #1a1520);
+    }
+
+    .secret-ribbon {
+        position: absolute;
+        top: 14px;
+        left: -30px;
+        background: linear-gradient(90deg, #f59e0b, #d97706);
+        color: #000;
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        padding: 3px 36px;
+        transform: rotate(-45deg);
+        box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
+    }
+
     /* Earned date */
     .earned-date {
         position: absolute;
@@ -233,8 +254,8 @@ function renderBadges(badges) {
 
     // Categorize badges
     const earned = badges.filter(b => b.earned);
-    const locked = badges.filter(b => !b.earned && !b.secret);
-    const secret = badges.filter(b => b.secret && !b.earned);
+    const locked = badges.filter(b => !b.earned && !b.is_secret);
+    const secret = badges.filter(b => b.is_secret && !b.earned);
 
     // Update stats
     const rareCount = earned.filter(b => b.rarity === 'rare' || b.rarity === 'epic' || b.rarity === 'legendary').length;
@@ -284,18 +305,32 @@ function renderBadges(badges) {
     }
 }
 
+const RARITY_EMOJIS = { common: '⭐', rare: '💎', epic: '🌟', legendary: '👑' };
+
+function badgeIconHtml(badge) {
+    const fallback = RARITY_EMOJIS[badge.rarity] || '🏅';
+    if (!badge.icon_url) return fallback;
+    return `<img src="/static/images/ctf/${badge.icon_url}" alt="${escapeHtml(badge.title)}" class="w-10 h-10"
+                 onerror="this.replaceWith(document.createTextNode('${fallback}'))">`;
+}
+
 function renderBadgeCard(badge, isEarned) {
     const earnedClass = isEarned ? 'earned' : 'locked';
+    const secretClass = isEarned && badge.is_secret ? 'secret-earned' : '';
     const rarityClass = `rarity-${badge.rarity || 'common'}`;
     const earnedDate = isEarned && badge.earned_at
         ? `<span class="earned-date">${formatShortDate(badge.earned_at)}</span>`
         : '';
+    const secretRibbon = isEarned && badge.is_secret
+        ? '<span class="secret-ribbon">Secret</span>'
+        : '';
 
     return `
-        <div class="badge-card ${earnedClass} ${rarityClass}">
+        <div class="badge-card ${earnedClass} ${secretClass} ${rarityClass}">
+            ${secretRibbon}
             ${earnedDate}
-            <div class="badge-icon">${badge.icon || '🏅'}</div>
-            <h3 class="font-semibold text-text-bright mb-1">${escapeHtml(badge.name)}</h3>
+            <div class="badge-icon">${badgeIconHtml(badge)}</div>
+            <h3 class="font-semibold text-text-bright mb-1">${escapeHtml(badge.title)}</h3>
             <p class="text-xs text-text-secondary mb-3">${escapeHtml(badge.description || '')}</p>
             <span class="rarity-badge">${badge.rarity || 'common'}</span>
         </div>
