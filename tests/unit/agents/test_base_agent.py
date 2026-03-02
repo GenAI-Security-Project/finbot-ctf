@@ -1,4 +1,41 @@
-"""Base Agent Framework Test Suite"""
+# ==============================================================================
+# Base Agent Framework Test Suite
+# ==============================================================================
+# User Story: As a developer, I want a base agent class that provides session
+#             awareness, event emission, error handling, tool integration, and
+#             memory management so that all FinBot agents share a consistent,
+#             tested foundation.
+#
+# Acceptance Criteria:
+#   - Agent initializes with a valid SessionContext and exposes user identity
+#   - Session context persists across calls within the same agent instance
+#   - Agent emits structured events for CTF challenge tracking
+#   - Events are routed and filtered correctly by type
+#   - Errors are caught, logged, and surfaced without crashing the agent
+#   - Error details propagate to callers with full context
+#   - Tool definitions are registered and callable via the integration framework
+#   - Tool execution is validated before and after invocation
+#   - Memory and context are retained across multiple interactions
+#   - Context is isolated between separate agent instances
+#   - Agent metrics are written to Google Sheets automation columns
+#   - Complete end-to-end agent execution completes successfully
+#
+# Test Categories:
+#   BAF-SSN-001: Base Agent Initialization with Session Awareness
+#   BAF-SSN-002: Session Context Persistence
+#   BAF-EVN-001: Event Emission and CTF Tracking
+#   BAF-EVN-002: Event Routing and Filtering
+#   BAF-ERR-001: Error Handling and Recovery
+#   BAF-ERR-002: Error Propagation and Logging
+#   BAF-INT-001: Tool Integration Framework
+#   BAF-INT-002: Tool Execution and Validation
+#   BAF-MEM-001: Memory and Context Management
+#   BAF-MEM-002: Context Isolation Per Agent
+#   BAF-GS-001:  Google Sheets Integration
+#   BAF-COM-001: Complete Agent Functionality End-to-End
+#   BAF-GSI-001: Google Sheets Integration Verification
+# ==============================================================================
+
 
 import pytest
 import json
@@ -47,18 +84,6 @@ class ConcreteTestAgent(BaseAgent):
 
 
 class TestBaseAgentFramework:
-    """
-    Test Suite: Base Agent Framework
-    
-    Validates that the base agent provides:
-    - Session awareness and context (AC1)
-    - Event emission for CTF tracking (AC2)
-    - Error handling and recovery (AC3)
-    - Tool integration framework (AC4)
-    - Memory and context management (AC5)
-    
-    Dependency: CD005
-    """
 
     # =========================================================================
     # Helper Methods

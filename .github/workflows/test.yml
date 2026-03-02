@@ -28,19 +28,13 @@ jobs:
       run: python scripts/setup_database.py
 
     - name: Run vendor isolation tests with Google Sheets reporting
-      env:
-        GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
-      run: pytest tests/unit/vendor/test_vendor_isolation.py -v --google-sheets
-    
+      run: pytest tests/unit/vendor/test_vendor_isolation.py -v 
+
     - name: Run session management tests with Google Sheets reporting
-      env:
-        GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
-      run: pytest tests/unit/auth/test_secure_session_management.py -v --google-sheets
+      run: pytest tests/unit/auth/test_secure_session_management.py -v 
 
     - name: Run Base Agent Framework tests with Google Sheets reporting
-      env:
-        GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
-      run: pytest tests/unit/agents/test_base_agent.py -v --google-sheets
+      run: pytest tests/unit/agents/test_base_agent.py -v 
     
     - name: Upload coverage reports
       if: always()
