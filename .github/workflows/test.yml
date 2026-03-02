@@ -9,46 +9,44 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v3
-    
+    - uses: actions/checkout@v4
+
     - name: Set up Python 3.13
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.13'
-    
+        cache: 'pip'
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -e ".[dev]"
         pip install pytest pytest-asyncio pytest-cov gspread google-auth google-auth-oauthlib
-    
+
     - name: Setup database
       run: python scripts/setup_database.py
 
     - name: Setup Google credentials
       env:
-        GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
-      run: echo "$GOOGLE_CREDENTIALS_JSON" > google-credentials.json
+        GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+        GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
+      run: |
+        if [ -n "$GOOGLE_CREDENTIALS" ] && [ -n "$GOOGLE_SHEETS_ID" ]; then
+          echo "GOOGLE_CREDENTIALS=$GOOGLE_CREDENTIALS" >> $GITHUB_ENV
+          echo "GOOGLE_SHEETS_ID=$GOOGLE_SHEETS_ID" >> $GITHUB_ENV
+          echo "GS_FLAG=--google-sheets" >> $GITHUB_ENV
+        else
+          echo "GS_FLAG=" >> $GITHUB_ENV
+          echo "Google Sheets credentials not configured — reporting disabled"
+        fi
 
-    - name: Run vendor isolation tests with Google Sheets reporting
-      env:
-        GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
-      run: pytest tests/unit/vendor/test_vendor_isolation.py -v --google-sheets
-    
-    - name: Run session management tests with Google Sheets reporting
-      env:
-        GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
-      run: pytest tests/unit/auth/test_secure_session_management.py -v --google-sheets
-    
-    - name: Run complete user isolation tests with Google Sheets reporting
-      env:
-        GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
-      run: pytest tests/unit/isolation/test_complete_user_isolation.py -v --google-sheets
-      
-    - name: Upload coverage reports
-      if: always()
-      uses: codecov/codecov-action@v3
-      with:
-        files: ./coverage.xml
+    - name: Run vendor isolation tests
+      run: pytest tests/unit/vendor/test_vendor_isolation.py $GS_FLAG
+
+    - name: Run session management tests
+      run: pytest tests/unit/auth/test_secure_session_management.py $GS_FLAG
+
+    - name: Run complete user isolation tests
+      run: pytest tests/unit/isolation/test_complete_user_isolation.py $GS_FLAG
