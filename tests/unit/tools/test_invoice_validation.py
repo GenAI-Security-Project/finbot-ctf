@@ -7,6 +7,17 @@ from finbot.core.auth.session import SessionContext
 from finbot.core.data.models import VALID_INVOICE_STATUSES
 from finbot.tools.data.invoice import update_invoice_status
 
+# Expected invoice statuses - hardcoded to catch accidental changes to production constant
+EXPECTED_INVOICE_STATUSES = ("submitted", "processing", "approved", "rejected", "paid")
+
+
+def test_valid_invoice_statuses_constant():
+    """Verify VALID_INVOICE_STATUSES matches expected values (catches accidental modifications)"""
+    assert VALID_INVOICE_STATUSES == EXPECTED_INVOICE_STATUSES, (
+        f"VALID_INVOICE_STATUSES was modified. Expected {EXPECTED_INVOICE_STATUSES}, "
+        f"got {VALID_INVOICE_STATUSES}"
+    )
+
 
 @pytest.mark.asyncio
 async def test_update_invoice_status_validates_status():
@@ -54,8 +65,8 @@ async def test_update_invoice_status_accepts_valid_statuses():
         mock_repo.update_invoice.return_value = mock_invoice
         mock_repo_class.return_value = mock_repo
         
-        # Test each valid status
-        for valid_status in VALID_INVOICE_STATUSES:
+        # Test each valid status from expected list (not production constant)
+        for valid_status in EXPECTED_INVOICE_STATUSES:
             # Reset mock for each iteration
             mock_repo.update_invoice.reset_mock()
             mock_invoice.status = "submitted"  # Reset to initial state
