@@ -19,6 +19,7 @@ from finbot.apps.web.routes import router as web_router
 from finbot.core.auth.csrf import CSRFProtectionMiddleware
 from finbot.core.auth.middleware import SessionMiddleware, get_session_context
 from finbot.core.auth.session import SessionContext, session_manager
+from finbot.core.messaging import event_bus
 from finbot.core.data import (
     models as _models,  # noqa: F401 — register all tables with Base
 )
@@ -139,6 +140,27 @@ async def agreement(_: Request):
         return HTMLResponse(content=content, status_code=200)
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail="Agreement page not found") from e
+
+
+# Agreement acceptance audit log
+@app.post("/api/log-agreement")
+async def log_agreement(
+    request: Request,
+    session_context: SessionContext = Depends(get_session_context),
+):
+    """Log user acceptance of the CTF participation agreement for audit purposes."""
+    body = await request.json()
+    await event_bus.emit_business_event(
+        event_type="platform.agreement_accepted",
+        event_subtype="lifecycle",
+        event_data={
+            "user_agent": body.get("userAgent", ""),
+            "referrer": body.get("referrer", ""),
+        },
+        session_context=session_context,
+        summary=f"CTF agreement accepted by user {session_context.user_id[:8]}",
+    )
+    return {"success": True}
 
 
 # Session health check endpoint

@@ -167,7 +167,15 @@ function updateVendorSwitcherUI() {
         </div>
     `;
 
-    dropdown.innerHTML = `<div class="p-2">${vendorOptions}${addNewVendorOption}</div>`;
+    const manageVendorsLink = `
+        <a href="/vendor/select-vendor?force=true" class="block">
+            <div class="flex items-center justify-center p-2 rounded-lg hover:bg-portal-surface transition-colors cursor-pointer mt-1 border-t border-vendor-primary/10 pt-2">
+                <span class="text-xs text-text-secondary hover:text-vendor-primary transition-colors">Manage All Vendors</span>
+            </div>
+        </a>
+    `;
+
+    dropdown.innerHTML = `<div class="p-2">${vendorOptions}${addNewVendorOption}${manageVendorsLink}</div>`;
 }
 
 function handleAddNewVendor() {
