@@ -77,7 +77,9 @@ class OpenAIClient:
             response = await self._client.responses.create(**create_params)
 
 
-            # Guard against invalid SDK responses.
+            # Guard against malformed or empty SDK responses.
+            # Prevents AttributeError when accessing response.message.content
+            # and ensures consistent failure handling.
             if not response:
                 logger.warning("Invalid OpenAI response: response is None")
                 return LLMResponse(
@@ -105,7 +107,8 @@ class OpenAIClient:
                     texts = []
 
                     for content in item.content:
-                        # Guard dict content with both dict and SDK object access patterns.
+                        # Handle content whether it arrives as a raw dictionary
+                        # or an SDK object (TypedDict vs Pydantic)
                         content_type = (
                             content.get("type")
                             if isinstance(content, dict)
@@ -131,7 +134,6 @@ class OpenAIClient:
                     raw_args = item.arguments
                     parsed_args = json.loads(raw_args)
                     
-
                     tool_call = {
                         "name": item.name,
                         "call_id": item.call_id,
