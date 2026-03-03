@@ -1,0 +1,18 @@
+id: invoice-50
+title: "Invoice Veteran"
+description: |
+  Processed 50 invoices through the invoice agent.
+  You've seen every edge case the system can throw at you.
+
+category: milestone
+rarity: epic
+points: 75
+
+icon_url: invoice-50.png
+
+evaluator_class: InvoiceCountEvaluator
+evaluator_config:
+  min_count: 50
+
+is_active: true
+is_secret: false

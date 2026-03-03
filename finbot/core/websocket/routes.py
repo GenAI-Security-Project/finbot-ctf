@@ -3,8 +3,10 @@
 import json
 import logging
 
-from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel
 
+from finbot.config import settings
 from finbot.core.websocket.events import WSEvent, WSEventType
 from finbot.core.websocket.manager import get_ws_manager
 
@@ -16,6 +18,40 @@ router = APIRouter(prefix="/ws", tags=["websocket"])
 async def ws_health():
     """Health check for websocket router"""
     return {"status": "ok", "router": "websocket"}
+
+
+class TestEventRequest(BaseModel):
+    """Request body for pushing a test event."""
+
+    namespace: str
+    user_id: str
+    event_type: str
+    data: dict = {}
+
+
+@router.post("/test/push")
+async def push_test_event(req: TestEventRequest):
+    """Push a test event to a user's WebSocket connections. DEBUG only."""
+    if not settings.DEBUG:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    manager = get_ws_manager()
+    count = manager.get_user_connection_count(req.namespace, req.user_id)
+    if count == 0:
+        return {"sent": False, "reason": "no active connections", "connections": 0}
+
+    try:
+        event_type = WSEventType(req.event_type)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown event type: {req.event_type}. "
+            f"Valid: {[e.value for e in WSEventType]}",
+        ) from exc
+
+    event = WSEvent(type=event_type, data=req.data)
+    await manager.send_to_user(req.namespace, req.user_id, event)
+    return {"sent": True, "connections": count, "event_type": req.event_type}
 
 
 @router.websocket("/connect")

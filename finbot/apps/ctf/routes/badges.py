@@ -75,19 +75,31 @@ def list_badges(
         if earned_only and not earned:
             continue
 
-        # Hide secret badges unless earned
-        if badge.is_secret and not earned:
-            continue
-
         user_badge = earned_map.get(badge.id)
+
+        # Mask secret badge details unless earned
+        if badge.is_secret and not earned:
+            result.append(
+                BadgeListItem(
+                    id=badge.id,
+                    title="???",
+                    description="Hidden achievement waiting to be discovered.",
+                    category=badge.category,
+                    rarity=badge.rarity,
+                    points=badge.points,
+                    icon_url=None,
+                    earned=False,
+                    earned_at=None,
+                    is_secret=True,
+                )
+            )
+            continue
 
         result.append(
             BadgeListItem(
                 id=badge.id,
                 title=badge.title,
-                description=badge.description
-                if earned or not badge.is_secret
-                else "???",
+                description=badge.description,
                 category=badge.category,
                 rarity=badge.rarity,
                 points=badge.points,

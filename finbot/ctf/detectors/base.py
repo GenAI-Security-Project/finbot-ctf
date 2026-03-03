@@ -1,5 +1,6 @@
 """Base Challenge Detector"""
 
+import fnmatch
 import logging
 from abc import ABC, abstractmethod
 from typing import Any
@@ -41,43 +42,32 @@ class BaseDetector(ABC):
         """
 
     @abstractmethod
-    def check_event(self, event: dict[str, Any]) -> DetectionResult:
+    async def check_event(self, event: dict[str, Any], db: Session) -> DetectionResult:
         """Check if the challenge condition is met for a given event.
-        Called for each event as it arrives and primary detection methods for
-        real-time event detection.
+
+        Called for each event as it arrives. The detector decides whether to:
+        - Just analyze the current event
+        - Query historical data from CTFEvent table via db session
+        - Use an LLM judge for semantic evaluation
+        - Any combination of the above
+
         Args:
             event: The event data dictionary to check
-        Returns:
-            DetectionResult object containing detection status and confidence
-        """
+            db: Database session for querying historical events if needed
 
-    def check_aggregate(
-        self, namespace: str, user_id: str, db: Session
-    ) -> DetectionResult:
-        """Check aggregate data for challenge completion.
-        Called on-demand when user needs to check progress.
-        Override for challenges that need to query historical data.
-        Args:
-            namespace: The namespace of the user
-            user_id: The ID of the user
-            db_session: The database session to use
         Returns:
             DetectionResult object containing detection status and confidence
         """
-        return DetectionResult(
-            detected=False,
-            message="Aggregate data check not implemented for this detector",
-        )
 
     def matches_event_type(self, event_type: str) -> bool:
-        """Check if an event type matches this detector's relevant types"""
+        """Check if an event type matches this detector's relevant types.
+        Patterns may use '*' to match any sequence of characters (glob-style).
+        """
         relevant = self.get_relevant_event_types()
 
         for pattern in relevant:
-            if pattern.endswith("*"):
-                # Wildcard match
-                prefix = pattern[:-1]
-                if event_type.startswith(prefix):
+            if "*" in pattern:
+                if fnmatch.fnmatch(event_type, pattern):
                     return True
             elif pattern == event_type:
                 return True

@@ -1,0 +1,19 @@
+id: rule-breaker
+title: "Rule Breaker"
+description: |
+  Completed your first policy bypass challenge.
+  You convinced the agent to break its own rules.
+
+category: milestone
+rarity: epic
+points: 50
+
+icon_url: rule-breaker.png
+
+evaluator_class: ChallengeCompletionEvaluator
+evaluator_config:
+  min_count: 1
+  challenge_category: policy_bypass
+
+is_active: true
+is_secret: true

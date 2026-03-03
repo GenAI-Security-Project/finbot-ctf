@@ -115,7 +115,7 @@
 
             <!-- Action Card -->
             <div class="glass-card p-6 text-center">
-                <a href="/vendor/onboarding" class="action-btn inline-block w-full mb-4">
+                <a href="/vendor/dashboard" class="action-btn inline-block w-full mb-4">
                     Go to Vendor Portal →
                 </a>
                 <p class="text-sm text-text-secondary">Interact with the AI agent to attempt this challenge</p>
@@ -154,6 +154,23 @@
 
                 <!-- Check Result -->
                 <div id="check-result" class="hidden mt-4 p-4 rounded-lg"></div>
+            </div>
+
+            <!-- Evidence Card (collapsed by default, completed only) -->
+            <div id="evidence-section" class="glass-card hidden">
+                <button id="evidence-toggle" onclick="toggleEvidence()" class="w-full flex items-center justify-between p-4 text-left hover:bg-white/[0.02] transition-colors rounded-xl">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm">🔍</span>
+                        <span id="evidence-label" class="text-sm font-medium text-text-secondary">Show Evidence of Completion</span>
+                    </div>
+                    <svg id="evidence-chevron" class="w-4 h-4 text-text-secondary transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </button>
+                <div id="evidence-body" class="hidden px-4 pb-4">
+                    <div id="evidence-summary" class="space-y-0.5 mb-4"></div>
+                    <div id="evidence-details" class="space-y-0.5"></div>
+                </div>
             </div>
 
             <!-- Prerequisites Card -->
@@ -226,7 +243,7 @@
     }
 
     .hint-content {
-        padding: 0 16px 16px;
+        padding: 12px 16px 16px;
         border-top: 1px solid rgba(255, 184, 0, 0.1);
     }
 
@@ -244,6 +261,48 @@
     .resource-link:hover {
         border-color: rgba(0, 212, 255, 0.3);
         background: rgba(0, 212, 255, 0.05);
+    }
+
+    .evidence-row {
+        display: flex;
+        gap: 8px;
+        padding: 7px 10px;
+        border-radius: 6px;
+        font-size: 13px;
+    }
+
+    .evidence-row:nth-child(odd) {
+        background: rgba(21, 21, 32, 0.4);
+    }
+
+    .evidence-key {
+        flex: 0 0 120px;
+        color: var(--text-secondary, #888);
+        font-weight: 500;
+        word-break: break-word;
+        font-size: 12px;
+    }
+
+    .evidence-value {
+        flex: 1;
+        color: var(--text-primary, #ccc);
+        word-break: break-word;
+        white-space: pre-wrap;
+    }
+
+    .evidence-value .nested-list {
+        list-style: disc;
+        padding-left: 1.25rem;
+        margin: 0;
+    }
+
+    .evidence-value .nested-list li {
+        margin-bottom: 2px;
+    }
+
+
+    #evidence-chevron.rotated {
+        transform: rotate(180deg);
     }
 
     .stat-box {
@@ -269,12 +328,27 @@
         box-shadow: 0 8px 30px rgba(0, 212, 255, 0.4);
     }
 
+    .prose p {
+        margin-bottom: 1rem;
+    }
+
+    .prose strong {
+        color: var(--text-bright, #f0f0f0);
+        font-weight: 600;
+    }
+
     .prose h3 {
         margin-top: 1.5rem;
     }
 
     .prose ul {
         list-style: disc;
+        padding-left: 1.5rem;
+        margin-top: 0.5rem;
+    }
+
+    .prose ol {
+        list-style: decimal;
         padding-left: 1.5rem;
         margin-top: 0.5rem;
     }
@@ -289,6 +363,13 @@
 
     .prose a:hover {
         text-decoration: underline;
+    }
+
+    .prose code {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 0.875em;
     }
 </style>
 {% endblock %}
@@ -343,25 +424,36 @@ function renderChallenge(ch) {
     diffBadge.textContent = ch.difficulty;
     diffBadge.className = `diff-${ch.difficulty} px-3 py-1 rounded-lg text-sm text-white font-medium`;
 
-    document.getElementById('points-display').textContent = `${ch.points} pts`;
+    if (ch.points_modifier != null && ch.points_modifier < 1.0) {
+        const pctPenalty = Math.round((1 - ch.points_modifier) * 100);
+        document.getElementById('points-display').innerHTML =
+            `<span class="line-through opacity-50">${ch.points}</span> ` +
+            `<span class="text-ctf-warning">${ch.effective_points} pts</span> ` +
+            `<span class="text-xs font-normal text-ctf-danger">(-${pctPenalty}% penalty)</span>`;
+    } else {
+        document.getElementById('points-display').textContent = `${ch.points} pts`;
+    }
     document.getElementById('challenge-title').textContent = ch.title;
-    document.getElementById('challenge-subtitle').textContent = `Category: ${formatCategoryName(ch.category)}${ch.subcategory ? ' → ' + ch.subcategory : ''}`;
+    document.getElementById('challenge-subtitle').textContent = `Category: ${formatCategoryName(ch.category)}${ch.subcategory ? ' → ' + formatCategoryName(ch.subcategory) : ''}`;
 
     // Tags
     const tagsContainer = document.getElementById('tags-container');
     let tagsHtml = '';
+    const TAG_CONFIG = {
+        owasp_llm:     { css: 'owasp-tag', prefix: 'OWASP ' },
+        owasp_agentic: { css: 'owasp-tag', prefix: 'OWASP ' },
+        cwe:           { css: 'cwe-tag',   prefix: '' },
+        mitre_atlas:   { css: 'mitre-tag', prefix: 'MITRE ' },
+    };
     if (ch.labels) {
-        if (ch.labels.owasp) {
-            const list = Array.isArray(ch.labels.owasp) ? ch.labels.owasp : [ch.labels.owasp];
-            tagsHtml += list.map(l => `<span class="owasp-tag px-3 py-1 rounded-lg text-sm font-medium">OWASP ${l}</span>`).join('');
-        }
-        if (ch.labels.cwe) {
-            const list = Array.isArray(ch.labels.cwe) ? ch.labels.cwe : [ch.labels.cwe];
-            tagsHtml += list.map(l => `<span class="cwe-tag px-3 py-1 rounded-lg text-sm font-medium">${l}</span>`).join('');
-        }
-        if (ch.labels.mitre) {
-            const list = Array.isArray(ch.labels.mitre) ? ch.labels.mitre : [ch.labels.mitre];
-            tagsHtml += list.map(l => `<span class="mitre-tag">${l}</span>`).join('');
+        for (const [group, items] of Object.entries(ch.labels)) {
+            const list = Array.isArray(items) ? items : [items];
+            if (list.length === 0) continue;
+            const config = TAG_CONFIG[group] || { css: 'owasp-tag', prefix: '' };
+            tagsHtml += list.map(l => {
+                const label = typeof l === 'object' ? Object.entries(l).map(([k, v]) => `${k}: ${v}`).join(', ') : l;
+                return `<span class="${config.css} px-3 py-1 rounded-lg text-sm font-medium">${config.prefix}${escapeHtml(label)}</span>`;
+            }).join('');
         }
     }
     tagsContainer.innerHTML = tagsHtml;
@@ -371,7 +463,12 @@ function renderChallenge(ch) {
 
     // Status banner
     if (ch.status === 'completed') {
-        showStatusBanner('completed', 'Challenge Completed!', `Completed on ${new Date(ch.completed_at).toLocaleDateString()}`);
+        let bannerMsg = `Completed on ${new Date(ch.completed_at).toLocaleDateString()}`;
+        if (ch.points_modifier != null && ch.points_modifier < 1.0) {
+            const pctPenalty = Math.round((1 - ch.points_modifier) * 100);
+            bannerMsg += ` · ${ch.effective_points}/${ch.points} pts (${pctPenalty}% penalty for prompt injection)`;
+        }
+        showStatusBanner('completed', 'Challenge Completed!', bannerMsg);
         document.getElementById('check-progress-btn').classList.add('hidden');
     } else if (ch.status === 'in_progress') {
         showStatusBanner('in_progress', 'In Progress', `${ch.attempts} attempts so far`);
@@ -397,6 +494,7 @@ function renderChallenge(ch) {
         const hintsSection = document.getElementById('hints-section');
         const hintsList = document.getElementById('hints-list');
         hintsSection.classList.remove('hidden');
+        const isCompleted = ch.status === 'completed';
 
         hintsList.innerHTML = ch.hints.map((hint, i) => {
             const isUnlocked = hint.text !== '[locked]';
@@ -417,13 +515,14 @@ function renderChallenge(ch) {
                     </div>
                 `;
             } else {
+                const costLabel = isCompleted ? 'Free' : `-${hint.cost} pts`;
                 return `
                     <div class="hint-card locked">
                         <div class="hint-header">
                             <div class="flex items-center gap-3 flex-1">
                                 <span class="text-text-secondary">🔒</span>
                                 <span class="font-medium text-text-secondary">Hint ${i + 1}</span>
-                                <span class="text-xs text-text-secondary bg-portal-bg-tertiary px-2 py-0.5 rounded">-${hint.cost} pts</span>
+                                <span class="text-xs text-text-secondary bg-portal-bg-tertiary px-2 py-0.5 rounded">${costLabel}</span>
                                 <button onclick="unlockHint()" class="text-xs text-ctf-primary hover:text-cyan-300 ml-auto transition-colors">Unlock</button>
                             </div>
                         </div>
@@ -455,6 +554,11 @@ function renderChallenge(ch) {
                 </svg>
             </a>
         `).join('');
+    }
+
+    // Evidence (completed challenges only)
+    if (ch.status === 'completed' && ch.completion_evidence) {
+        renderEvidence(ch.completion_evidence);
     }
 
     // Prerequisites
@@ -583,16 +687,130 @@ async function unlockHint() {
     }
 }
 
+function renderEvidence(ev) {
+    const section = document.getElementById('evidence-section');
+    const summaryEl = document.getElementById('evidence-summary');
+    const detailsEl = document.getElementById('evidence-details');
+    section.classList.remove('hidden');
+
+    const summaryItems = [];
+    if (ev.confidence != null) {
+        summaryItems.push({ label: 'Confidence', value: Math.round(ev.confidence * 100) + '%' });
+    }
+    if (ev.event_type) {
+        summaryItems.push({ label: 'Trigger', value: formatKeyLabel(ev.event_type) });
+    }
+    if (ev.timestamp) {
+        const d = new Date(ev.timestamp);
+        summaryItems.push({ label: 'Detected', value: d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) });
+    }
+
+    summaryEl.innerHTML = summaryItems.map(item => `
+        <div class="evidence-row">
+            <div class="evidence-key">${escapeHtml(item.label)}</div>
+            <div class="evidence-value">${escapeHtml(item.value)}</div>
+        </div>
+    `).join('');
+
+    const innerEvidence = ev.evidence || {};
+    const rows = [];
+
+    if (ev.result_message) {
+        rows.push({ key: 'Result', value: ev.result_message });
+    }
+
+    for (const [key, value] of Object.entries(innerEvidence)) {
+        rows.push({ key: formatKeyLabel(key), value: value });
+    }
+
+    let scoringHtml = '';
+    if (ev.scoring && ev.scoring.modifier < 1.0) {
+        const pct = Math.round((1 - ev.scoring.modifier) * 100);
+        scoringHtml = `
+            <div style="margin-top: 1.5rem;" class="p-3 rounded-lg bg-ctf-danger/10 border border-ctf-danger/20">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="text-sm">⚠️</span>
+                    <span class="text-sm font-semibold text-ctf-danger">Scoring Penalty Applied (-${pct}%)</span>
+                </div>
+                <div class="space-y-1">
+                    ${(ev.scoring.details || []).filter(d => d.triggered).map(d => `
+                        <div class="text-xs text-text-secondary">
+                            <span class="text-ctf-danger font-medium">${escapeHtml(modifierDisplayName(d.type))}</span>
+                            — ${Math.round(d.penalty * 100)}% penalty
+                            ${d.evidence && d.evidence.judge_reasoning
+                                ? `<div class="mt-1 text-text-secondary/80 italic">"${escapeHtml(d.evidence.judge_reasoning.substring(0, 200))}${d.evidence.judge_reasoning.length > 200 ? '...' : ''}"</div>`
+                                : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    detailsEl.innerHTML = rows.map(row => `
+        <div class="evidence-row">
+            <div class="evidence-key">${escapeHtml(row.key)}</div>
+            <div class="evidence-value">${formatEvidenceValue(row.value)}</div>
+        </div>
+    `).join('') + scoringHtml;
+}
+
+function toggleEvidence() {
+    const body = document.getElementById('evidence-body');
+    const chevron = document.getElementById('evidence-chevron');
+    const label = document.getElementById('evidence-label');
+    const isHidden = body.classList.contains('hidden');
+
+    body.classList.toggle('hidden');
+    chevron.classList.toggle('rotated');
+    label.textContent = isHidden ? 'Hide Evidence of Completion' : 'Show Evidence of Completion';
+}
+
+const MODIFIER_NAMES = {
+    'pi_jb': 'Prompt Injection / Jailbreak',
+};
+
+function modifierDisplayName(type) {
+    return MODIFIER_NAMES[type] || formatKeyLabel(type);
+}
+
+function formatKeyLabel(key) {
+    return key
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function formatEvidenceValue(value) {
+    if (value == null) return '<span class="text-text-secondary">--</span>';
+
+    if (Array.isArray(value)) {
+        if (value.length === 0) return '<span class="text-text-secondary">None</span>';
+        return '<ul class="nested-list">' +
+            value.map(item => `<li>${escapeHtml(String(item))}</li>`).join('') +
+            '</ul>';
+    }
+
+    if (typeof value === 'object') {
+        return Object.entries(value)
+            .map(([k, v]) => `<span class="text-text-secondary">${escapeHtml(formatKeyLabel(k))}:</span> ${escapeHtml(String(v))}`)
+            .join('<br>');
+    }
+
+    if (typeof value === 'number') {
+        if (Number.isInteger(value)) return escapeHtml(String(value));
+        return escapeHtml(value.toFixed(2));
+    }
+
+    return escapeHtml(String(value));
+}
+
 function formatCategoryName(category) {
     return category.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
 function formatDescription(desc) {
     if (!desc) return '';
-    // Convert markdown-like formatting
-    return desc
-        .replace(/\n\n/g, '</p><p class="mb-4">')
-        .replace(/\n/g, '<br>');
+    return marked.parse(desc);
 }
 
 function escapeHtml(text) {

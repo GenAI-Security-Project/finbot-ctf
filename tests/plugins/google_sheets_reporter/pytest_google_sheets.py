@@ -70,6 +70,7 @@ class GoogleSheetsReporter:
                 'Statuses'
             ]
         else:
+            # Standard test case headers - NOW INCLUDES COLUMNS K, L, M
             headers = [
                 'US ID',
                 'Dependency',

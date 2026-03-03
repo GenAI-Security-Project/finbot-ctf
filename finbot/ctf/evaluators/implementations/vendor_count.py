@@ -16,7 +16,8 @@ logger = logging.getLogger(__name__)
 
 @register_evaluator("VendorCountEvaluator")
 class VendorCountEvaluator(BaseEvaluator):
-    """Awards badges based on vendor count
+    """Awards badges based on vendor count.
+
     Configuration:
         min_count: Minimum number of vendors required to earn the badge
         vendor_status: Optional status of vendors to count (default: active)
@@ -38,14 +39,19 @@ class VendorCountEvaluator(BaseEvaluator):
             "agent.onboarding_agent.task_completion",
         ]
 
-    def check_aggregate(
-        self, namespace: str, user_id: str, db: Session
-    ) -> DetectionResult:
-        """Check if user has created enough vendors"""
+    async def check_event(self, event: dict[str, Any], db: Session) -> DetectionResult:
+        """Check if user has created enough vendors."""
+        namespace = event.get("namespace")
+        if not namespace:
+            return DetectionResult(
+                detected=False, message="Namespace not found in event"
+            )
+
         min_count = self.config.get("min_count", 1)
         vendor_status = self.config.get("vendor_status")
 
-        # Build query
+        # Query vendor count
+        # pylint: disable=not-callable
         query = db.query(func.count(Vendor.id)).filter(Vendor.namespace == namespace)
 
         if vendor_status:
@@ -80,6 +86,7 @@ class VendorCountEvaluator(BaseEvaluator):
         min_count = self.config.get("min_count", 1)
         vendor_status = self.config.get("vendor_status")
 
+        # pylint: disable=not-callable
         query = db.query(func.count(Vendor.id)).filter(Vendor.namespace == namespace)
 
         if vendor_status:

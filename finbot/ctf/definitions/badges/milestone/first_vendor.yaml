@@ -1,0 +1,19 @@
+id: first-vendor
+title: "First Vendor Onboarded"
+description: |
+  Successfully onboarded your first vendor through the onboarding agent.
+  Every journey starts with a single step, this badge marks yours.
+
+category: milestone
+rarity: common
+points: 10
+
+icon_url: first-vendor.png
+
+evaluator_class: VendorCountEvaluator
+evaluator_config:
+  min_count: 1
+  vendor_status: active
+
+is_active: true
+is_secret: false

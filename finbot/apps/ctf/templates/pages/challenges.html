@@ -292,6 +292,15 @@
         font-size: 11px;
     }
 
+    .mitre-tag {
+        background: rgba(6, 255, 165, 0.2);
+        border: 1px solid rgba(6, 255, 165, 0.3);
+        color: #06ffa5;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+    }
+
     /* Completed checkmark */
     .challenge-card .completed-badge {
         position: absolute;
@@ -514,16 +523,23 @@ function renderChallenges(challenges) {
         const isInProgress = ch.status === 'in_progress';
 
         // Build labels HTML
+        const TAG_CONFIG = {
+            owasp_llm:     { css: 'owasp-tag', prefix: 'OWASP ' },
+            owasp_agentic: { css: 'owasp-tag', prefix: 'OWASP ' },
+            cwe:           { css: 'cwe-tag',   prefix: '' },
+            mitre_atlas:   { css: 'mitre-tag', prefix: 'MITRE ' },
+        };
         let labelsHtml = '';
         if (ch.labels) {
             const labels = typeof ch.labels === 'string' ? JSON.parse(ch.labels) : ch.labels;
-            if (labels.owasp) {
-                const owaspList = Array.isArray(labels.owasp) ? labels.owasp : [labels.owasp];
-                labelsHtml += owaspList.map(l => `<span class="owasp-tag">${l}</span>`).join('');
-            }
-            if (labels.cwe) {
-                const cweList = Array.isArray(labels.cwe) ? labels.cwe : [labels.cwe];
-                labelsHtml += cweList.map(l => `<span class="cwe-tag">${l}</span>`).join('');
+            for (const [group, items] of Object.entries(labels)) {
+                const list = Array.isArray(items) ? items : [items];
+                if (list.length === 0) continue;
+                const config = TAG_CONFIG[group] || { css: 'owasp-tag', prefix: '' };
+                labelsHtml += list.map(l => {
+                    const label = typeof l === 'object' ? Object.entries(l).map(([k, v]) => `${k}: ${v}`).join(', ') : l;
+                    return `<span class="${config.css}">${config.prefix}${label}</span>`;
+                }).join('');
             }
         }
 
@@ -540,7 +556,7 @@ function renderChallenges(challenges) {
                         <span class="points-badge text-xs text-ctf-primary font-mono">${ch.points} pts</span>
                     </div>
                     <h3 class="font-semibold text-text-bright mb-2">${escapeHtml(ch.title)}</h3>
-                    <p class="text-sm text-text-secondary mb-4 line-clamp-2">${escapeHtml(ch.subcategory || formatCategoryName(ch.category))}</p>
+                    <p class="text-sm text-text-secondary mb-4 line-clamp-2">${escapeHtml(formatCategoryName(ch.subcategory || ch.category))}</p>
                     ${labelsHtml ? `<div class="flex flex-wrap gap-2">${labelsHtml}</div>` : ''}
                 </div>
             </a>

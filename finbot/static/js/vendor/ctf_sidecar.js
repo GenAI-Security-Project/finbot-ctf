@@ -178,9 +178,12 @@ class CTFSidecar {
             return;
         }
 
+        const rarityIcons = { common: '⭐', rare: '💎', epic: '🌟', legendary: '👑' };
+
         grid.innerHTML = badges.map(badge => `
             <div class="ctf-badge-item rarity-${badge.rarity}" title="${badge.title}">
-                <img src="static/images/ctf/badges/${badge.icon_url}" alt="${badge.title}" class="w-6 h-6">
+                <img src="static/images/ctf/badges/${badge.icon_url}" alt="${badge.title}" class="w-6 h-6"
+                     onerror="this.replaceWith(Object.assign(document.createElement('span'), { textContent: '${rarityIcons[badge.rarity] || '🏅'}', className: 'text-lg' }))">
             </div>
         `).join('');
     }
@@ -363,12 +366,23 @@ class CTFSidecar {
                 this.prependActivity(data.data);
                 break;
             case 'challenge_completed':
-                this.showNotification('🎯 Challenge Completed!', data.data.title);
-                this.loadData(); // Refresh data
+                this.showToast('🎯 Challenge Completed!', `${data.data.challenge_title} (+${data.data.points} pts)`);
+                this.loadData().then(() => this.prependActivity({
+                    category: 'ctf',
+                    summary: `Challenge completed: ${data.data.challenge_title} (+${data.data.points} pts)`,
+                    timestamp: data.timestamp,
+                }));
                 break;
             case 'badge_earned':
-                this.showNotification('🎖️ Badge Earned!', data.data.title);
-                this.loadData(); // Refresh data
+                this.showToast('🏅 Badge Earned!', `${data.data.badge_title} (${data.data.rarity})`);
+                this.loadData().then(() => this.prependActivity({
+                    category: 'ctf',
+                    summary: `Badge earned: ${data.data.badge_title}`,
+                    timestamp: data.timestamp,
+                }));
+                break;
+            case 'challenge_progress':
+                this.showToast('📡 Challenge Update', `${data.data.challenge_title} — ${data.data.status}`);
                 break;
             default:
                 console.log('CTF Sidecar: Unknown message type', data.type);
@@ -394,14 +408,44 @@ class CTFSidecar {
         }
     }
 
-    showNotification(title, message) {
-        // Simple notification - you could enhance this
-        console.log(`CTF: ${title} - ${message}`);
-
-        // Could use browser notifications if permission granted
-        if (Notification.permission === 'granted') {
-            new Notification(title, { body: message, icon: '/static/images/common/finbot.png' });
+    showToast(title, message) {
+        let container = document.getElementById('ctf-toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'ctf-toast-container';
+            Object.assign(container.style, {
+                position: 'fixed', top: '1rem', right: '1rem',
+                zIndex: '10000', display: 'flex', flexDirection: 'column',
+                gap: '0.5rem', pointerEvents: 'none',
+            });
+            document.body.appendChild(container);
         }
+
+        const toast = document.createElement('div');
+        Object.assign(toast.style, {
+            background: '#1e293b', color: '#f1f5f9', padding: '0.75rem 1rem',
+            borderRadius: '0.5rem', boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+            border: '1px solid #334155', minWidth: '260px', maxWidth: '360px',
+            opacity: '0', transform: 'translateX(100%)',
+            transition: 'opacity 0.3s, transform 0.3s',
+            pointerEvents: 'auto',
+        });
+        toast.innerHTML = `
+            <div style="font-weight:600;font-size:0.875rem;margin-bottom:0.25rem">${title}</div>
+            <div style="font-size:0.8rem;color:#94a3b8">${this.escapeHtml(message)}</div>
+        `;
+        container.appendChild(toast);
+
+        requestAnimationFrame(() => {
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateX(0)';
+        });
+
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(100%)';
+            setTimeout(() => toast.remove(), 300);
+        }, 4000);
     }
 }
 
