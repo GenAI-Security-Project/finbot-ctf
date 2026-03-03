@@ -150,7 +150,8 @@
         const vendorName = getVendorName(events);
         const duration = computeDuration(events);
         const llmCount = events.filter(e => e.event_subtype === 'llm' && e.event_type.includes('success')).length;
-        const toolCount = events.filter(e => e.event_type.includes('tool_call_start')).length;
+        const toolCount = events.filter(e => e.event_type.includes('tool_call_start') && !e.event_type.includes('mcp_')).length;
+        const mcpCount = events.filter(e => e.event_type.includes('mcp_tool_call_start')).length;
         const lastTs = events[events.length - 1]?.timestamp;
 
         const swimResult = buildSwimlanes(events);
@@ -201,6 +202,7 @@
                 <span>Agents: <span class="wf-meta-value">${agents.length}</span></span>
                 ${llmCount ? `<span>LLM: <span class="wf-meta-value">${llmCount}</span></span>` : ''}
                 ${toolCount ? `<span>Tools: <span class="wf-meta-value">${toolCount}</span></span>` : ''}
+                ${mcpCount ? `<span>MCP: <span class="wf-meta-value">${mcpCount}</span></span>` : ''}
                 <span class="ml-auto"><button class="trace-show-btn" data-wf-id="${wf.id}">Show Trace →</button></span>
             </div>
         </div>`;
@@ -297,6 +299,34 @@
                     tipDetail: [model, msgCount ? `${msgCount} msgs` : '', dur ? fmtDur(dur) : ''].filter(Boolean).join(' · '),
                 });
                 if (successor && successor.event_type.includes('llm_request_success')) i++;
+            } else if (e.event_type.includes('mcp_tool_call_start')) {
+                const toolName = e.details?.namespaced_tool_name || e.details?.tool_name || e.tool_name || 'mcp_tool';
+                const serverName = e.details?.mcp_server || '';
+                const successor = agentEvents[i + 1];
+                let dur = 0;
+                if (successor && successor.event_type.includes('mcp_tool_call_success') && successor.duration_ms) {
+                    dur = successor.duration_ms;
+                } else if (successor && successor.event_type.includes('mcp_tool_call_success') && successor.details?.duration_ms) {
+                    dur = successor.details.duration_ms;
+                }
+                const args = e.details?.tool_arguments;
+                const argSnippet = args ? shortArgs(args) : '';
+                spans.push({
+                    type: 'mcp', pos: relPos, dur,
+                    icon: '⚡', label: shortToolName(toolName),
+                    tipTitle: `MCP: ${toolName}`,
+                    tipDetail: [serverName, argSnippet, dur ? fmtDur(dur) : ''].filter(Boolean).join(' · '),
+                });
+                if (successor && (successor.event_type.includes('mcp_tool_call_success') || successor.event_type.includes('mcp_tool_call_failure'))) i++;
+            } else if (e.event_type.includes('mcp_tools_discovered')) {
+                const serverName = e.details?.mcp_server || '';
+                const toolCount = e.details?.tool_count || 0;
+                spans.push({
+                    type: 'mcp-discover', pos: relPos, dur: 0,
+                    icon: '🔌', label: 'MCP',
+                    tipTitle: `MCP Connect: ${serverName}`,
+                    tipDetail: `${toolCount} tools discovered`,
+                });
             } else if (e.event_type.includes('tool_call_start')) {
                 const toolName = e.tool_name || 'tool';
                 const successor = agentEvents[i + 1];
@@ -474,11 +504,16 @@
         const durationStr = e.duration_ms ? fmtDur(e.duration_ms) : '';
 
         let icon = '⟳';
-        if (subtype === 'llm') icon = '🧠';
+        let iconCls = subtype;
+        if (subtype === 'mcp') icon = '⚡';
+        else if (subtype === 'llm') icon = '🧠';
         else if (subtype === 'tool') icon = '🔧';
         else if (subtype === 'decision') icon = '⚖️';
         else if (subtype === 'chat') icon = '💬';
-        else if (isBusiness) icon = '📋';
+        else if (isBusiness) { icon = '📋'; iconCls = 'business'; }
+
+        const isMcpEvent = subtype === 'mcp';
+        const mcpServer = isMcpEvent ? (e.details?.mcp_server || '') : '';
 
         const summary = condenseSummary(e);
         const expandText = getExpandContent(e.details);
@@ -491,7 +526,7 @@
 
         return `
         <div class="detail-event ${isBusiness ? 'business-ev' : ''}" ${hasExpandable ? 'data-expandable' : ''}>
-            <div class="detail-event-icon ${subtype}">${icon}</div>
+            <div class="detail-event-icon ${iconCls}">${icon}</div>
             <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2 flex-wrap">
                     ${agentLabel ? `<span class="text-text-bright text-xs font-medium">${agentLabel}:</span>` : ''}
@@ -499,6 +534,7 @@
                     ${hasExpandable ? '<span class="text-text-secondary text-xs opacity-40">▸</span>' : ''}
                 </div>
                 ${e.tool_name ? `<div class="text-xs font-mono text-ctf-primary mt-0.5">${esc(e.tool_name)}</div>` : ''}
+                ${mcpServer ? `<div class="text-xs font-mono mt-0.5" style="color:#e879f9">⚡ ${esc(mcpServer)}</div>` : ''}
                 ${expandContent}
             </div>
             <span class="text-xs text-text-secondary whitespace-nowrap flex-shrink-0">${durationStr || fmtTime(e.timestamp)}</span>
@@ -576,6 +612,7 @@
             let icon = '⟳';
             let iconCls = 'lifecycle';
             if (isBusiness) { icon = getBusinessIcon(e); iconCls = 'business'; }
+            else if (subtype === 'mcp') { icon = '⚡'; iconCls = 'mcp'; }
             else if (subtype === 'llm') { icon = '🧠'; iconCls = 'llm'; }
             else if (subtype === 'tool') { icon = '🔧'; iconCls = 'tool'; }
             else if (subtype === 'decision') { icon = '⚖️'; iconCls = 'decision'; }
@@ -586,8 +623,13 @@
                 : '';
 
             const durationHtml = e.duration_ms ? renderTlDuration(e.duration_ms) : '';
+            const isMcpEvt = subtype === 'mcp';
+            const mcpSrv = isMcpEvt ? (e.details?.mcp_server || '') : '';
             const toolHtml = e.tool_name
                 ? `<span class="text-xs font-mono text-ctf-primary">${esc(e.tool_name)}</span>`
+                : '';
+            const mcpBadgeHtml = mcpSrv
+                ? `<span class="text-xs font-mono" style="color:#e879f9">⚡ ${esc(mcpSrv)}</span>`
                 : '';
             const timeHtml = `<span class="text-xs text-text-secondary opacity-40 ml-auto whitespace-nowrap">${fmtTime(e.timestamp)}</span>`;
 
@@ -611,6 +653,7 @@
                     </div>
                     <div class="flex items-center gap-2 flex-wrap mt-1">
                         ${toolHtml}
+                        ${mcpBadgeHtml}
                         ${durationHtml}
                         ${timeHtml}
                     </div>
@@ -762,6 +805,10 @@
                 continue;
             }
 
+            if (e.event_type.includes('mcp_') && isOrch) {
+                continue;
+            }
+
             if (e.event_type.includes('tool_call_start') && isOrch) {
                 const toolName = e.tool_name || '';
                 const isDelegation = toolName.startsWith('delegate_to_');
@@ -827,6 +874,10 @@
                 const iterNum = e.summary.match(/iteration (\d+)/)?.[1] || '?';
                 const iterMax = e.summary.match(/\/(\d+)/)?.[1] || '?';
                 currentIteration = { num: iterNum, max: iterMax, steps: [] };
+                if (currentAgent?._mcpConnect) {
+                    currentIteration.steps.push(currentAgent._mcpConnect);
+                    currentAgent._mcpConnect = null;
+                }
                 continue;
             }
 
@@ -842,6 +893,59 @@
                     msgCount: e.details?.message_count || 0,
                     meta: { model: e.details?.model || e.llm_model, messages: e.details?.message_count, duration: e.duration_ms ? fmtDur(e.duration_ms) : '', response_length: e.details?.response_length, tool_calls: e.details?.tool_call_count, roles: e.details?.message_roles },
                 });
+                continue;
+            }
+
+            if (e.event_type.includes('mcp_tools_discovered') && !isOrch) {
+                const mcpServer = e.details?.mcp_server || '';
+                const mcpToolCount = e.details?.tool_count || 0;
+                const mcpTools = e.details?.tools || [];
+                const mcpStep = {
+                    type: 'mcp',
+                    tool: `MCP connect: ${mcpServer}`,
+                    dur: '',
+                    meta: { server: mcpServer, tool_count: mcpToolCount, tools: mcpTools },
+                };
+                if (currentIteration) {
+                    currentIteration.steps.push(mcpStep);
+                } else if (currentAgent) {
+                    currentAgent._mcpConnect = mcpStep;
+                }
+                continue;
+            }
+
+            if (e.event_type.includes('mcp_tool_call_start') && !isOrch && currentIteration) {
+                currentIteration._pendingMcp = {
+                    tool: e.details?.namespaced_tool_name || e.details?.tool_name || e.tool_name || '',
+                    server: e.details?.mcp_server || '',
+                    args: e.details?.tool_arguments,
+                };
+                continue;
+            }
+
+            if (e.event_type.includes('mcp_tool_call_success') && !isOrch && currentIteration) {
+                const dur = (e.duration_ms || e.details?.duration_ms) ? fmtDur(e.duration_ms || e.details?.duration_ms) : '';
+                const pending = currentIteration._pendingMcp || {};
+                const toolOutput = e.details?.tool_output;
+                currentIteration.steps.push({
+                    type: 'mcp',
+                    tool: pending.tool || e.details?.namespaced_tool_name || '',
+                    dur,
+                    meta: { tool: pending.tool, server: pending.server, duration: dur, input: pending.args, output: toolOutput },
+                });
+                currentIteration._pendingMcp = null;
+                continue;
+            }
+
+            if (e.event_type.includes('mcp_tool_call_failure') && !isOrch && currentIteration) {
+                const dur = (e.duration_ms || e.details?.duration_ms) ? fmtDur(e.duration_ms || e.details?.duration_ms) : '';
+                const pending = currentIteration._pendingMcp || {};
+                currentIteration.steps.push({
+                    type: 'error',
+                    text: `MCP failed: ${pending.tool || e.details?.namespaced_tool_name || ''}`,
+                    meta: { tool: pending.tool, server: pending.server || e.details?.mcp_server, error: e.details?.error_message, duration: dur },
+                });
+                currentIteration._pendingMcp = null;
                 continue;
             }
 
@@ -963,6 +1067,7 @@
         const info = agent.info;
         const iterCount = agent.iterations.length;
         const toolCount = agent.iterations.reduce((sum, it) => sum + it.steps.filter(s => s.type === 'act').length, 0);
+        const mcpToolCount = agent.iterations.reduce((sum, it) => sum + it.steps.filter(s => s.type === 'mcp').length, 0);
         const collapsed = !agent.expandDefault;
 
         let iterHtml = agent.iterations.map((iter, idx) => {
@@ -970,7 +1075,7 @@
                 const metaAttr = s.meta ? `data-meta='${JSON.stringify(s.meta).replace(/'/g, "&#39;")}'` : '';
                 const clickable = s.meta ? 'trace-step-clickable' : '';
                 const prev = si > 0 ? iter.steps[si - 1] : null;
-                const needsSep = prev && (prev.type === 'act' || prev.type === 'decision') && (s.type === 'decision' || s.type === 'complete' || s.type === 'error');
+                const needsSep = prev && (prev.type === 'act' || prev.type === 'mcp' || prev.type === 'decision') && (s.type === 'decision' || s.type === 'complete' || s.type === 'error');
                 const sep = needsSep ? '<span class="trace-step-plus">+</span>' : '';
 
                 if (s.type === 'error') {
@@ -986,6 +1091,13 @@
                         <span class="step-label">Reason</span>
                         <span class="step-detail">${fmtDur(s.duration || 0)}</span>
                     </span><span class="trace-step-arrow">→</span>`;
+                }
+                if (s.type === 'mcp') {
+                    return `<span class="trace-step mcp ${clickable}" ${metaAttr}>
+                        <span class="trace-step-dot"></span>
+                        <span class="step-label">MCP</span>
+                        <span class="step-detail">${esc(s.tool)}${s.dur ? ' · ' + s.dur : ''}</span>
+                    </span>`;
                 }
                 if (s.type === 'act') {
                     return `<span class="trace-step act ${clickable}" ${metaAttr}>
@@ -1029,7 +1141,7 @@
                 <div class="flex items-center gap-2">
                     <span>${info.icon}</span>
                     <span class="text-sm font-semibold text-text-bright">${info.label}</span>
-                    <span class="text-xs text-text-secondary">${iterCount} loops · ${toolCount} tools</span>
+                    <span class="text-xs text-text-secondary">${iterCount} loops · ${toolCount} tools${mcpToolCount ? ` · ${mcpToolCount} MCP` : ''}</span>
                     ${statusBadge}
                 </div>
                 <span class="trace-collapse-arrow text-text-secondary text-xs">${collapsed ? '▸' : '▾'}</span>
@@ -1113,6 +1225,22 @@
             if (d.duration_ms) parts.push(`duration: ${fmtDur(d.duration_ms)}`);
             if (d.user_prompt) parts.push(`\ntask_prompt:\n${d.user_prompt}`);
             if (d.user_message) parts.push(`\nuser_message:\n${d.user_message}`);
+            return parts.join('\n');
+        }
+
+        if (d.mcp_server) {
+            const parts = [`mcp_server: ${d.mcp_server}`];
+            if (d.tool_name) parts.push(`tool: ${d.tool_name}`);
+            if (d.namespaced_tool_name) parts.push(`namespaced: ${d.namespaced_tool_name}`);
+            if (d.tool_description) parts.push(`description: ${d.tool_description}`);
+            if (d.tool_arguments && Object.keys(d.tool_arguments).length) {
+                parts.push(`args: ${JSON.stringify(d.tool_arguments, null, 2)}`);
+            }
+            if (d.tool_output) parts.push(`\noutput:\n${d.tool_output}`);
+            if (d.tools) parts.push(`tools: ${JSON.stringify(d.tools)}`);
+            if (d.tool_count) parts.push(`tool_count: ${d.tool_count}`);
+            if (d.error_message) parts.push(`error: ${d.error_message}`);
+            if (d.duration_ms) parts.push(`duration: ${fmtDur(d.duration_ms)}`);
             return parts.join('\n');
         }
 

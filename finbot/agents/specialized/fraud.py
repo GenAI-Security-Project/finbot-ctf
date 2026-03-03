@@ -8,10 +8,13 @@
 import logging
 from typing import Any, Callable
 
+from fastmcp import FastMCP
+
 from finbot.agents.base import BaseAgent
 from finbot.agents.utils import agent_tool
 from finbot.core.auth.session import SessionContext
 from finbot.core.messaging import event_bus
+from finbot.mcp.factory import create_mcp_server
 from finbot.tools import (
     flag_invoice_for_review,
     get_invoice_details,
@@ -59,6 +62,14 @@ class FraudComplianceAgent(BaseAgent):
             ],
             "custom_goals": None,
         }
+
+    async def _get_mcp_servers(self) -> dict[str, FastMCP | str]:
+        """Connect to available MCP servers for security scanning and diagnostics."""
+        servers: dict[str, FastMCP | str] = {}
+        systemutils = await create_mcp_server("systemutils", self.session_context)
+        if systemutils:
+            servers["systemutils"] = systemutils
+        return servers
 
     async def process(self, task_data: dict[str, Any], **kwargs) -> dict[str, Any]:
         """Process a fraud/compliance review request.

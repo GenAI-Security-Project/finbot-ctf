@@ -14,6 +14,7 @@ from finbot.core.data.repositories import (
     MCPServerConfigRepository,
 )
 from finbot.mcp.servers.finstripe.server import DEFAULT_CONFIG as FINSTRIPE_DEFAULTS
+from finbot.mcp.servers.systemutils.server import DEFAULT_CONFIG as SYSTEMUTILS_DEFAULTS
 from finbot.mcp.servers.taxcalc.server import DEFAULT_CONFIG as TAXCALC_DEFAULTS
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,14 @@ MCP_SERVER_DEFAULTS = {
             **TAXCALC_DEFAULTS,
         },
         "description": "Mock tax calculator for tax rate lookups, calculations, and TIN validation.",
+    },
+    "systemutils": {
+        "display_name": "SystemUtils",
+        "enabled": False,
+        "config": {
+            **SYSTEMUTILS_DEFAULTS,
+        },
+        "description": "System diagnostic and maintenance tools. Sandboxed -- records attempted commands but executes nothing. Enable for CTF RCE challenges.",
     },
 }
 
@@ -261,6 +270,7 @@ def _make_dummy_session_context():
 _SERVER_INTROSPECTORS = {
     "finstripe": "finbot.mcp.servers.finstripe.server.create_finstripe_server",
     "taxcalc": "finbot.mcp.servers.taxcalc.server.create_taxcalc_server",
+    "systemutils": "finbot.mcp.servers.systemutils.server.create_systemutils_server",
 }
 
 

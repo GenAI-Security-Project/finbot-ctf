@@ -505,6 +505,7 @@ class BaseAgent(ABC):
             servers=servers,
             session_context=self.session_context,
             workflow_id=self.workflow_id,
+            agent_name=self.agent_name,
         )
         await self._mcp_provider.connect()
 

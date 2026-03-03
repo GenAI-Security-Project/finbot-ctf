@@ -15,11 +15,23 @@ from fastmcp import Client, FastMCP
 from finbot.core.auth.session import SessionContext
 from finbot.core.data.database import get_db
 from finbot.core.data.repositories import MCPActivityLogRepository
+from finbot.core.messaging import event_bus
 
 logger = logging.getLogger(__name__)
 
 # Separator between server name and tool name in namespaced tool IDs
 TOOL_NS_SEP = "__"
+
+
+def _safe_serialize(value: Any) -> Any:
+    """Convert value to JSON-safe representation for event data."""
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, dict):
+        return {str(k): _safe_serialize(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_safe_serialize(v) for v in value]
+    return str(value)
 
 
 class MCPToolProvider:
@@ -37,10 +49,12 @@ class MCPToolProvider:
         servers: dict[str, FastMCP | str],
         session_context: SessionContext,
         workflow_id: str | None = None,
+        agent_name: str | None = None,
     ):
         self._server_sources = servers
         self._session_context = session_context
         self._workflow_id = workflow_id
+        self._agent_name = agent_name or "unknown_agent"
         self._clients: dict[str, Client] = {}
         self._tools: dict[str, dict[str, Any]] = {}
         self._tool_server_map: dict[str, str] = {}
@@ -76,6 +90,24 @@ class MCPToolProvider:
                     "request",
                     "tools/list",
                     payload={"discovered_tools": [t.name for t in tools]},
+                )
+
+                tool_descriptions = {
+                    t.name: t.description or "" for t in tools
+                }
+                await event_bus.emit_agent_event(
+                    agent_name=self._agent_name,
+                    event_type="mcp_tools_discovered",
+                    event_subtype="mcp",
+                    event_data={
+                        "mcp_server": server_name,
+                        "tool_count": len(tools),
+                        "tools": [t.name for t in tools],
+                        "tool_descriptions": tool_descriptions,
+                    },
+                    session_context=self._session_context,
+                    workflow_id=self._workflow_id,
+                    summary=f"MCP server '{server_name}': {len(tools)} tools discovered",
                 )
 
             except Exception:  # pylint: disable=broad-exception-caught
@@ -145,6 +177,8 @@ class MCPToolProvider:
             if not client:
                 return {"error": f"MCP server '{server_name}' not connected"}
 
+            tool_description = self._tools.get(namespaced_name, {}).get("description", "")
+
             start = time.time()
             self._log_activity(
                 server_name,
@@ -152,6 +186,22 @@ class MCPToolProvider:
                 "tools/call",
                 tool_name=original_name,
                 payload={"arguments": kwargs},
+            )
+
+            await event_bus.emit_agent_event(
+                agent_name=self._agent_name,
+                event_type="mcp_tool_call_start",
+                event_subtype="mcp",
+                event_data={
+                    "mcp_server": server_name,
+                    "tool_name": original_name,
+                    "namespaced_tool_name": namespaced_name,
+                    "tool_description": tool_description,
+                    "tool_arguments": _safe_serialize(kwargs),
+                },
+                session_context=self._session_context,
+                workflow_id=self._workflow_id,
+                summary=f"MCP tool call: {namespaced_name}",
             )
 
             try:
@@ -167,6 +217,24 @@ class MCPToolProvider:
                     tool_name=original_name,
                     payload={"result": str(output)[:1000]},
                     duration_ms=duration_ms,
+                )
+
+                await event_bus.emit_agent_event(
+                    agent_name=self._agent_name,
+                    event_type="mcp_tool_call_success",
+                    event_subtype="mcp",
+                    event_data={
+                        "mcp_server": server_name,
+                        "tool_name": original_name,
+                        "namespaced_tool_name": namespaced_name,
+                        "tool_description": tool_description,
+                        "tool_arguments": _safe_serialize(kwargs),
+                        "tool_output": str(output)[:2000],
+                        "duration_ms": duration_ms,
+                    },
+                    session_context=self._session_context,
+                    workflow_id=self._workflow_id,
+                    summary=f"MCP tool completed: {namespaced_name} ({duration_ms:.0f}ms)",
                 )
 
                 logger.debug(
@@ -186,6 +254,25 @@ class MCPToolProvider:
                     payload={"error": str(e)},
                     duration_ms=duration_ms,
                 )
+
+                await event_bus.emit_agent_event(
+                    agent_name=self._agent_name,
+                    event_type="mcp_tool_call_failure",
+                    event_subtype="mcp",
+                    event_data={
+                        "mcp_server": server_name,
+                        "tool_name": original_name,
+                        "namespaced_tool_name": namespaced_name,
+                        "tool_arguments": _safe_serialize(kwargs),
+                        "error_type": type(e).__name__,
+                        "error_message": str(e),
+                        "duration_ms": duration_ms,
+                    },
+                    session_context=self._session_context,
+                    workflow_id=self._workflow_id,
+                    summary=f"MCP tool failed: {namespaced_name} ({type(e).__name__})",
+                )
+
                 logger.exception("MCP tool '%s' failed", namespaced_name)
                 return {"error": f"MCP tool call failed: {str(e)}"}
 
