@@ -79,7 +79,7 @@ def generate_profile_card(
     challenges_completed: int,
     completion_percentage: int,
 ) -> bytes:
-    """Generate a profile share card using Pillow"""
+    """Generate a profile share card using Pillow at 2x resolution for HD"""
     try:
         from PIL import Image, ImageDraw
     except ImportError as exc:
@@ -88,8 +88,13 @@ def generate_profile_card(
             status_code=500, detail="Image generation not available"
         ) from exc
 
-    # Card dimensions (1200x630 for OG image standard)
-    width, height = 1200, 630
+    # Scale factor for HD rendering (2x = 2400x1260)
+    scale = 2
+    width, height = 1200 * scale, 630 * scale
+
+    # Helper to scale values
+    def s(val: int) -> int:
+        return val * scale
 
     # Create image with dark background
     img = Image.new("RGB", (width, height), (10, 10, 15))
@@ -98,39 +103,39 @@ def generate_profile_card(
     # Draw gradient background
     for y in range(height):
         # Dark gradient from top to bottom
-        r = 8 + int(y * 0.015)
-        g = 8 + int(y * 0.02)
-        b = 12 + int(y * 0.025)
+        r = 8 + int(y * 0.0075)
+        g = 8 + int(y * 0.01)
+        b = 12 + int(y * 0.0125)
         draw.line([(0, y), (width, y)], fill=(r, g, b))
 
     # Add cyan accent glow at top-left
-    for i in range(200):
-        alpha = int((1 - i / 200) * 25)
+    for i in range(s(200)):
+        alpha = int((1 - i / s(200)) * 25)
         draw.ellipse(
-            [-100 - i, -100 - i, 200 + i, 200 + i],
+            [-s(100) - i, -s(100) - i, s(200) + i, s(200) + i],
             fill=(alpha, int(alpha * 0.8), int(alpha * 0.5)),
         )
 
     # Add purple accent glow at bottom-right
-    for i in range(150):
-        alpha = int((1 - i / 150) * 15)
+    for i in range(s(150)):
+        alpha = int((1 - i / s(150)) * 15)
         draw.ellipse(
-            [width - 150 - i, height - 100 - i, width + i, height + i],
+            [width - s(150) - i, height - s(100) - i, width + i, height + i],
             fill=(int(alpha * 0.5), alpha // 4, alpha),
         )
 
     # Draw decorative grid pattern (subtle)
-    for x in range(0, width, 50):
-        draw.line([(x, 0), (x, height)], fill=(20, 20, 25), width=1)
-    for y in range(0, height, 50):
-        draw.line([(0, y), (width, y)], fill=(20, 20, 25), width=1)
+    for x in range(0, width, s(50)):
+        draw.line([(x, 0), (x, height)], fill=(20, 20, 25), width=scale)
+    for y in range(0, height, s(50)):
+        draw.line([(0, y), (width, y)], fill=(20, 20, 25), width=scale)
 
-    # Load fonts
-    font_large = _get_font(44, bold=True)
-    font_medium = _get_font(28)
-    font_small = _get_font(20)
-    font_xl = _get_font(56, bold=True)
-    font_stat = _get_font(36, bold=True)
+    # Load fonts (scaled)
+    font_large = _get_font(s(44), bold=True)
+    font_medium = _get_font(s(28))
+    font_small = _get_font(s(20))
+    font_xl = _get_font(s(56), bold=True)
+    font_stat = _get_font(s(36), bold=True)
 
     # Try to load and paste FinBot logo
     logo_path = (
@@ -140,52 +145,53 @@ def generate_profile_card(
         / "common"
         / "finbot.png"
     )
+    logo_size = s(70)
     try:
         logo = Image.open(logo_path).convert("RGBA")
-        logo = logo.resize((70, 70), Image.Resampling.LANCZOS)
+        logo = logo.resize((logo_size, logo_size), Image.Resampling.LANCZOS)
         # Create a circular mask
-        mask = Image.new("L", (70, 70), 0)
+        mask = Image.new("L", (logo_size, logo_size), 0)
         mask_draw = ImageDraw.Draw(mask)
-        mask_draw.ellipse([0, 0, 70, 70], fill=255)
+        mask_draw.ellipse([0, 0, logo_size, logo_size], fill=255)
         # Draw cyan ring behind logo
-        draw.ellipse([35, 25, 115, 105], fill=(0, 212, 255))
-        draw.ellipse([40, 30, 110, 100], fill=(15, 15, 20))
-        img.paste(logo, (40, 30), mask)
+        draw.ellipse([s(35), s(25), s(115), s(105)], fill=(0, 212, 255))
+        draw.ellipse([s(40), s(30), s(110), s(100)], fill=(15, 15, 20))
+        img.paste(logo, (s(40), s(30)), mask)
     except (OSError, IOError):
         # Draw fallback circle if logo not found
-        draw.ellipse([40, 30, 110, 100], fill=(0, 212, 255))
+        draw.ellipse([s(40), s(30), s(110), s(100)], fill=(0, 212, 255))
 
     # Draw "FINBOT CTF" header
-    draw.text((130, 45), "FINBOT", font=font_medium, fill=(255, 255, 255))
-    draw.text((245, 52), "CTF", font=_get_font(16), fill=(0, 212, 255))
+    draw.text((s(130), s(45)), "FINBOT", font=font_medium, fill=(255, 255, 255))
+    draw.text((s(245), s(52)), "CTF", font=_get_font(s(16)), fill=(0, 212, 255))
 
     # Draw OWASP ASI text
-    draw.text((130, 80), "OWASP ASI", font=_get_font(14), fill=(100, 116, 139))
+    draw.text((s(130), s(80)), "OWASP ASI", font=_get_font(s(14)), fill=(100, 116, 139))
 
     # Main content area
-    content_x = 80
-    content_y = 150
+    content_x = s(80)
+    content_y = s(150)
 
     # Avatar section with gradient ring
-    avatar_x, avatar_y = content_x + 80, content_y + 120
+    avatar_x, avatar_y = content_x + s(80), content_y + s(120)
 
     # Draw gradient ring
-    for r in range(85, 75, -1):
-        progress = (85 - r) / 10
-        color = (
+    for r in range(s(85), s(75), -1):
+        progress = (s(85) - r) / s(10)
+        ring_color = (
             int(0 + progress * 124),  # cyan to purple
             int(212 - progress * 154),
             int(255 - progress * 18),
         )
         draw.ellipse(
             [avatar_x - r, avatar_y - r, avatar_x + r, avatar_y + r],
-            outline=color,
-            width=1,
+            outline=ring_color,
+            width=scale,
         )
 
     # Inner circle
     draw.ellipse(
-        [avatar_x - 70, avatar_y - 70, avatar_x + 70, avatar_y + 70],
+        [avatar_x - s(70), avatar_y - s(70), avatar_x + s(70), avatar_y + s(70)],
         fill=(21, 21, 32),
     )
 
@@ -196,7 +202,7 @@ def generate_profile_card(
         text_width = bbox[2] - bbox[0]
         text_height = bbox[3] - bbox[1]
         draw.text(
-            (avatar_x - text_width // 2, avatar_y - text_height // 2 - 8),
+            (avatar_x - text_width // 2, avatar_y - text_height // 2 - s(8)),
             avatar_text,
             font=font_xl,
             fill=(0, 212, 255),
@@ -205,8 +211,8 @@ def generate_profile_card(
         pass
 
     # Username and info (right of avatar)
-    info_x = avatar_x + 120
-    info_y = content_y + 50
+    info_x = avatar_x + s(120)
+    info_y = content_y + s(50)
 
     # Username
     draw.text((info_x, info_y), f"@{username}", font=font_large, fill=(255, 255, 255))
@@ -217,25 +223,25 @@ def generate_profile_card(
         level_bbox = draw.textbbox((0, 0), level_text, font=font_medium)
         level_width = level_bbox[2] - level_bbox[0]
         draw.rounded_rectangle(
-            [info_x - 12, info_y + 52, info_x + level_width + 24, info_y + 98],
-            radius=10,
+            [info_x - s(12), info_y + s(52), info_x + level_width + s(24), info_y + s(98)],
+            radius=s(10),
             fill=(124, 58, 237, 40),
             outline=(124, 58, 237),
         )
     except (OSError, IOError, TypeError):
         pass
     draw.text(
-        (info_x + 6, info_y + 60), level_text, font=font_medium, fill=(167, 139, 250)
+        (info_x + s(6), info_y + s(60)), level_text, font=font_medium, fill=(167, 139, 250)
     )
 
     # Bio
     bio_display = (bio[:100] + "...") if len(bio) > 100 else bio
     draw.text(
-        (info_x, info_y + 110), bio_display, font=font_small, fill=(148, 163, 184)
+        (info_x, info_y + s(110)), bio_display, font=font_small, fill=(148, 163, 184)
     )
 
     # Stats section at bottom
-    stats_y = 420
+    stats_y = s(420)
     stats = [
         (f"{total_points:,}", "Points", (0, 212, 255)),
         (str(badges_earned), "Badges", (124, 58, 237)),
@@ -245,44 +251,44 @@ def generate_profile_card(
 
     # Draw stats background bar
     draw.rounded_rectangle(
-        [60, stats_y - 20, width - 60, stats_y + 100],
-        radius=16,
+        [s(60), stats_y - s(20), width - s(60), stats_y + s(100)],
+        radius=s(16),
         fill=(20, 20, 28),
         outline=(40, 40, 50),
     )
 
-    stat_width = (width - 160) // 4
-    for i, (value, label, color) in enumerate(stats):
-        x = 80 + i * stat_width + stat_width // 2
+    stat_width = (width - s(160)) // 4
+    for i, (value, label, stat_color) in enumerate(stats):
+        x = s(80) + i * stat_width + stat_width // 2
 
         # Value
         try:
             bbox = draw.textbbox((0, 0), value, font=font_stat)
             val_width = bbox[2] - bbox[0]
-            draw.text((x - val_width // 2, stats_y), value, font=font_stat, fill=color)
+            draw.text((x - val_width // 2, stats_y), value, font=font_stat, fill=stat_color)
         except (OSError, IOError):
-            draw.text((x - 30, stats_y), value, font=font_stat, fill=color)
+            draw.text((x - s(30), stats_y), value, font=font_stat, fill=stat_color)
 
         # Label
         try:
             bbox = draw.textbbox((0, 0), label, font=font_small)
             label_width = bbox[2] - bbox[0]
             draw.text(
-                (x - label_width // 2, stats_y + 45),
+                (x - label_width // 2, stats_y + s(45)),
                 label,
                 font=font_small,
                 fill=(100, 116, 139),
             )
         except (OSError, IOError):
             draw.text(
-                (x - 30, stats_y + 45), label, font=font_small, fill=(100, 116, 139)
+                (x - s(30), stats_y + s(45)), label, font=font_small, fill=(100, 116, 139)
             )
 
     # Footer line
-    draw.line([(60, 550), (width - 60, 550)], fill=(40, 40, 50), width=1)
+    draw.line([(s(60), s(550)), (width - s(60), s(550))], fill=(40, 40, 50), width=scale)
 
     # Footer text
-    draw.text((60, 570), "owasp-finbot-ctf.org", font=font_small, fill=(80, 80, 100))
+    draw.text((s(60), s(570)), "owasp-finbot-ctf.org", font=font_small, fill=(80, 80, 100))
 
     # Hashtags
     hashtags = "#OWASPGenAISecurityProject"
@@ -290,7 +296,7 @@ def generate_profile_card(
         bbox = draw.textbbox((0, 0), hashtags, font=font_small)
         tag_width = bbox[2] - bbox[0]
         draw.text(
-            (width - 60 - tag_width, 570), hashtags, font=font_small, fill=(0, 212, 255)
+            (width - s(60) - tag_width, s(570)), hashtags, font=font_small, fill=(0, 212, 255)
         )
     except (OSError, IOError):
         pass
@@ -705,7 +711,7 @@ async def get_user_badge_card(
     if not badge:
         raise HTTPException(status_code=404, detail="Badge not found")
 
-    # Generate personalized badge card
+    # Generate personalized badge card at 2x resolution for HD quality
     try:
         from PIL import Image, ImageDraw
     except ImportError as exc:
@@ -713,9 +719,15 @@ async def get_user_badge_card(
             status_code=500, detail="Image generation not available"
         ) from exc
 
-    width, height = 1200, 630
+    # Scale factor for HD rendering (2x = 2400x1260)
+    scale = 2
+    width, height = 1200 * scale, 630 * scale
     img = Image.new("RGB", (width, height), (5, 5, 10))
     draw = ImageDraw.Draw(img)
+
+    # Helper to scale values
+    def s(val: int) -> int:
+        return val * scale
 
     # Rarity colors
     rarity_colors = {
@@ -727,9 +739,9 @@ async def get_user_badge_card(
     color = rarity_colors.get(badge.rarity, (100, 116, 139))
 
     # Draw dramatic radial gradient from center
-    center_x, center_y = width // 2, 240
-    for r in range(400, 0, -1):
-        progress = r / 400
+    center_x, center_y = width // 2, s(240)
+    for r in range(s(400), 0, -1):
+        progress = r / s(400)
         fill_color = (
             5 + int(color[0] * 0.03 * (1 - progress)),
             5 + int(color[1] * 0.03 * (1 - progress)),
@@ -747,23 +759,23 @@ async def get_user_badge_card(
         num_rays = 12 if badge.rarity == "legendary" else 8
         for i in range(num_rays):
             angle = (2 * math.pi * i) / num_rays
-            ray_length = 350 if badge.rarity == "legendary" else 280
-            x1 = center_x + int(100 * math.cos(angle))
-            y1 = center_y + int(100 * math.sin(angle))
+            ray_length = s(350) if badge.rarity == "legendary" else s(280)
+            x1 = center_x + int(s(100) * math.cos(angle))
+            y1 = center_y + int(s(100) * math.sin(angle))
             x2 = center_x + int(ray_length * math.cos(angle))
             y2 = center_y + int(ray_length * math.sin(angle))
             ray_color = (color[0] // 8, color[1] // 8, color[2] // 8)
-            draw.line([(x1, y1), (x2, y2)], fill=ray_color, width=3)
+            draw.line([(x1, y1), (x2, y2)], fill=ray_color, width=s(3))
 
     # Diagonal lines pattern
-    for i in range(-height, width + height, 30):
-        draw.line([(i, 0), (i + height, height)], fill=(15, 15, 20), width=1)
+    for i in range(-height, width + height, s(30)):
+        draw.line([(i, 0), (i + height, height)], fill=(15, 15, 20), width=scale)
 
-    # Load fonts
-    font_xl = _get_font(72, bold=True)
-    font_large = _get_font(48, bold=True)
-    font_medium = _get_font(28)
-    font_header = _get_font(18, bold=True)
+    # Load fonts (scaled)
+    font_xl = _get_font(s(72), bold=True)
+    font_large = _get_font(s(48), bold=True)
+    font_medium = _get_font(s(28))
+    font_header = _get_font(s(18), bold=True)
 
     # "ACHIEVEMENT UNLOCKED" banner
     banner_text = "ACHIEVEMENT UNLOCKED"
@@ -772,17 +784,17 @@ async def get_user_badge_card(
         banner_width = banner_bbox[2] - banner_bbox[0]
         draw.rounded_rectangle(
             [
-                (width - banner_width) // 2 - 25,
-                30,
-                (width + banner_width) // 2 + 25,
-                65,
+                (width - banner_width) // 2 - s(25),
+                s(30),
+                (width + banner_width) // 2 + s(25),
+                s(65),
             ],
-            radius=6,
+            radius=s(6),
             fill=(color[0] // 5, color[1] // 5, color[2] // 5),
             outline=color,
         )
         draw.text(
-            ((width - banner_width) // 2, 38),
+            ((width - banner_width) // 2, s(38)),
             banner_text,
             font=font_header,
             fill=color,
@@ -791,8 +803,8 @@ async def get_user_badge_card(
         pass
 
     # Badge circle with glow
-    for r in range(140, 100, -2):
-        alpha = int((140 - r) * 2)
+    for r in range(s(140), s(100), -2):
+        alpha = int((s(140) - r) * 2)
         glow_color = (
             min(255, color[0] // 4 + alpha // 2),
             min(255, color[1] // 4 + alpha // 2),
@@ -801,22 +813,22 @@ async def get_user_badge_card(
         draw.ellipse(
             [center_x - r, center_y - r, center_x + r, center_y + r],
             outline=glow_color,
-            width=2,
+            width=s(2),
         )
 
     # Main badge ring
     draw.ellipse(
-        [center_x - 95, center_y - 95, center_x + 95, center_y + 95],
+        [center_x - s(95), center_y - s(95), center_x + s(95), center_y + s(95)],
         fill=color,
     )
     draw.ellipse(
-        [center_x - 85, center_y - 85, center_x + 85, center_y + 85],
+        [center_x - s(85), center_y - s(85), center_x + s(85), center_y + s(85)],
         fill=(15, 15, 22),
     )
     draw.ellipse(
-        [center_x - 75, center_y - 75, center_x + 75, center_y + 75],
+        [center_x - s(75), center_y - s(75), center_x + s(75), center_y + s(75)],
         outline=(color[0] // 2, color[1] // 2, color[2] // 2),
-        width=2,
+        width=s(2),
     )
 
     # Badge icon (first letter)
@@ -826,7 +838,7 @@ async def get_user_badge_card(
         text_width = bbox[2] - bbox[0]
         text_height = bbox[3] - bbox[1]
         draw.text(
-            (center_x - text_width // 2, center_y - text_height // 2 - 8),
+            (center_x - text_width // 2, center_y - text_height // 2 - s(8)),
             icon_text,
             font=font_xl,
             fill=color,
@@ -839,7 +851,7 @@ async def get_user_badge_card(
         title_bbox = draw.textbbox((0, 0), badge.title, font=font_large)
         title_width = title_bbox[2] - title_bbox[0]
         draw.text(
-            ((width - title_width) // 2, 385),
+            ((width - title_width) // 2, s(385)),
             badge.title,
             font=font_large,
             fill=(255, 255, 255),
@@ -854,36 +866,36 @@ async def get_user_badge_card(
     try:
         rarity_bbox = draw.textbbox((0, 0), rarity_label, font=font_medium)
         rarity_w = rarity_bbox[2] - rarity_bbox[0]
-        rarity_x = width // 2 - rarity_w - 50
+        rarity_x = width // 2 - rarity_w - s(50)
         draw.rounded_rectangle(
-            [rarity_x - 20, 450, rarity_x + rarity_w + 20, 490],
-            radius=10,
+            [rarity_x - s(20), s(450), rarity_x + rarity_w + s(20), s(490)],
+            radius=s(10),
             fill=(color[0] // 6, color[1] // 6, color[2] // 6),
             outline=color,
         )
-        draw.text((rarity_x, 457), rarity_label, font=font_medium, fill=color)
+        draw.text((rarity_x, s(457)), rarity_label, font=font_medium, fill=color)
 
         points_bbox = draw.textbbox((0, 0), points_label, font=font_medium)
         points_w = points_bbox[2] - points_bbox[0]
-        points_x = width // 2 + 30
+        points_x = width // 2 + s(30)
         draw.rounded_rectangle(
-            [points_x - 20, 450, points_x + points_w + 20, 490],
-            radius=10,
+            [points_x - s(20), s(450), points_x + points_w + s(20), s(490)],
+            radius=s(10),
             fill=(20, 25, 20),
             outline=(6, 255, 165),
         )
-        draw.text((points_x, 457), points_label, font=font_medium, fill=(6, 255, 165))
+        draw.text((points_x, s(457)), points_label, font=font_medium, fill=(6, 255, 165))
     except (OSError, IOError, TypeError):
         pass
 
     # Bottom bar with branding and "Earned by" text
-    draw.rectangle([0, height - 80, width, height], fill=(10, 10, 15))
-    draw.line([(0, height - 80), (width, height - 80)], fill=color, width=2)
+    draw.rectangle([0, height - s(80), width, height], fill=(10, 10, 15))
+    draw.line([(0, height - s(80)), (width, height - s(80))], fill=color, width=s(2))
 
     # "Earned by @username" - prominent on left
     earned_text = f"Earned by @{username}"
     try:
-        draw.text((60, height - 55), earned_text, font=font_medium, fill=(0, 212, 255))
+        draw.text((s(60), height - s(55)), earned_text, font=font_medium, fill=(0, 212, 255))
     except (OSError, IOError):
         pass
 
@@ -895,24 +907,25 @@ async def get_user_badge_card(
         / "common"
         / "finbot.png"
     )
+    logo_size = s(45)
     try:
         logo = Image.open(logo_path).convert("RGBA")
-        logo = logo.resize((45, 45), Image.Resampling.LANCZOS)
-        mask = Image.new("L", (45, 45), 0)
+        logo = logo.resize((logo_size, logo_size), Image.Resampling.LANCZOS)
+        mask = Image.new("L", (logo_size, logo_size), 0)
         mask_draw = ImageDraw.Draw(mask)
-        mask_draw.ellipse([0, 0, 45, 45], fill=255)
-        img.paste(logo, (width - 295, height - 62), mask)
+        mask_draw.ellipse([0, 0, logo_size, logo_size], fill=255)
+        img.paste(logo, (width - s(295), height - s(62)), mask)
     except (OSError, IOError):
         draw.ellipse(
-            [width - 295, height - 62, width - 250, height - 17], fill=(0, 212, 255)
+            [width - s(295), height - s(62), width - s(250), height - s(17)], fill=(0, 212, 255)
         )
 
     try:
         draw.text(
-            (width - 240, height - 55), "FINBOT", font=font_medium, fill=(255, 255, 255)
+            (width - s(240), height - s(55)), "FINBOT", font=font_medium, fill=(255, 255, 255)
         )
         draw.text(
-            (width - 125, height - 50), "CTF", font=_get_font(16), fill=(0, 212, 255)
+            (width - s(125), height - s(50)), "CTF", font=_get_font(s(16)), fill=(0, 212, 255)
         )
     except (OSError, IOError):
         pass
