@@ -10,7 +10,7 @@ from finbot.core.data.repositories import InvoiceRepository
 logger = logging.getLogger(__name__)
 
 # Valid invoice statuses per finbot.core.data.models.Invoice
-VALID_INVOICE_STATUSES = ["submitted", "processing", "approved", "rejected", "paid"]
+VALID_INVOICE_STATUSES = ("submitted", "processing", "approved", "rejected", "paid")
 
 
 async def get_invoice_details(

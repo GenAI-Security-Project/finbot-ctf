@@ -3,8 +3,8 @@
 import pytest
 from unittest.mock import MagicMock, patch
 
-from finbot.tools.data.invoice import update_invoice_status, VALID_INVOICE_STATUSES
 from finbot.core.auth.session import SessionContext
+from finbot.tools.data.invoice import VALID_INVOICE_STATUSES, update_invoice_status
 
 
 @pytest.mark.asyncio
@@ -60,6 +60,10 @@ async def test_update_invoice_status_accepts_valid_statuses():
         
         # Test each valid status
         for valid_status in VALID_INVOICE_STATUSES:
+            # Reset mock for each iteration
+            mock_repo.update_invoice.reset_mock()
+            mock_invoice.status = "submitted"  # Reset to initial state
+            
             result = await update_invoice_status(
                 invoice_id=1,
                 status=valid_status,
@@ -70,6 +74,10 @@ async def test_update_invoice_status_accepts_valid_statuses():
             # Should not raise ValueError
             assert result is not None
             assert isinstance(result, dict)
+            # Verify update_invoice was called with the correct status
+            mock_repo.update_invoice.assert_called_once()
+            call_kwargs = mock_repo.update_invoice.call_args[1]
+            assert call_kwargs["status"] == valid_status
 
 
 @pytest.mark.asyncio
