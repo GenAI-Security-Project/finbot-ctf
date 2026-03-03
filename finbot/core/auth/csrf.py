@@ -5,7 +5,7 @@ import logging
 from typing import Callable
 
 from fastapi import HTTPException, Request, Response
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from finbot.config import settings
@@ -26,8 +26,13 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
     # Paths that are exempt from CSRF protection
     # Note: /auth/ is exempt because magic link tokens are single-use and emailed
     EXEMPT_PATHS = {
-        "/api/health", "/api/status", "/static/", "/favicon.ico", "/auth/",
+        "/api/health",
+        "/api/status",
+        "/static/",
+        "/favicon.ico",
+        "/auth/",
         "/ws/test/",
+        "/api/log-agreement",
     }
 
     def __init__(self, app):
@@ -157,19 +162,10 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
                 status_code=403,
             )
         else:
-            # For web requests, show a dedicated CSRF error page
-            try:
-                with open(
-                    "finbot/static/pages/error/403_csrf.html", "r", encoding="utf-8"
-                ) as f:
-                    content = f.read()
-                return HTMLResponse(content=content, status_code=403)
-            except FileNotFoundError:
-                # Fallback if CSRF error page is missing
-                return HTMLResponse(
-                    content="<h1>403 Forbidden</h1><p>Security validation failed. Please refresh the page and try again.</p>",
-                    status_code=403,
-                )
+            # pylint: disable=import-outside-toplevel
+            from finbot.core.error_handlers import render_error_page
+
+            return render_error_page(request, 403, template_name="403_csrf.html")
 
     def _is_api_request(self, request: Request) -> bool:
         """Determine if the request is for an API endpoint"""

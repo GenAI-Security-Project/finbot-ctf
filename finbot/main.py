@@ -11,6 +11,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
+from finbot.apps.admin.main import app as admin_app
 from finbot.apps.ctf import ctf_app
 from finbot.apps.vendor.main import app as vendor_app
 from finbot.apps.web.auth import router as auth_router
@@ -18,9 +19,12 @@ from finbot.apps.web.routes import router as web_router
 from finbot.core.auth.csrf import CSRFProtectionMiddleware
 from finbot.core.auth.middleware import SessionMiddleware, get_session_context
 from finbot.core.auth.session import SessionContext, session_manager
+from finbot.core.messaging import event_bus
 from finbot.core.data import (
     models as _models,  # noqa: F401 — register all tables with Base
 )
+from finbot.mcp.servers.findrive import models as _findrive_models  # noqa: F401
+from finbot.mcp.servers.finstripe import models as _finstripe_models  # noqa: F401
 from finbot.core.data.database import create_tables
 from finbot.core.error_handlers import register_error_handlers
 from finbot.core.websocket import websocket_router
@@ -116,6 +120,7 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 # Mount all the applications for the platform
 app.mount("/vendor", vendor_app)
+app.mount("/admin", admin_app)
 app.mount("/ctf", ctf_app)
 app.include_router(websocket_router)
 # Auth routes for magic link sign-in
@@ -135,6 +140,27 @@ async def agreement(_: Request):
         return HTMLResponse(content=content, status_code=200)
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail="Agreement page not found") from e
+
+
+# Agreement acceptance audit log
+@app.post("/api/log-agreement")
+async def log_agreement(
+    request: Request,
+    session_context: SessionContext = Depends(get_session_context),
+):
+    """Log user acceptance of the CTF participation agreement for audit purposes."""
+    body = await request.json()
+    await event_bus.emit_business_event(
+        event_type="platform.agreement_accepted",
+        event_subtype="lifecycle",
+        event_data={
+            "user_agent": body.get("userAgent", ""),
+            "referrer": body.get("referrer", ""),
+        },
+        session_context=session_context,
+        summary=f"CTF agreement accepted by user {session_context.user_id[:8]}",
+    )
+    return {"success": True}
 
 
 # Session health check endpoint

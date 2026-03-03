@@ -48,6 +48,74 @@ class User(Base):
         return f"<User(user_id='{self.user_id}', namespace='{self.namespace}')>"
 
 
+class UserProfile(Base):
+    """User Profile for public sharing and social features.
+    Linked to User by user_id. Usernames are globally unique for public URLs.
+    """
+
+    __tablename__ = "user_profiles"
+
+    id = Column[int](Integer, primary_key=True, autoincrement=True)
+    user_id = Column[str](
+        String(32), ForeignKey("users.user_id"), unique=True, nullable=False, index=True
+    )
+
+    # Public identity
+    username = Column[str](String(32), unique=True, nullable=True, index=True)
+    bio = Column[str](String(160), nullable=True)
+    avatar_emoji = Column[str](String(10), default="🦊")
+
+    # Privacy settings (public by default per user preference)
+    is_public = Column[bool](Boolean, default=True)
+    show_activity = Column[bool](Boolean, default=False)  # Activity feed is opt-in
+
+    # Featured badges (user picks up to 6 badge IDs to showcase)
+    featured_badge_ids = Column[str](Text, nullable=True)  # JSON array of badge IDs
+
+    created_at = Column[datetime](DateTime, default=datetime.now(UTC))
+    updated_at = Column[datetime](
+        DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC)
+    )
+
+    # Relationships
+    user = relationship("User", backref="profile", uselist=False)
+
+    __table_args__ = (
+        Index("idx_user_profiles_username", "username"),
+        Index("idx_user_profiles_user_id", "user_id"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<UserProfile(user_id='{self.user_id}', username='{self.username}')>"
+
+    def get_featured_badge_ids(self) -> list[str]:
+        """Get list of featured badge IDs"""
+        if not self.featured_badge_ids:
+            return []
+        return json.loads(self.featured_badge_ids)
+
+    def set_featured_badge_ids(self, badge_ids: list[str]) -> None:
+        """Set featured badge IDs (max 6)"""
+        self.featured_badge_ids = json.dumps(badge_ids[:6])
+
+    def to_dict(self) -> dict:
+        """Convert profile to dictionary"""
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "username": self.username,
+            "bio": self.bio,
+            "avatar_emoji": self.avatar_emoji,
+            "is_public": self.is_public,
+            "show_activity": self.show_activity,
+            "featured_badge_ids": self.get_featured_badge_ids(),
+            "created_at": self.created_at.isoformat().replace("+00:00", "Z"),
+            "updated_at": self.updated_at.isoformat().replace("+00:00", "Z")
+            if self.updated_at
+            else None,
+        }
+
+
 class UserSession(Base):
     """User Session Model
     - HMAC signatures
@@ -419,7 +487,115 @@ class ChatMessage(Base):
         }
 
 
-# Admin Portal
+# Admin Portal / MCP Models
+
+
+class MCPServerConfig(Base):
+    """Per-namespace MCP server configuration.
+    The tool_overrides_json field is the CTF attack surface for tool poisoning --
+    users can modify tool descriptions via the admin portal, and these overrides
+    are applied when the MCP server is instantiated for an agent run.
+    """
+
+    __tablename__ = "mcp_server_configs"
+
+    id = Column[int](Integer, primary_key=True, autoincrement=True)
+    namespace = Column[str](String(64), nullable=False, index=True)
+
+    server_type = Column[str](String(50), nullable=False)  # "finstripe", "gdrive", "taxcalc"
+    display_name = Column[str](String(255), nullable=False)
+    enabled = Column[bool](Boolean, default=True, nullable=False)
+
+    # Server-specific settings (payment limits, mock balance, etc.)
+    config_json = Column[str](Text, nullable=True)
+    # User-modified tool definitions -- the supply chain attack surface
+    tool_overrides_json = Column[str](Text, nullable=True)
+
+    created_at = Column[datetime](DateTime, default=datetime.now(UTC))
+    updated_at = Column[datetime](
+        DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC)
+    )
+
+    __table_args__ = (
+        UniqueConstraint("namespace", "server_type", name="uq_mcp_namespace_server"),
+        Index("idx_mcp_config_namespace", "namespace"),
+        Index("idx_mcp_config_type", "server_type"),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<MCPServerConfig(namespace='{self.namespace}', "
+            f"server_type='{self.server_type}', enabled={self.enabled})>"
+        )
+
+    def get_config(self) -> dict:
+        return json.loads(self.config_json) if self.config_json else {}
+
+    def get_tool_overrides(self) -> dict:
+        return json.loads(self.tool_overrides_json) if self.tool_overrides_json else {}
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "namespace": self.namespace,
+            "server_type": self.server_type,
+            "display_name": self.display_name,
+            "enabled": self.enabled,
+            "config": self.get_config(),
+            "tool_overrides": self.get_tool_overrides(),
+            "created_at": self.created_at.isoformat().replace("+00:00", "Z"),
+            "updated_at": self.updated_at.isoformat().replace("+00:00", "Z"),
+        }
+
+
+class MCPActivityLog(Base):
+    """Records MCP protocol messages for the admin portal activity log.
+    Helps CTF players understand attack flows and debug injections.
+    """
+
+    __tablename__ = "mcp_activity_log"
+
+    id = Column[int](Integer, primary_key=True, autoincrement=True)
+    namespace = Column[str](String(64), nullable=False, index=True)
+
+    server_type = Column[str](String(50), nullable=False)
+    direction = Column[str](String(10), nullable=False)  # "request" or "response"
+    method = Column[str](String(100), nullable=False)  # "tools/list", "tools/call", etc.
+    tool_name = Column[str](String(100), nullable=True)
+    payload_json = Column[str](Text, nullable=True)
+
+    workflow_id = Column[str](String(64), nullable=True, index=True)
+    duration_ms = Column[float](Float, nullable=True)
+
+    created_at = Column[datetime](DateTime, default=datetime.now(UTC), index=True)
+
+    __table_args__ = (
+        Index("idx_mcp_activity_namespace", "namespace"),
+        Index("idx_mcp_activity_ns_server", "namespace", "server_type"),
+        Index("idx_mcp_activity_ns_ts", "namespace", "created_at"),
+        Index("idx_mcp_activity_workflow", "workflow_id"),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<MCPActivityLog(id={self.id}, server='{self.server_type}', "
+            f"method='{self.method}', direction='{self.direction}')>"
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "namespace": self.namespace,
+            "server_type": self.server_type,
+            "direction": self.direction,
+            "method": self.method,
+            "tool_name": self.tool_name,
+            "payload": json.loads(self.payload_json) if self.payload_json else None,
+            "workflow_id": self.workflow_id,
+            "duration_ms": self.duration_ms,
+            "created_at": self.created_at.isoformat().replace("+00:00", "Z"),
+        }
+
 
 # CTF Models
 

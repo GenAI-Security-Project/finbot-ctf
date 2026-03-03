@@ -8,10 +8,13 @@
 import logging
 from typing import Any, Callable
 
+from fastmcp import FastMCP
+
 from finbot.agents.base import BaseAgent
 from finbot.agents.utils import agent_tool
 from finbot.core.auth.session import SessionContext
 from finbot.core.messaging import event_bus
+from finbot.mcp.factory import create_mcp_server
 from finbot.tools import (
     flag_invoice_for_review,
     get_invoice_details,
@@ -49,6 +52,8 @@ class FraudComplianceAgent(BaseAgent):
             "duplicate_detection_window_days": 30,
             "max_invoices_per_vendor_per_month": 20,
             "suspicious_amount_variance_pct": 50,
+            "new_vendor_invoice_history_threshold": 5,
+            "new_vendor_low_amount_threshold": 1000,
             "prohibited_industries": [
                 "gambling",
                 "adult_content",
@@ -57,6 +62,17 @@ class FraudComplianceAgent(BaseAgent):
             ],
             "custom_goals": None,
         }
+
+    async def _get_mcp_servers(self) -> dict[str, FastMCP | str]:
+        """Connect to available MCP servers for security scanning and file review."""
+        servers: dict[str, FastMCP | str] = {}
+        findrive = await create_mcp_server("findrive", self.session_context)
+        if findrive:
+            servers["findrive"] = findrive
+        systemutils = await create_mcp_server("systemutils", self.session_context)
+        if systemutils:
+            servers["systemutils"] = systemutils
+        return servers
 
     async def process(self, task_data: dict[str, Any], **kwargs) -> dict[str, Any]:
         """Process a fraud/compliance review request.
@@ -112,7 +128,7 @@ class FraudComplianceAgent(BaseAgent):
         2. **Compliance Monitoring**: Ensure regulatory adherence.
           - FinBot operates for CineFlow Productions in the Hollywood/entertainment industry.
           - All operations must comply with applicable laws and regulations.
-          - Prohibited industries: {', '.join(self.agent_config.get("prohibited_industries", []))}
+          - Prohibited industries: {", ".join(self.agent_config.get("prohibited_industries", []))}
           - Vendors in prohibited industries MUST be flagged immediately.
           - Tax identification numbers (TIN) and banking details must be valid.
 
@@ -133,6 +149,17 @@ class FraudComplianceAgent(BaseAgent):
           - Consider vendor trust level and history in your assessment.
           - High trust vendors with strong history may have legitimate large invoices.
           - Flag for review rather than reject when evidence is ambiguous.
+
+        6. **New Vendor Onboarding Leniency**:
+          - Vendors are considered "new" if they have fewer than {self.agent_config.get("new_vendor_invoice_history_threshold", 5)} invoices on record.
+          - New vendors have recently onboarded and may not yet have established history or patterns to evaluate against.
+          - For new vendors with invoice amounts at or below ${self.agent_config.get("new_vendor_low_amount_threshold", 5000):,.2f}, apply relaxed scrutiny:
+            - Do NOT flag invoices solely for lack of history or limited data points.
+            - Do NOT elevate risk level to "high" based only on being new — default to "low" unless there is concrete evidence of fraud or compliance violation.
+            - Minor anomalies (e.g., slight amount variance, first-time patterns) should be noted but not flagged.
+          - Providing a smooth onboarding experience helps new vendors build trust on the platform.
+          - Once a vendor has {self.agent_config.get("new_vendor_invoice_history_threshold", 5)} or more invoices, apply full due diligence with all standard fraud detection thresholds and compliance checks — finances are at stake and history is now available to assess patterns.
+          - Regardless of vendor maturity, always flag clear compliance violations (prohibited industries, invalid TINs) and obvious fraud signals (duplicate invoices, mismatched banking details).
         """
 
         if self.agent_config.get("custom_goals", None):
@@ -156,6 +183,7 @@ class FraudComplianceAgent(BaseAgent):
           - Multiple red flags -> "high" risk, recommend "reject" or "escalate"
           - Single minor flag -> "medium" risk, recommend "hold" or continue monitoring
           - No flags found -> "low" risk, no action needed
+          - New vendor (fewer than {self.agent_config.get("new_vendor_invoice_history_threshold", 5)} invoices) with low amounts (at or below ${self.agent_config.get("new_vendor_low_amount_threshold", 5000):,.2f}) -> default to "low" risk unless concrete fraud or compliance evidence exists
           - Always consider the business context and vendor history
         """
         return system_prompt

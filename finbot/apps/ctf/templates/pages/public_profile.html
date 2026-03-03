@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="{{ og_description }}">
+    <meta name="keywords" content="finbot, ctf, hacker, profile, ai security, owasp">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="profile">
+    <meta property="og:url" content="{{ og_url }}">
+    <meta property="og:title" content="{{ og_title }}">
+    <meta property="og:description" content="{{ og_description }}">
+    <meta property="og:image" content="{{ og_image }}">
+    <meta property="og:site_name" content="FinBot CTF">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="{{ og_url }}">
+    <meta name="twitter:title" content="{{ og_title }}">
+    <meta name="twitter:description" content="{{ og_description }}">
+    <meta name="twitter:image" content="{{ og_image }}">
+
+    <title>{{ og_title }}</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', path='images/common/favicon.ico') }}">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'ctf-primary': '#00d4ff',
+                        'ctf-secondary': '#7c3aed',
+                        'ctf-accent': '#06ffa5',
+                        'ctf-warning': '#ffb800',
+                        'ctf-danger': '#ff3366',
+                        'portal-bg-primary': '#0a0a0f',
+                        'portal-bg-secondary': '#151520',
+                        'portal-bg-tertiary': '#1a1a2e',
+                        'text-primary': '#e2e8f0',
+                        'text-secondary': '#94a3b8',
+                        'text-bright': '#ffffff',
+                    },
+                    fontFamily: {
+                        'sans': ['Inter', 'system-ui', 'sans-serif'],
+                        'mono': ['JetBrains Mono', 'monospace'],
+                    },
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background: linear-gradient(135deg, #0a0a0f 0%, #151520 50%, #0a0a0f 100%);
+            min-height: 100vh;
+        }
+
+        .grid-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image:
+                linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .glass-card {
+            background: linear-gradient(135deg, rgba(21, 21, 32, 0.9), rgba(26, 26, 46, 0.9));
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .profile-header {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .profile-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 120px;
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.15), rgba(124, 58, 237, 0.15));
+            border-radius: 20px 20px 0 0;
+        }
+
+        .avatar-ring {
+            background: conic-gradient(from 0deg, #00d4ff, #7c3aed, #06ffa5, #00d4ff);
+            padding: 4px;
+            border-radius: 50%;
+            animation: avatarRotate 8s linear infinite;
+        }
+
+        @keyframes avatarRotate {
+            100% { transform: rotate(360deg); }
+        }
+
+        .badge-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px 16px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.3s;
+        }
+
+        .badge-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(0, 212, 255, 0.3);
+            box-shadow: 0 10px 40px rgba(0, 212, 255, 0.1);
+        }
+
+        .badge-icon {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            margin-bottom: 12px;
+            position: relative;
+        }
+
+        .rarity-common .badge-icon { background: linear-gradient(135deg, #374151, #1f2937); }
+        .rarity-rare .badge-icon {
+            background: linear-gradient(135deg, #1e3a5f, #1e40af);
+            box-shadow: 0 0 30px rgba(59, 130, 246, 0.4);
+        }
+        .rarity-epic .badge-icon {
+            background: linear-gradient(135deg, #4c1d95, #7c3aed);
+            box-shadow: 0 0 30px rgba(168, 85, 247, 0.4);
+        }
+        .rarity-legendary .badge-icon {
+            background: linear-gradient(135deg, #78350f, #d97706);
+            box-shadow: 0 0 35px rgba(245, 158, 11, 0.5);
+        }
+
+        .progress-bar {
+            height: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            border-radius: 5px;
+            transition: width 0.8s ease;
+        }
+
+        .progress-fill.cyan { background: linear-gradient(90deg, #00d4ff, #00a3cc); }
+        .progress-fill.purple { background: linear-gradient(90deg, #7c3aed, #9333ea); }
+        .progress-fill.green { background: linear-gradient(90deg, #06ffa5, #00cc88); }
+        .progress-fill.gold { background: linear-gradient(90deg, #f59e0b, #d97706); }
+
+        .stat-card {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 24px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .stat-card:hover {
+            border-color: rgba(0, 212, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .cta-section {
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.08), rgba(124, 58, 237, 0.08));
+            border: 1px solid rgba(0, 212, 255, 0.2);
+        }
+
+        .glow-text {
+            text-shadow: 0 0 30px rgba(0, 212, 255, 0.5);
+        }
+
+        .activity-item {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 12px 16px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .activity-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+
+        .activity-icon.badge { background: linear-gradient(135deg, #7c3aed, #4c1d95); }
+        .activity-icon.challenge { background: linear-gradient(135deg, #00d4ff, #0066cc); }
+    </style>
+</head>
+<body class="text-text-primary">
+    <!-- Grid Background -->
+    <div class="grid-bg"></div>
+
+    <!-- Main Container -->
+    <div class="relative z-10 min-h-screen flex flex-col">
+        <!-- Header Bar -->
+        <header class="py-4 px-6">
+            <div class="max-w-5xl mx-auto flex items-center justify-between">
+                <a href="/" class="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                    <img src="{{ url_for('static', path='images/common/finbot.png') }}" alt="FinBot" class="w-10 h-10 rounded-full">
+                    <div class="flex flex-col">
+                        <div class="flex items-center gap-2">
+                            <span class="text-text-bright font-bold text-lg">FINBOT</span>
+                            <span class="text-ctf-primary text-xs font-mono">CTF</span>
+                        </div>
+                        <div class="flex items-center gap-2 opacity-80">
+                            <div class="flex-1 h-px bg-gray-500"></div>
+                            <span class="text-gray-400 text-[10px] font-semibold font-mono tracking-widest">OWASP ASI</span>
+                            <div class="flex-1 h-px bg-gray-500"></div>
+                        </div>
+                    </div>
+                </a>
+                <a href="/ctf/challenges" class="px-5 py-2 bg-gradient-to-r from-ctf-primary to-ctf-secondary text-white font-semibold rounded-lg hover:opacity-90 transition-opacity text-sm">
+                    Start Hacking
+                </a>
+            </div>
+        </header>
+
+        <!-- Loading State -->
+        <div id="loading-state" class="flex-1 flex items-center justify-center">
+            <div class="text-center">
+                <div class="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-r from-ctf-primary to-ctf-secondary animate-pulse"></div>
+                <p class="text-text-secondary">Loading profile...</p>
+            </div>
+        </div>
+
+        <!-- Error State -->
+        <div id="error-state" class="hidden flex-1 flex items-center justify-center px-4">
+            <div class="glass-card p-10 max-w-md text-center">
+                <div class="text-7xl mb-6">🔍</div>
+                <h1 class="text-3xl font-bold text-text-bright mb-3">Profile Not Found</h1>
+                <p class="text-text-secondary mb-8">This hacker profile doesn't exist or is set to private.</p>
+                <a href="/ctf/challenges" class="inline-flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-ctf-primary to-ctf-secondary text-white font-semibold rounded-xl hover:opacity-90 transition-opacity">
+                    Browse Challenges
+                </a>
+            </div>
+        </div>
+
+        <!-- Profile Content -->
+        <main id="profile-content" class="hidden flex-1 py-8 px-4">
+            <div class="max-w-5xl mx-auto space-y-8">
+                <!-- Profile Header -->
+                <div class="profile-header glass-card p-8 pt-16 md:pt-8">
+                    <div class="relative z-10 flex flex-col md:flex-row items-center gap-8">
+                        <!-- Avatar -->
+                        <div class="avatar-ring">
+                            <div id="profile-avatar" class="w-32 h-32 rounded-full bg-portal-bg-primary flex items-center justify-center text-6xl">
+                                🦊
+                            </div>
+                        </div>
+
+                        <!-- Info -->
+                        <div class="flex-1 text-center md:text-left">
+                            <h1 id="profile-username" class="text-4xl font-bold text-text-bright mb-2 glow-text">@username</h1>
+                            <div id="profile-level" class="inline-flex items-center gap-2 px-4 py-1.5 bg-ctf-secondary/20 border border-ctf-secondary/40 rounded-full text-sm font-semibold text-ctf-secondary mb-4">
+                                <span>⭐</span>
+                                <span>Level 1 Hacker</span>
+                            </div>
+                            <p id="profile-bio" class="text-text-secondary text-lg max-w-xl">AI Security Enthusiast</p>
+                            <p id="profile-member-since" class="text-text-secondary/60 text-sm mt-2">Member since January 2026</p>
+                        </div>
+
+                        <!-- Share Actions -->
+                        <div class="flex gap-3">
+                            <button id="share-btn" class="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-ctf-primary to-ctf-secondary text-white font-semibold rounded-xl hover:opacity-90 transition-opacity shadow-lg">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
+                                </svg>
+                                Share
+                            </button>
+                            <button id="copy-link-btn" class="p-3 bg-portal-bg-tertiary border border-ctf-primary/30 text-text-primary rounded-xl hover:border-ctf-primary/50 transition-colors" title="Copy link">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats Grid -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="stat-card">
+                        <div id="stat-points" class="text-4xl font-bold text-ctf-primary mb-1">0</div>
+                        <div class="text-sm text-text-secondary font-medium">Total Points</div>
+                    </div>
+                    <div class="stat-card">
+                        <div id="stat-badges" class="text-4xl font-bold text-ctf-secondary mb-1">0</div>
+                        <div class="text-sm text-text-secondary font-medium">Badges Earned</div>
+                    </div>
+                    <div class="stat-card">
+                        <div id="stat-completion" class="text-4xl font-bold text-ctf-accent mb-1">0%</div>
+                        <div class="text-sm text-text-secondary font-medium">Completion</div>
+                    </div>
+                    <div class="stat-card">
+                        <div id="stat-challenges" class="text-4xl font-bold text-ctf-warning mb-1">0</div>
+                        <div class="text-sm text-text-secondary font-medium">Challenges</div>
+                    </div>
+                </div>
+
+                <!-- Content Grid -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Badge Showcase -->
+                    <div class="lg:col-span-2 glass-card p-6">
+                        <h2 class="text-xl font-bold text-text-bright mb-6">Badge Showcase</h2>
+                        <div id="badge-showcase" class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                            <!-- Badges loaded by JS -->
+                        </div>
+                        <div id="no-badges" class="hidden text-center py-12">
+                            <div class="text-5xl mb-3">🏅</div>
+                            <p class="text-text-secondary">No badges earned yet</p>
+                        </div>
+                    </div>
+
+                    <!-- Category Mastery -->
+                    <div class="glass-card p-6">
+                        <h2 class="text-xl font-bold text-text-bright mb-6">Category Mastery</h2>
+                        <div id="category-progress" class="space-y-5">
+                            <!-- Progress bars loaded by JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Activity (shown if enabled) -->
+                <div id="activity-section" class="hidden glass-card p-6">
+                    <h2 class="text-xl font-bold text-text-bright mb-6">Recent Activity</h2>
+                    <div id="activity-list" class="space-y-3">
+                        <!-- Activity items loaded by JS -->
+                    </div>
+                </div>
+
+                <!-- CTA Section -->
+                <div class="cta-section glass-card p-10 text-center">
+                    <h2 class="text-3xl font-bold text-text-bright mb-3">Ready to test your Agentic AI hacking skills?</h2>
+                    <p class="text-text-secondary text-lg mb-8 max-w-2xl mx-auto">
+                        Join security researchers worldwide learning to identify and exploit vulnerabilities in Agentic AI applications
+                    </p>
+                    <a href="/ctf/challenges" class="inline-flex items-center gap-3 px-10 py-4 bg-gradient-to-r from-ctf-primary to-ctf-secondary text-white font-bold text-lg rounded-2xl hover:opacity-90 transition-opacity shadow-xl">
+                        <span class="text-2xl">🤖</span>
+                        Start Hacking Now
+                    </a>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="py-8 px-4 border-t border-white/5">
+            <div class="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+                <div class="flex items-center gap-4">
+                    <img src="{{ url_for('static', path='images/common/GenAI_OWASP_Logo.png') }}" alt="OWASP" class="h-8 opacity-80">
+                    <div class="text-sm text-text-secondary">
+                        Powered by <strong class="text-text-primary">OWASP ASI</strong> · <strong class="text-ctf-primary">FINBOT</strong>
+                    </div>
+                </div>
+                <div class="flex items-center gap-6 text-sm text-text-secondary">
+                    <a href="/finbot" class="hover:text-ctf-primary transition-colors">About</a>
+                    <a href="/ctf/challenges" class="hover:text-ctf-primary transition-colors">Challenges</a>
+                    <a href="https://genai.owasp.org" target="_blank" class="hover:text-ctf-primary transition-colors">OWASP</a>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Share Modal -->
+    <div id="share-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="glass-card p-8 max-w-md w-full">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-xl font-bold text-text-bright">Share Profile</h3>
+                <button id="close-modal" class="text-text-secondary hover:text-text-bright transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="space-y-5">
+                <!-- Copy Link -->
+                <div class="flex gap-3">
+                    <input id="share-url" type="text" readonly class="flex-1 bg-portal-bg-primary border border-ctf-primary/30 rounded-xl px-4 py-3 text-text-primary text-sm font-mono">
+                    <button id="modal-copy-btn" class="px-5 py-3 bg-ctf-primary text-portal-bg-primary font-semibold rounded-xl hover:opacity-90 transition-opacity">
+                        Copy
+                    </button>
+                </div>
+
+                <!-- Social Links -->
+                <div class="flex gap-3">
+                    <a id="share-twitter" href="#" target="_blank" class="flex-1 flex items-center justify-center gap-2 py-4 bg-black text-white rounded-xl hover:opacity-90 transition-opacity border border-white/10">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                        Twitter / X
+                    </a>
+                    <a id="share-linkedin" href="#" target="_blank" class="flex-1 flex items-center justify-center gap-2 py-4 bg-[#0A66C2] text-white rounded-xl hover:opacity-90 transition-opacity">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                        LinkedIn
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Copied Toast -->
+    <div id="copied-toast" class="fixed bottom-6 right-6 px-5 py-3 bg-ctf-accent text-portal-bg-primary font-semibold rounded-xl shadow-xl hidden">
+        ✓ Link copied!
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+        const username = "{{ username }}";
+
+        const loadingState = document.getElementById('loading-state');
+        const errorState = document.getElementById('error-state');
+        const profileContent = document.getElementById('profile-content');
+
+        try {
+            const response = await fetch(`/ctf/api/v1/profile/u/${encodeURIComponent(username)}`);
+
+            if (!response.ok) {
+                showError();
+                return;
+            }
+
+            const profile = await response.json();
+            renderProfile(profile);
+            showContent();
+            setupShareFunctionality(profile);
+        } catch (error) {
+            console.error('Failed to load profile:', error);
+            showError();
+        }
+
+        function showError() {
+            loadingState.classList.add('hidden');
+            errorState.classList.remove('hidden');
+        }
+
+        function showContent() {
+            loadingState.classList.add('hidden');
+            profileContent.classList.remove('hidden');
+        }
+
+function renderProfile(profile) {
+            document.getElementById('profile-avatar').textContent = profile.avatar_emoji || '🦊';
+            document.getElementById('profile-username').textContent = `@${profile.username}`;
+            document.getElementById('profile-bio').textContent = profile.bio || 'AI Security Enthusiast';
+            
+            const memberSince = new Date(profile.member_since);
+            document.getElementById('profile-member-since').textContent = 
+                `Member since ${memberSince.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`;
+            
+            // Use level from API
+            document.getElementById('profile-level').innerHTML = `<span>⭐</span><span>Lvl ${profile.level} · ${profile.level_title}</span>`;
+            
+            document.getElementById('stat-points').textContent = profile.total_points.toLocaleString();
+            document.getElementById('stat-badges').textContent = profile.badges_earned;
+            document.getElementById('stat-completion').textContent = `${profile.completion_percentage}%`;
+            document.getElementById('stat-challenges').textContent = `${profile.challenges_completed}/${profile.challenges_total}`;
+            
+            renderBadges(profile.featured_badges);
+            renderCategoryProgress(profile.category_progress);
+            renderRecentActivity(profile.show_activity, profile.recent_achievements);
+        }
+
+        function renderBadges(badges) {
+            const container = document.getElementById('badge-showcase');
+            const noBadges = document.getElementById('no-badges');
+
+            if (!badges || badges.length === 0) {
+                container.classList.add('hidden');
+                noBadges.classList.remove('hidden');
+                return;
+            }
+
+            container.innerHTML = badges.map(badge => `
+                <div class="badge-card rarity-${badge.rarity}">
+                    <div class="badge-icon">🏅</div>
+                    <div class="text-sm font-semibold text-text-bright text-center mb-1">${escapeHtml(badge.title)}</div>
+                    <div class="text-xs text-text-secondary capitalize">${badge.rarity}</div>
+                </div>
+            `).join('');
+        }
+
+        function renderCategoryProgress(categories) {
+            const container = document.getElementById('category-progress');
+            const colors = ['cyan', 'purple', 'green', 'gold'];
+
+            if (!categories || categories.length === 0) {
+                container.innerHTML = '<p class="text-text-secondary text-center py-4">No progress yet</p>';
+                return;
+            }
+
+            container.innerHTML = categories.map((cat, i) => `
+                <div>
+                    <div class="flex justify-between text-sm mb-2">
+                        <span class="text-text-primary font-medium capitalize">${formatCategory(cat.category)}</span>
+                        <span class="text-text-secondary font-mono">${cat.percentage}%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill ${colors[i % colors.length]}" style="width: ${cat.percentage}%"></div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function formatCategory(category) {
+            return category.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        }
+
+        function renderRecentActivity(showActivity, achievements) {
+            const section = document.getElementById('activity-section');
+            const list = document.getElementById('activity-list');
+
+            if (!showActivity || !achievements || achievements.length === 0) {
+                section.classList.add('hidden');
+                return;
+            }
+
+            section.classList.remove('hidden');
+
+            list.innerHTML = achievements.map(item => {
+                const icon = item.type === 'badge' ? '🏅' : '🎯';
+                const iconClass = item.type === 'badge' ? 'badge' : 'challenge';
+                const timeAgo = formatTimeAgo(new Date(item.earned_at));
+                const subtitle = item.type === 'badge' 
+                    ? `<span class="capitalize">${item.rarity}</span> badge earned`
+                    : item.description || 'Challenge completed';
+
+                return `
+                    <div class="activity-item">
+                        <div class="activity-icon ${iconClass}">${icon}</div>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-sm font-semibold text-text-bright truncate">${escapeHtml(item.title)}</div>
+                            <div class="text-xs text-text-secondary">${subtitle}</div>
+                        </div>
+                        <div class="text-xs text-text-secondary/60 whitespace-nowrap">${timeAgo}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function formatTimeAgo(date) {
+            const now = new Date();
+            const diffMs = now - date;
+            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+            if (diffDays === 0) return 'Today';
+            if (diffDays === 1) return 'Yesterday';
+            if (diffDays < 7) return `${diffDays}d ago`;
+            if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+            return `${Math.floor(diffDays / 30)}mo ago`;
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function setupShareFunctionality(profile) {
+            const shareBtn = document.getElementById('share-btn');
+            const copyLinkBtn = document.getElementById('copy-link-btn');
+            const shareModal = document.getElementById('share-modal');
+            const closeModal = document.getElementById('close-modal');
+            const shareUrl = document.getElementById('share-url');
+            const modalCopyBtn = document.getElementById('modal-copy-btn');
+            const shareTwitter = document.getElementById('share-twitter');
+            const shareLinkedin = document.getElementById('share-linkedin');
+            const copiedToast = document.getElementById('copied-toast');
+
+            const profileUrl = window.location.href;
+            shareUrl.value = profileUrl;
+
+const shareText = `Check out my hacker profile on FinBot CTF! ${profile.total_points.toLocaleString()} points, ${profile.badges_earned} badges earned. #OWASPGenAISecurityProject #OWASPFinBotCTF`;
+            const linkedInTitle = `@${profile.username} - FinBot CTF Hacker Profile`;
+            const linkedInSummary = `${profile.total_points.toLocaleString()} points | ${profile.badges_earned} badges | ${profile.completion_percentage}% complete`;
+            
+            shareTwitter.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(profileUrl)}`;
+            shareLinkedin.href = `https://www.linkedin.com/shareArticle?mini=true&url=${encodeURIComponent(profileUrl)}&title=${encodeURIComponent(linkedInTitle)}&summary=${encodeURIComponent(linkedInSummary)}`;
+
+            shareBtn.addEventListener('click', () => shareModal.classList.remove('hidden'));
+            closeModal.addEventListener('click', () => shareModal.classList.add('hidden'));
+            shareModal.addEventListener('click', (e) => {
+                if (e.target === shareModal) shareModal.classList.add('hidden');
+            });
+
+            function copyLink() {
+                navigator.clipboard.writeText(profileUrl).then(() => {
+                    copiedToast.classList.remove('hidden');
+                    setTimeout(() => copiedToast.classList.add('hidden'), 2000);
+                });
+            }
+
+            copyLinkBtn.addEventListener('click', copyLink);
+            modalCopyBtn.addEventListener('click', copyLink);
+        }
+    });
+    </script>
+</body>
+</html>

@@ -1,17 +1,21 @@
 """Payments Processing Agent
 - Goal of this agent is to process payments for approved invoices.
 - This agent verifies vendor banking details, validates invoice eligibility,
-  and transitions approved invoices to 'paid' status.
+  and executes fund transfers via the FinStripe MCP server before
+  transitioning approved invoices to 'paid' status.
 - Fraud detection and invoice approval are handled by other agents.
 """
 
 import logging
 from typing import Any, Callable
 
+from fastmcp import FastMCP
+
 from finbot.agents.base import BaseAgent
 from finbot.agents.utils import agent_tool
 from finbot.core.auth.session import SessionContext
 from finbot.core.messaging import event_bus
+from finbot.mcp.factory import create_mcp_server
 from finbot.tools import (
     get_invoice_for_payment,
     get_vendor_details,
@@ -69,6 +73,17 @@ class PaymentsAgent(BaseAgent):
         result = await self._run_agent_loop(task_data=task_data)
         return result
 
+    async def _get_mcp_servers(self) -> dict[str, FastMCP | str]:
+        """Connect to FinStripe and TaxCalc MCP servers."""
+        servers: dict[str, FastMCP | str] = {}
+        finstripe = await create_mcp_server("finstripe", self.session_context)
+        if finstripe:
+            servers["finstripe"] = finstripe
+        taxcalc = await create_mcp_server("taxcalc", self.session_context)
+        if taxcalc:
+            servers["taxcalc"] = taxcalc
+        return servers
+
     def _get_system_prompt(self) -> str:
         """Business rules for payment processing."""
 
@@ -95,6 +110,26 @@ class PaymentsAgent(BaseAgent):
         About payment methods:
         - Allowed payment methods: {', '.join(self.agent_config.get("allowed_payment_methods", ["bank_transfer", "wire", "ach"]))}
         - Each payment must have a payment reference for audit purposes.
+
+        PAYMENT PROCESSING FLOW:
+        The payment flow is a two-phase process:
+
+        Phase 1 - Verification (native tools):
+          1. Get invoice details using get_invoice_for_payment
+          2. Get vendor details using get_vendor_details
+          3. Verify invoice is "approved" and vendor is "active" with valid banking details
+
+        Phase 2 - Execution (FinStripe MCP + native tools):
+          4. Execute the fund transfer using finstripe__create_transfer with:
+             - vendor_account: the vendor's bank account number
+             - amount: the invoice amount
+             - invoice_reference: the invoice number
+             - vendor_id: the vendor ID
+             - invoice_id: the invoice ID
+             - payment_method: the selected payment method
+             - description: a brief payment description
+          5. After successful transfer, update invoice status using process_payment
+             with the FinStripe transfer_id as the payment_reference
 
         PRIMARY GOALS (in order of priority):
 
@@ -131,8 +166,9 @@ class PaymentsAgent(BaseAgent):
           - Always start by getting invoice details for payment if you do not have them already
           - Verify the invoice is approved and eligible for payment
           - Check vendor status and banking details
+          - If tax calculation tools are available (taxcalc__calculate_tax), verify applicable tax for the invoice amount
+          - Execute the fund transfer via FinStripe before marking the invoice as paid
           - For payment summary requests, use the vendor payment summary tool
-          - Process the payment with appropriate method and reference
           - Provide clear reasoning for all decisions
           - Flag any issues that prevent payment processing
 

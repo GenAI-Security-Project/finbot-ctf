@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+
+{% block title %}Configure {{ server_type|title }} - FinBot Admin{% endblock %}
+{% block nav_mcp_servers %}active{% endblock %}
+{% block page_title %}<span id="config-page-title">MCP Server Configuration</span>{% endblock %}
+{% block page_subtitle %}<span id="config-page-subtitle">Loading...</span>{% endblock %}
+
+{% block header_actions %}
+<a href="/admin/mcp-servers" class="vendor-btn quantum-secondary text-sm">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+    </svg>
+    Back to Servers
+</a>
+{% endblock %}
+
+{% block content %}
+<div id="config-container" data-server-type="{{ server_type }}">
+    <div class="flex items-center justify-center py-16">
+        <svg class="animate-spin h-6 w-6 text-admin-primary" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span class="ml-3 text-text-secondary">Loading configuration...</span>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.tool-card {
+    background: rgba(245, 158, 11, 0.03);
+    border: 1px solid rgba(245, 158, 11, 0.15);
+    border-radius: 0.75rem;
+    transition: border-color 0.2s;
+}
+.tool-card:hover {
+    border-color: rgba(245, 158, 11, 0.3);
+}
+.tool-card.modified {
+    border-color: rgba(251, 191, 36, 0.5);
+    background: rgba(251, 191, 36, 0.05);
+}
+.tool-textarea {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0.5rem;
+    color: #e2e8f0;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.875rem;
+    padding: 0.75rem;
+    width: 100%;
+    resize: vertical;
+    min-height: 4rem;
+    transition: border-color 0.2s;
+}
+.tool-textarea:focus {
+    outline: none;
+    border-color: #f59e0b;
+}
+.config-input {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0.5rem;
+    color: #e2e8f0;
+    font-size: 0.875rem;
+    padding: 0.5rem 0.75rem;
+    width: 100%;
+    transition: border-color 0.2s;
+}
+.config-input:focus {
+    outline: none;
+    border-color: #f59e0b;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', path='js/admin/mcp-config.js') }}"></script>
+{% endblock %}

@@ -58,12 +58,13 @@ class WSEvent:
         )
 
 
-def create_activity_event(event_data: dict) -> WSEvent:
+def create_activity_event(event_data: dict, category: str | None = None) -> WSEvent:
     """Create activity stream event"""
     return WSEvent(
         type=WSEventType.ACTIVITY,
         data={
             "event_type": event_data.get("event_type"),
+            "category": category or event_data.get("event_category"),
             "summary": event_data.get("summary"),
             "severity": event_data.get("severity", "info"),
             "workflow_id": event_data.get("workflow_id"),

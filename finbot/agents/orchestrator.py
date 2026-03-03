@@ -108,13 +108,17 @@ class OrchestratorAgent(BaseAgent):
           Step 1: delegate_to_invoice -- evaluate and approve/reject the invoice
           Step 2: delegate_to_fraud -- check the invoice for fraud patterns; pass the invoice decision
           Step 3: If the invoice was approved in step 1, delegate_to_payments -- process payment for the approved invoice
-          Step 4: delegate_to_communication -- notify the vendor of the invoice decision and payment status if applicable
+          Step 4: delegate_to_communication -- MANDATORY: notify the vendor of the FINAL outcome including payment status.
+                  Use notification_type "payment_confirmation" if payment was processed, or "status_update" otherwise.
+                  This step must ALWAYS be executed as the last step, even if payment succeeded. Do NOT call complete_task before this step.
 
         **Invoice Reprocessing** (task mentions invoice re-processing or re-evaluation):
           Step 1: delegate_to_invoice -- re-evaluate the invoice
           Step 2: delegate_to_fraud -- re-check for fraud patterns; pass the invoice decision
           Step 3: If the invoice was approved in step 1, delegate_to_payments -- process payment
-          Step 4: delegate_to_communication -- notify the vendor of the updated decision
+          Step 4: delegate_to_communication -- MANDATORY: notify the vendor of the FINAL outcome including payment status.
+                  Use notification_type "payment_confirmation" if payment was processed, or "status_update" otherwise.
+                  This step must ALWAYS be executed as the last step. Do NOT call complete_task before this step.
 
         IMPORTANT WORKFLOW RULES (MUST BE FOLLOWED STRICTLY):
 
@@ -411,6 +415,12 @@ class OrchestratorAgent(BaseAgent):
         )
 
         await self._emit_delegation_event("payments_agent", result)
+
+        result["next_step"] = (
+            "IMPORTANT: You MUST now delegate_to_communication to notify the vendor "
+            "about this payment outcome. Use notification_type 'payment_confirmation'. "
+            "Do NOT call complete_task until the vendor has been notified."
+        )
         return result
 
     @agent_tool

@@ -7,11 +7,14 @@ from abc import ABC, abstractmethod
 from datetime import UTC, datetime
 from typing import Any, Callable
 
+from fastmcp import FastMCP
+
 from finbot.config import settings
 from finbot.core.auth.session import SessionContext
 from finbot.core.data.models import LLMRequest
 from finbot.core.llm import ContextualLLMClient
 from finbot.core.messaging import event_bus
+from finbot.mcp.provider import MCPToolProvider
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +41,7 @@ class BaseAgent(ABC):
             agent_name=self.agent_name,
             workflow_id=self.workflow_id,
         )
+        self._mcp_provider: MCPToolProvider | None = None
 
         logger.info(
             "Initialized %s for user=%s, namespace=%s",
@@ -69,14 +73,16 @@ class BaseAgent(ABC):
         Run the agent loop for the given task data.
         """
         await self.log_task_start(task_data=task_data)
+
+        # Connect to MCP servers if the agent has any configured
+        await self._connect_mcp_servers()
+
         system_prompt = self._get_final_system_prompt()
         user_prompt = await self._get_user_prompt(task_data=task_data)
 
         # Store the user prompt on the workflow so every event
         # (agent + business) in this workflow carries it.
-        event_bus.set_workflow_context(
-            self.workflow_id, user_prompt=user_prompt
-        )
+        event_bus.set_workflow_context(self.workflow_id, user_prompt=user_prompt)
 
         messages = [
             {"role": "system", "content": system_prompt},
@@ -178,7 +184,9 @@ class BaseAgent(ABC):
                             function_output_str = function_output
                             if not isinstance(function_output_str, str):
                                 try:
-                                    function_output_str = json.dumps(function_output_str)
+                                    function_output_str = json.dumps(
+                                        function_output_str
+                                    )
                                 except Exception as _:  # pylint: disable=broad-exception-caught
                                     try:
                                         function_output_str = str(function_output_str)
@@ -224,15 +232,17 @@ class BaseAgent(ABC):
                                 await self.log_task_completion(task_result=task_result)
                                 return task_result
                             else:
-                                messages.append({
-                                    "role": "user",
-                                    "content": (
-                                        "You are an autonomous agent with no human in the loop. "
-                                        "Do not ask questions or produce analysis without action. "
-                                        "You MUST either call a tool to make progress or call "
-                                        "complete_task to finish. Respond ONLY with a tool call."
-                                    ),
-                                })
+                                messages.append(
+                                    {
+                                        "role": "user",
+                                        "content": (
+                                            "You are an autonomous agent with no human in the loop. "
+                                            "Do not ask questions or produce analysis without action. "
+                                            "You MUST either call a tool to make progress or call "
+                                            "complete_task to finish. Respond ONLY with a tool call."
+                                        ),
+                                    }
+                                )
 
                     # Emit iteration complete event
                     await event_bus.emit_agent_event(
@@ -269,6 +279,7 @@ class BaseAgent(ABC):
             await self.log_task_completion(task_result=task_result)
             return task_result
         finally:
+            await self._disconnect_mcp_servers()
             event_bus.clear_workflow_context(self.workflow_id)
 
     def _get_system_prompt(self) -> str:
@@ -316,8 +327,14 @@ class BaseAgent(ABC):
         raise NotImplementedError("User prompt method not implemented")
 
     def _get_final_tool_definitions(self) -> list[dict[str, Any]]:
-        """Get the final list of tool definitions for the agent including control flow tool definitions"""
+        """Get the final list of tool definitions: native + MCP + control flow."""
         tool_definitions = self._get_tool_definitions()
+
+        if self._mcp_provider and self._mcp_provider.is_connected:
+            tool_definitions = (
+                tool_definitions + self._mcp_provider.get_tool_definitions()
+            )
+
         control_flow_tool_definitions = [
             {
                 "type": "function",
@@ -383,8 +400,12 @@ class BaseAgent(ABC):
         return task_result
 
     def _get_final_callables(self) -> dict[str, Callable[..., Any]]:
-        """Get the final dict of callables for the agent including control flow callables"""
+        """Get the final dict of callables: native + MCP + control flow."""
         callables = self._get_callables()
+
+        if self._mcp_provider and self._mcp_provider.is_connected:
+            callables = {**callables, **self._mcp_provider.get_callables()}
+
         control_flow_callables = {
             "complete_task": self._complete_task,
         }
@@ -460,6 +481,46 @@ class BaseAgent(ABC):
             **self.llm_client.context_info,
             "agent_class": self.__class__.__name__,
         }
+
+    # MCP integration -- opt-in by overriding _get_mcp_servers()
+
+    async def _get_mcp_servers(self) -> dict[str, FastMCP | str]:
+        """Return MCP servers this agent should connect to.
+
+        Override in subclasses to opt-in to MCP. Keys are server names used for
+        tool namespacing (e.g., 'finstripe'), values are FastMCP instances
+        (in-memory transport) or URLs (HTTP transport).
+
+        Default returns empty dict (no MCP servers).
+        """
+        return {}
+
+    async def _connect_mcp_servers(self) -> None:
+        """Connect to MCP servers if the agent has any configured."""
+        servers = await self._get_mcp_servers()
+        if not servers:
+            return
+
+        self._mcp_provider = MCPToolProvider(
+            servers=servers,
+            session_context=self.session_context,
+            workflow_id=self.workflow_id,
+            agent_name=self.agent_name,
+        )
+        await self._mcp_provider.connect()
+
+        logger.info(
+            "%s connected to %d MCP server(s): %d tools discovered",
+            self.agent_name,
+            len(servers),
+            self._mcp_provider.tool_count,
+        )
+
+    async def _disconnect_mcp_servers(self) -> None:
+        """Disconnect from MCP servers if connected."""
+        if self._mcp_provider and self._mcp_provider.is_connected:
+            await self._mcp_provider.disconnect()
+            self._mcp_provider = None
 
     # Hooks for customizing the agent behavior
     async def _on_task_completion(self, task_result: dict[str, Any]) -> None:

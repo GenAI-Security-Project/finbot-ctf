@@ -350,6 +350,16 @@
     border: 1px solid rgba(99, 102, 241, 0.15);
 }
 
+.lane-segment.mcp {
+    background: rgba(232, 121, 249, 0.35);
+    border: 1px solid rgba(232, 121, 249, 0.2);
+}
+
+.lane-segment.mcp-discover {
+    background: rgba(232, 121, 249, 0.2);
+    border: 1px dashed rgba(232, 121, 249, 0.25);
+}
+
 /* ==========================================================================
    SEGMENT TOOLTIP
    ========================================================================== */
@@ -552,6 +562,7 @@
 .detail-event-icon.tool      { background: rgba(0, 212, 255, 0.25); }
 .detail-event-icon.decision  { background: rgba(6, 255, 165, 0.25); }
 .detail-event-icon.chat      { background: rgba(167, 139, 250, 0.25); }
+.detail-event-icon.mcp       { background: rgba(232, 121, 249, 0.25); }
 
 /* ==========================================================================
    EVENT DETAIL MODAL (mobile + click-through)
@@ -746,6 +757,7 @@
 .tl-event.subtype-tool::before     { border-color: #00d4ff; background: rgba(0, 212, 255, 0.3); }
 .tl-event.subtype-decision::before { border-color: #06ffa5; background: rgba(6, 255, 165, 0.3); }
 .tl-event.subtype-chat::before     { border-color: #a78bfa; background: rgba(167, 139, 250, 0.3); }
+.tl-event.subtype-mcp::before      { border-color: #e879f9; background: rgba(232, 121, 249, 0.3); }
 
 .tl-event.is-business {
     background: linear-gradient(135deg, rgba(6, 255, 165, 0.04), rgba(0, 212, 255, 0.04));
@@ -784,6 +796,7 @@
 .tl-event-icon.tool      { background: rgba(0, 212, 255, 0.15); }
 .tl-event-icon.decision  { background: rgba(6, 255, 165, 0.15); }
 .tl-event-icon.chat      { background: rgba(167, 139, 250, 0.15); }
+.tl-event-icon.mcp       { background: rgba(232, 121, 249, 0.15); }
 .tl-event-icon.business  { background: rgba(6, 255, 165, 0.15); }
 
 .tl-agent-badge {
@@ -1161,6 +1174,14 @@
     border: 1px solid rgba(6, 255, 165, 0.2);
     color: #06ffa5;
 }
+
+.trace-step.mcp {
+    background: rgba(232, 121, 249, 0.12);
+    border: 1px solid rgba(232, 121, 249, 0.25);
+    color: #e879f9;
+}
+
+.trace-step.mcp .trace-step-dot { background: #e879f9; }
 
 .trace-step.error {
     background: rgba(239, 68, 68, 0.15);

@@ -2,11 +2,15 @@
 
 from fastapi import FastAPI
 
+from finbot.core.error_handlers import register_error_handlers
+
 from finbot.apps.ctf.routes import (
     activity,
     admin,
     badges,
     challenges,
+    profile,
+    share,
     sidecar,
     stats,
     web_router,
@@ -18,6 +22,8 @@ ctf_app = FastAPI(
     version="1.0.0",
 )
 
+register_error_handlers(ctf_app)
+
 # Include web routes (page routes)
 ctf_app.include_router(web_router)
 
@@ -28,3 +34,5 @@ ctf_app.include_router(activity.router)
 ctf_app.include_router(stats.router)
 ctf_app.include_router(admin.router)
 ctf_app.include_router(sidecar.router)
+ctf_app.include_router(profile.router)
+ctf_app.include_router(share.router)

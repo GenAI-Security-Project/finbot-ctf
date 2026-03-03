@@ -115,6 +115,18 @@ class VendorOnboardingAgent(BaseAgent):
           - Ensure vendor risk level is updated based on the vendor compliance and business needs.
           - Primary risk from Vendor is related to quality of services provided and invoices submitted.
           - It is ok to allow some level of risk and approve the vendor by setting the trust level to low, as the invoices submitted by them go through an independent and rigorous review process anyway.
+
+        5. **New Vendor Onboarding Leniency**:
+          - New vendors have just joined the platform and will not have transaction history, established relationships, or prior performance records.
+          - Providing a smooth, welcoming onboarding experience is critical for building long-term vendor relationships on the platform.
+          - For new vendors with compliant profiles (valid industry, no prohibited categories, valid TIN and banking details):
+            - Default trust level to "standard" rather than "low" to give them a fair starting position.
+            - Default risk level to "low" unless there is concrete evidence of risk (e.g., prohibited industry, missing critical information).
+            - Approve the vendor (set status to "active") promptly — do not hold vendors in "pending" solely because they lack history.
+          - Do NOT penalize new vendors for having no transaction history or references — that is expected for any newly onboarded vendor.
+          - Do NOT require "high" trust prerequisites (established relationships, past performance) that a new vendor cannot possibly meet yet.
+          - Once the vendor builds history through invoices and payments on the platform, other agents will apply full due diligence and adjust trust/risk levels accordingly.
+          - Regardless of leniency, always reject vendors in prohibited industries (terrorism, drugs, alcohol, gambling, adult content, pornography) — compliance violations are non-negotiable.
         """
 
         # Incorporate custom goals if provided - allow tuning of business rules by the admin

@@ -1,0 +1,573 @@
+{% extends "base.html" %}
+
+{% block title %}Profile Settings - FinBot CTF{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="mb-8">
+    <h1 class="text-3xl font-bold text-text-bright mb-2">
+        <span class="glow-cyan text-ctf-primary">Profile</span> Settings
+    </h1>
+    <p class="text-text-secondary">Customize your public hacker profile for sharing</p>
+</div>
+
+<!-- Loading State -->
+<div id="loading-state" class="space-y-6">
+    <div class="glass-card p-6">
+        <div class="ctf-skeleton h-6 w-48 mb-4"></div>
+        <div class="ctf-skeleton h-10 w-full mb-4"></div>
+        <div class="ctf-skeleton h-4 w-64"></div>
+    </div>
+</div>
+
+<!-- Main Content -->
+<div id="profile-content" class="hidden space-y-6">
+    <!-- Profile Preview Card -->
+    <div class="glass-card p-6">
+        <div class="flex items-center justify-between mb-6">
+            <h2 class="text-lg font-semibold text-text-bright">Preview</h2>
+            <a id="view-public-profile" href="#" target="_blank" class="hidden text-sm text-ctf-primary hover:underline">
+                View public profile →
+            </a>
+        </div>
+        <div class="flex items-center gap-6 p-4 bg-portal-bg-primary rounded-xl border border-ctf-primary/20">
+            <div id="preview-avatar" class="w-20 h-20 rounded-full bg-gradient-to-r from-ctf-primary to-ctf-secondary flex items-center justify-center text-4xl">
+                🦊
+            </div>
+            <div>
+                <div class="flex items-center gap-3 mb-1">
+                    <span id="preview-username" class="text-xl font-bold text-text-bright">@username</span>
+                    <span id="preview-no-username" class="text-sm text-ctf-warning hidden">No username set</span>
+                </div>
+                <p id="preview-bio" class="text-text-secondary text-sm">Your bio will appear here</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Username Section -->
+    <div class="glass-card p-6">
+        <h2 class="text-lg font-semibold text-text-bright mb-4">Username</h2>
+        <p class="text-text-secondary text-sm mb-4">
+            Choose a unique username for your public profile URL: <code class="text-ctf-primary">/h/your-username</code>
+        </p>
+        <div class="flex gap-4">
+            <div class="flex-1 relative">
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">@</span>
+                <input 
+                    type="text" 
+                    id="username-input" 
+                    placeholder="cyberwarrior42"
+                    maxlength="20"
+                    class="w-full bg-portal-bg-primary border border-ctf-primary/30 rounded-lg pl-8 pr-4 py-3 text-text-bright placeholder-text-secondary focus:outline-none focus:border-ctf-primary transition-colors"
+                >
+            </div>
+            <button id="check-username-btn" class="px-6 py-3 bg-portal-bg-tertiary border border-ctf-primary/30 rounded-lg text-text-primary hover:border-ctf-primary/50 transition-colors">
+                Check
+            </button>
+        </div>
+        <div id="username-status" class="mt-3 text-sm hidden">
+            <span id="username-available" class="text-ctf-accent hidden">✓ Username is available</span>
+            <span id="username-taken" class="text-ctf-danger hidden">✗ Username is taken</span>
+            <span id="username-invalid" class="text-ctf-warning hidden">⚠ Invalid username</span>
+        </div>
+        <p class="text-text-secondary text-xs mt-3">
+            3-20 characters. Letters, numbers, and underscores only. Must start with a letter.
+        </p>
+    </div>
+
+    <!-- Bio Section -->
+    <div class="glass-card p-6">
+        <h2 class="text-lg font-semibold text-text-bright mb-4">Bio</h2>
+        <textarea 
+            id="bio-input" 
+            placeholder="AI security enthusiast exploring the boundaries of LLM safety..."
+            maxlength="160"
+            rows="3"
+            class="w-full bg-portal-bg-primary border border-ctf-primary/30 rounded-lg px-4 py-3 text-text-bright placeholder-text-secondary focus:outline-none focus:border-ctf-primary transition-colors resize-none"
+        ></textarea>
+        <div class="flex justify-between mt-2">
+            <span class="text-text-secondary text-xs">Short description for your profile</span>
+            <span id="bio-count" class="text-text-secondary text-xs">0/160</span>
+        </div>
+    </div>
+
+    <!-- Avatar Section -->
+    <div class="glass-card p-6">
+        <h2 class="text-lg font-semibold text-text-bright mb-4">Avatar</h2>
+        <p class="text-text-secondary text-sm mb-4">Choose an emoji avatar for your profile</p>
+        <div id="emoji-grid" class="grid grid-cols-10 gap-2">
+            <!-- Emoji buttons will be added by JS -->
+        </div>
+    </div>
+
+    <!-- Privacy Section -->
+    <div class="glass-card p-6">
+        <h2 class="text-lg font-semibold text-text-bright mb-4">Privacy</h2>
+        <div class="space-y-4">
+            <label class="flex items-center justify-between cursor-pointer">
+                <div>
+                    <span class="text-text-bright font-medium">Public Profile</span>
+                    <p class="text-text-secondary text-sm">Allow others to view your profile at /h/username</p>
+                </div>
+                <div class="relative">
+                    <input type="checkbox" id="is-public" class="sr-only peer">
+                    <div class="w-11 h-6 bg-portal-bg-tertiary rounded-full peer peer-checked:bg-ctf-primary transition-colors"></div>
+                    <div class="absolute left-0.5 top-0.5 bg-white w-5 h-5 rounded-full transition-transform peer-checked:translate-x-5"></div>
+                </div>
+            </label>
+            <label class="flex items-center justify-between cursor-pointer">
+                <div>
+                    <span class="text-text-bright font-medium">Show Activity</span>
+                    <p class="text-text-secondary text-sm">Display recent achievements on your public profile</p>
+                </div>
+                <div class="relative">
+                    <input type="checkbox" id="show-activity" class="sr-only peer">
+                    <div class="w-11 h-6 bg-portal-bg-tertiary rounded-full peer peer-checked:bg-ctf-primary transition-colors"></div>
+                    <div class="absolute left-0.5 top-0.5 bg-white w-5 h-5 rounded-full transition-transform peer-checked:translate-x-5"></div>
+                </div>
+            </label>
+        </div>
+    </div>
+
+    <!-- Featured Badges Section -->
+    <div class="glass-card p-6">
+        <h2 class="text-lg font-semibold text-text-bright mb-4">Featured Badges</h2>
+        <p class="text-text-secondary text-sm mb-4">Select up to 6 badges to showcase on your profile</p>
+        
+        <div id="earned-badges-list" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <!-- Badges will be loaded by JS -->
+        </div>
+        
+        <div id="no-badges-message" class="hidden text-center py-8">
+            <div class="text-4xl mb-2">🏅</div>
+            <p class="text-text-secondary">No badges earned yet. Complete challenges to earn badges!</p>
+            <a href="/ctf/challenges" class="inline-block mt-4 text-ctf-primary hover:underline">Browse Challenges →</a>
+        </div>
+    </div>
+
+    <!-- Save Button -->
+    <div class="flex justify-end gap-4">
+        <button id="save-btn" class="px-8 py-3 bg-gradient-to-r from-ctf-primary to-ctf-secondary text-white font-semibold rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            Save Changes
+        </button>
+    </div>
+
+    <!-- Save Status -->
+    <div id="save-status" class="hidden fixed bottom-6 right-6 px-6 py-3 rounded-lg shadow-lg">
+        <span id="save-success" class="hidden text-ctf-accent">✓ Changes saved</span>
+        <span id="save-error" class="hidden text-ctf-danger">✗ Failed to save</span>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .glow-cyan {
+        text-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+    }
+
+    .glass-card {
+        background: linear-gradient(135deg, var(--portal-bg-secondary, #151520), var(--portal-bg-tertiary, #1a1a2e));
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 16px;
+    }
+
+    .emoji-btn {
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        border-radius: 8px;
+        border: 2px solid transparent;
+        background: rgba(0, 0, 0, 0.2);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .emoji-btn:hover {
+        background: rgba(0, 212, 255, 0.1);
+        border-color: rgba(0, 212, 255, 0.3);
+    }
+
+    .emoji-btn.selected {
+        background: rgba(0, 212, 255, 0.2);
+        border-color: var(--ctf-primary);
+        box-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+    }
+
+    .badge-select-card {
+        position: relative;
+        padding: 12px;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 12px;
+        border: 2px solid transparent;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .badge-select-card:hover {
+        background: rgba(0, 212, 255, 0.05);
+        border-color: rgba(0, 212, 255, 0.2);
+    }
+
+    .badge-select-card.selected {
+        background: rgba(0, 212, 255, 0.1);
+        border-color: var(--ctf-primary);
+    }
+
+    .badge-select-card .check-mark {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--ctf-primary);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 12px;
+    }
+
+    .badge-select-card.selected .check-mark {
+        display: flex;
+    }
+
+    .badge-icon-small {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        margin: 0 auto 8px;
+    }
+
+    .rarity-common .badge-icon-small { background: linear-gradient(135deg, #374151, #1f2937); }
+    .rarity-rare .badge-icon-small { background: linear-gradient(135deg, #1e3a5f, #1e40af); box-shadow: 0 0 15px rgba(59, 130, 246, 0.3); }
+    .rarity-epic .badge-icon-small { background: linear-gradient(135deg, #4c1d95, #7c3aed); box-shadow: 0 0 15px rgba(168, 85, 247, 0.3); }
+    .rarity-legendary .badge-icon-small { background: linear-gradient(135deg, #78350f, #d97706); box-shadow: 0 0 20px rgba(245, 158, 11, 0.4); }
+
+    #save-status {
+        background: var(--portal-bg-secondary);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    // State
+    let profile = null;
+    let badges = [];
+    let selectedBadges = new Set();
+    let selectedEmoji = '🦊';
+    let usernameValid = false;
+    
+    // Emoji options
+    const emojis = [
+        '🦊', '🐺', '🦁', '🐯', '🐻', '🐼', '🐨', '🐸', '🐵', '🦄',
+        '🐲', '🦅', '🦇', '🦉', '🐙', '🦑', '🦀', '🐬', '🦈', '🐊',
+        '🤖', '👾', '👻', '💀', '🎭', '🎪', '🎯', '🎮', '🕹️', '💎',
+        '🔮', '🌙', '⭐', '🌟', '💫', '✨', '🔥', '⚡', '💥', '🌈'
+    ];
+    
+    // DOM elements
+    const loadingState = document.getElementById('loading-state');
+    const profileContent = document.getElementById('profile-content');
+    const usernameInput = document.getElementById('username-input');
+    const checkUsernameBtn = document.getElementById('check-username-btn');
+    const bioInput = document.getElementById('bio-input');
+    const bioCount = document.getElementById('bio-count');
+    const emojiGrid = document.getElementById('emoji-grid');
+    const isPublicCheckbox = document.getElementById('is-public');
+    const showActivityCheckbox = document.getElementById('show-activity');
+    const earnedBadgesList = document.getElementById('earned-badges-list');
+    const noBadgesMessage = document.getElementById('no-badges-message');
+    const saveBtn = document.getElementById('save-btn');
+    const viewPublicProfile = document.getElementById('view-public-profile');
+    
+    // Preview elements
+    const previewAvatar = document.getElementById('preview-avatar');
+    const previewUsername = document.getElementById('preview-username');
+    const previewNoUsername = document.getElementById('preview-no-username');
+    const previewBio = document.getElementById('preview-bio');
+    
+    // Status elements
+    const usernameStatus = document.getElementById('username-status');
+    const usernameAvailable = document.getElementById('username-available');
+    const usernameTaken = document.getElementById('username-taken');
+    const usernameInvalid = document.getElementById('username-invalid');
+    
+    // Initialize
+    await loadProfile();
+    await loadBadges();
+    renderEmojiGrid();
+    showContent();
+    
+    // Load profile data
+    async function loadProfile() {
+        try {
+            profile = await CTF.fetch('/profile');
+            populateForm();
+        } catch (error) {
+            console.error('Failed to load profile:', error);
+        }
+    }
+    
+    // Load badges
+    async function loadBadges() {
+        try {
+            badges = await CTF.fetch('/badges?earned_only=true');
+            renderBadges();
+        } catch (error) {
+            console.error('Failed to load badges:', error);
+        }
+    }
+    
+    // Populate form with existing data
+    function populateForm() {
+        if (!profile) return;
+        
+        usernameInput.value = profile.username || '';
+        bioInput.value = profile.bio || '';
+        bioCount.textContent = `${(profile.bio || '').length}/160`;
+        selectedEmoji = profile.avatar_emoji || '🦊';
+        isPublicCheckbox.checked = profile.is_public;
+        showActivityCheckbox.checked = profile.show_activity;
+        selectedBadges = new Set(profile.featured_badge_ids || []);
+        
+        updatePreview();
+        updatePublicProfileLink();
+    }
+    
+    // Render emoji grid
+    function renderEmojiGrid() {
+        emojiGrid.innerHTML = emojis.map(emoji => `
+            <button type="button" class="emoji-btn ${emoji === selectedEmoji ? 'selected' : ''}" data-emoji="${emoji}">
+                ${emoji}
+            </button>
+        `).join('');
+        
+        emojiGrid.addEventListener('click', (e) => {
+            const btn = e.target.closest('.emoji-btn');
+            if (!btn) return;
+            
+            document.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            selectedEmoji = btn.dataset.emoji;
+            updatePreview();
+        });
+    }
+    
+    // Render badges
+    function renderBadges() {
+        if (badges.length === 0) {
+            earnedBadgesList.classList.add('hidden');
+            noBadgesMessage.classList.remove('hidden');
+            return;
+        }
+        
+        earnedBadgesList.innerHTML = badges.map(badge => `
+            <div class="badge-select-card rarity-${badge.rarity} ${selectedBadges.has(badge.id) ? 'selected' : ''}" data-badge-id="${badge.id}">
+                <div class="check-mark">✓</div>
+                <div class="badge-icon-small">${getIconEmoji(badge.icon_url)}</div>
+                <div class="text-center">
+                    <div class="text-sm font-medium text-text-bright truncate">${escapeHtml(badge.title)}</div>
+                    <div class="text-xs text-text-secondary capitalize">${badge.rarity}</div>
+                </div>
+            </div>
+        `).join('');
+        
+        earnedBadgesList.addEventListener('click', (e) => {
+            const card = e.target.closest('.badge-select-card');
+            if (!card) return;
+            
+            const badgeId = card.dataset.badgeId;
+            
+            if (selectedBadges.has(badgeId)) {
+                selectedBadges.delete(badgeId);
+                card.classList.remove('selected');
+            } else if (selectedBadges.size < 6) {
+                selectedBadges.add(badgeId);
+                card.classList.add('selected');
+            }
+        });
+    }
+    
+    // Update preview
+    function updatePreview() {
+        previewAvatar.textContent = selectedEmoji;
+        
+        const username = usernameInput.value.trim();
+        if (username) {
+            previewUsername.textContent = `@${username}`;
+            previewUsername.classList.remove('hidden');
+            previewNoUsername.classList.add('hidden');
+        } else {
+            previewUsername.classList.add('hidden');
+            previewNoUsername.classList.remove('hidden');
+        }
+        
+        previewBio.textContent = bioInput.value || 'Your bio will appear here';
+    }
+    
+    // Update public profile link
+    function updatePublicProfileLink() {
+        if (profile && profile.username) {
+            viewPublicProfile.href = `/ctf/h/${profile.username}`;
+            viewPublicProfile.classList.remove('hidden');
+        }
+    }
+    
+    // Show content
+    function showContent() {
+        loadingState.classList.add('hidden');
+        profileContent.classList.remove('hidden');
+    }
+    
+    // Check username availability
+    async function checkUsername() {
+        const username = usernameInput.value.trim();
+        
+        usernameStatus.classList.add('hidden');
+        usernameAvailable.classList.add('hidden');
+        usernameTaken.classList.add('hidden');
+        usernameInvalid.classList.add('hidden');
+        
+        if (!username || username.length < 3) {
+            return;
+        }
+        
+        try {
+            const data = await CTF.fetch(`/profile/check-username/${encodeURIComponent(username)}`);
+            
+            usernameStatus.classList.remove('hidden');
+            
+            if (data.available) {
+                usernameAvailable.classList.remove('hidden');
+                usernameValid = true;
+            } else if (data.error && data.error.includes('taken')) {
+                usernameTaken.classList.remove('hidden');
+                usernameValid = false;
+            } else {
+                usernameInvalid.textContent = `⚠ ${data.error}`;
+                usernameInvalid.classList.remove('hidden');
+                usernameValid = false;
+            }
+        } catch (error) {
+            console.error('Failed to check username:', error);
+        }
+    }
+    
+    // Save profile
+    async function saveProfile() {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Saving...';
+        
+        try {
+            // Update main profile
+            const profileData = {
+                bio: bioInput.value || null,
+                avatar_emoji: selectedEmoji,
+                is_public: isPublicCheckbox.checked,
+                show_activity: showActivityCheckbox.checked,
+            };
+            
+            // Include username if changed
+            const newUsername = usernameInput.value.trim();
+            if (newUsername && newUsername !== profile?.username) {
+                profileData.username = newUsername;
+            }
+            
+            profile = await CTF.fetch('/profile', {
+                method: 'PUT',
+                body: JSON.stringify(profileData),
+            });
+            
+            // Update featured badges
+            try {
+                profile = await CTF.fetch('/profile/featured-badges', {
+                    method: 'PUT',
+                    body: JSON.stringify({ badge_ids: Array.from(selectedBadges) }),
+                });
+            } catch (badgeError) {
+                console.warn('Failed to update featured badges:', badgeError);
+            }
+            
+            updatePublicProfileLink();
+            showSaveStatus('success');
+        } catch (error) {
+            console.error('Failed to save:', error);
+            showSaveStatus('error', error.message);
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Save Changes';
+        }
+    }
+    
+    // Show save status
+    function showSaveStatus(status, message) {
+        const statusEl = document.getElementById('save-status');
+        const successEl = document.getElementById('save-success');
+        const errorEl = document.getElementById('save-error');
+        
+        successEl.classList.add('hidden');
+        errorEl.classList.add('hidden');
+        
+        if (status === 'success') {
+            successEl.classList.remove('hidden');
+        } else {
+            errorEl.textContent = `✗ ${message || 'Failed to save'}`;
+            errorEl.classList.remove('hidden');
+        }
+        
+        statusEl.classList.remove('hidden');
+        
+        setTimeout(() => {
+            statusEl.classList.add('hidden');
+        }, 3000);
+    }
+    
+    // Helper functions
+    function getIconEmoji(iconUrl) {
+        if (!iconUrl) return '🏅';
+        return '🏅';
+    }
+    
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+    
+    // Event listeners
+    checkUsernameBtn.addEventListener('click', checkUsername);
+    usernameInput.addEventListener('input', () => {
+        updatePreview();
+        usernameStatus.classList.add('hidden');
+    });
+    usernameInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            checkUsername();
+        }
+    });
+    
+    bioInput.addEventListener('input', () => {
+        bioCount.textContent = `${bioInput.value.length}/160`;
+        updatePreview();
+    });
+    
+    saveBtn.addEventListener('click', saveProfile);
+});
+</script>
+{% endblock %}

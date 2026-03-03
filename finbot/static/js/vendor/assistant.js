@@ -47,6 +47,17 @@ async function initAssistant() {
     });
 
     await syncHistory();
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const prefillPrompt = urlParams.get('prompt');
+    if (prefillPrompt && prefillPrompt.trim()) {
+        window.history.replaceState({}, '', window.location.pathname);
+        input.value = prefillPrompt.trim();
+        input.style.height = 'auto';
+        input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+        sendBtn.disabled = false;
+        sendMessage(prefillPrompt.trim());
+    }
 }
 
 async function syncHistory() {
@@ -209,7 +220,13 @@ async function sendMessage(text) {
 }
 
 async function clearHistory() {
-    if (!confirm('Clear all chat history?')) return;
+    const confirmed = await showConfirmModal({
+        title: 'Clear Chat History',
+        message: 'All chat messages will be permanently deleted. This action cannot be undone.',
+        confirmText: 'Clear History',
+        danger: true,
+    });
+    if (!confirmed) return;
 
     try {
         const csrfMeta = document.querySelector('meta[name="csrf-token"]');
