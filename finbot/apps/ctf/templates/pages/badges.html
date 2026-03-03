@@ -81,7 +81,7 @@
 
 <!-- Share Badge Modal -->
 <div id="share-badge-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div class="glass-card p-6 max-w-md w-full">
+    <div class="glass-card p-6 max-w-2xl w-full">
         <div class="flex items-center justify-between mb-4">
             <h3 class="text-lg font-semibold text-text-bright">Share Badge</h3>
             <button id="close-share-modal" class="text-text-secondary hover:text-text-bright">
@@ -91,11 +91,9 @@
             </button>
         </div>
         
-        <!-- Badge Preview -->
-        <div class="text-center mb-6 p-4 bg-portal-bg-primary rounded-xl">
-            <div id="share-badge-icon" class="text-4xl mb-2">🏅</div>
-            <div id="share-badge-title" class="font-semibold text-text-bright">Badge Title</div>
-            <div id="share-badge-rarity" class="text-sm text-ctf-primary capitalize">Rare</div>
+        <!-- Badge Card Preview -->
+        <div class="mb-6 rounded-xl overflow-hidden border border-ctf-primary/20">
+            <img id="share-badge-card" src="" alt="Badge Card" class="w-full h-auto">
         </div>
         
         <div class="space-y-4">
@@ -310,7 +308,22 @@
 
 {% block extra_js %}
 <script>
-document.addEventListener('DOMContentLoaded', loadBadges);
+// User profile data for sharing
+let userProfile = null;
+
+document.addEventListener('DOMContentLoaded', async () => {
+    // Load profile and badges in parallel
+    await Promise.all([loadUserProfile(), loadBadges()]);
+});
+
+async function loadUserProfile() {
+    try {
+        userProfile = await CTF.fetch('/profile');
+    } catch (error) {
+        // User may not have a profile yet, that's okay
+        userProfile = null;
+    }
+}
 
 async function loadBadges() {
     try {
@@ -400,13 +413,16 @@ function renderBadgeCard(badge, isEarned) {
     const secretRibbon = isEarned && badge.is_secret
         ? '<span class="secret-ribbon">Secret</span>'
         : '';
-    const shareBtn = isEarned
-        ? `<button class="share-badge-btn" onclick="openShareModal('${badge.id}', '${escapeHtml(badge.title)}', '${badge.rarity}')" title="Share">
+    
+    // Share button only shows if user has claimed a username
+    let shareBtn = '';
+    if (isEarned && userProfile && userProfile.username) {
+        shareBtn = `<button class="share-badge-btn" onclick="openShareModal('${badge.id}', '${escapeHtml(badge.title)}', '${badge.rarity}')" title="Share">
                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
                </svg>
-           </button>`
-        : '';
+           </button>`;
+    }
 
     return `
         <div class="badge-card ${earnedClass} ${secretClass} ${rarityClass}">
@@ -454,19 +470,27 @@ const shareBadgeLinkedin = document.getElementById('share-badge-linkedin');
 const copiedToast = document.getElementById('copied-toast');
 
 function openShareModal(badgeId, badgeTitle, badgeRarity) {
+    if (!userProfile || !userProfile.username) {
+        alert('Please claim a username in Profile Settings to share badges.');
+        return;
+    }
+    
     const baseUrl = window.location.origin;
-    const shareUrl = `${baseUrl}/ctf/share/badge/${badgeId}/card.png`;
-    const pageUrl = window.location.href;
+    const username = userProfile.username;
     
-    // Update modal content
-    document.getElementById('share-badge-title').textContent = badgeTitle;
-    document.getElementById('share-badge-rarity').textContent = badgeRarity;
-    shareBadgeUrl.value = pageUrl;
-    
-    // Update social links
-    const shareText = `I earned the "${badgeTitle}" badge on FinBot CTF! #OWASPGenAISecurityProject #OWASPFinBotCTF`;
-    shareBadgeTwitter.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(pageUrl)}`;
-    shareBadgeLinkedin.href = `https://www.linkedin.com/shareArticle?mini=true&url=${encodeURIComponent(pageUrl)}&title=${encodeURIComponent(badgeTitle + ' - FinBot CTF Badge')}&summary=${encodeURIComponent('I earned this badge on FinBot CTF!')}`;
+    // Use user-specific card URL (proves ownership)
+    const cardUrl = `${baseUrl}/ctf/share/badge/${username}/${badgeId}/card.png`;
+    // Share URL is the user's public profile
+    const profileUrl = `${baseUrl}/h/${username}`;
+
+    // Update modal content - show personalized card image
+    document.getElementById('share-badge-card').src = cardUrl + '?t=' + Date.now();
+    shareBadgeUrl.value = profileUrl;
+
+    // Update social links - point to public profile
+    const shareText = `I earned the "${badgeTitle}" badge on FinBot CTF! Check out my profile: #OWASPGenAISecurityProject #OWASPFinBotCTF`;
+    shareBadgeTwitter.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(profileUrl)}`;
+    shareBadgeLinkedin.href = `https://www.linkedin.com/shareArticle?mini=true&url=${encodeURIComponent(profileUrl)}&title=${encodeURIComponent('@' + username + ' earned ' + badgeTitle + ' - FinBot CTF')}&summary=${encodeURIComponent('Check out my hacker profile on FinBot CTF!')}`;
     
     shareModal.classList.remove('hidden');
 }

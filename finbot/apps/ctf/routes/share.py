@@ -369,112 +369,379 @@ async def get_badge_card(
     if not badge:
         raise HTTPException(status_code=404, detail="Badge not found")
 
-    # Generate badge share card
+    # Generate badge share card with achievement/trophy vibe
     try:
         from PIL import Image, ImageDraw
     except ImportError as exc:
         raise HTTPException(status_code=500, detail="Image generation not available") from exc
 
     width, height = 1200, 630
-    img = Image.new("RGB", (width, height), (10, 10, 15))
+    img = Image.new("RGB", (width, height), (5, 5, 10))
     draw = ImageDraw.Draw(img)
-
-    # Draw gradient background
-    for y in range(height):
-        r = 8 + int(y * 0.015)
-        g = 8 + int(y * 0.02)
-        b = 12 + int(y * 0.025)
-        draw.line([(0, y), (width, y)], fill=(r, g, b))
 
     # Rarity colors (RGB tuples)
     rarity_colors = {
-        "common": (55, 65, 81),
+        "common": (100, 116, 139),
         "rare": (59, 130, 246),
         "epic": (168, 85, 247),
-        "legendary": (245, 158, 11),
+        "legendary": (251, 191, 36),
     }
-    color = rarity_colors.get(badge.rarity, (55, 65, 81))
+    color = rarity_colors.get(badge.rarity, (100, 116, 139))
 
-    # Add rarity-based accent glow
-    if badge.rarity == "legendary":
-        for i in range(150):
-            alpha = int((1 - i / 150) * 20)
-            draw.ellipse([width // 2 - 200 - i, 100 - i, width // 2 + 200 + i, 340 + i], fill=(alpha, int(alpha * 0.6), 0))
-    elif badge.rarity == "epic":
-        for i in range(150):
-            alpha = int((1 - i / 150) * 20)
-            draw.ellipse([width // 2 - 200 - i, 100 - i, width // 2 + 200 + i, 340 + i], fill=(int(alpha * 0.6), alpha // 4, alpha))
-    elif badge.rarity == "rare":
-        for i in range(150):
-            alpha = int((1 - i / 150) * 20)
-            draw.ellipse([width // 2 - 200 - i, 100 - i, width // 2 + 200 + i, 340 + i], fill=(0, int(alpha * 0.4), alpha))
+    # Draw dramatic radial gradient from center
+    center_x, center_y = width // 2, 260
+    for r in range(400, 0, -1):
+        progress = r / 400
+        fill_color = (
+            5 + int(color[0] * 0.03 * (1 - progress)),
+            5 + int(color[1] * 0.03 * (1 - progress)),
+            10 + int(color[2] * 0.04 * (1 - progress)),
+        )
+        draw.ellipse(
+            [center_x - r, center_y - r, center_x + r, center_y + r],
+            fill=fill_color,
+        )
 
-    # Draw decorative grid pattern (subtle)
-    for x in range(0, width, 50):
-        draw.line([(x, 0), (x, height)], fill=(20, 20, 25), width=1)
-    for y in range(0, height, 50):
-        draw.line([(0, y), (width, y)], fill=(20, 20, 25), width=1)
+    # Add light rays emanating from badge (for rare+)
+    if badge.rarity in ("rare", "epic", "legendary"):
+        import math
+        num_rays = 12 if badge.rarity == "legendary" else 8
+        for i in range(num_rays):
+            angle = (2 * math.pi * i) / num_rays
+            ray_length = 350 if badge.rarity == "legendary" else 280
+            x1 = center_x + int(100 * math.cos(angle))
+            y1 = center_y + int(100 * math.sin(angle))
+            x2 = center_x + int(ray_length * math.cos(angle))
+            y2 = center_y + int(ray_length * math.sin(angle))
+            ray_color = (color[0] // 8, color[1] // 8, color[2] // 8)
+            draw.line([(x1, y1), (x2, y2)], fill=ray_color, width=3)
+
+    # Subtle diagonal lines pattern
+    for i in range(-height, width + height, 30):
+        draw.line([(i, 0), (i + height, height)], fill=(15, 15, 20), width=1)
 
     # Load fonts
-    font_xl = _get_font(56, bold=True)
-    font_large = _get_font(44, bold=True)
+    font_xl = _get_font(72, bold=True)
+    font_large = _get_font(48, bold=True)
     font_medium = _get_font(28)
     font_small = _get_font(20)
+    font_header = _get_font(18, bold=True)
 
-    # Try to load and paste FinBot logo
+    # "BADGE UNLOCKED" banner at top
+    banner_text = "ACHIEVEMENT UNLOCKED"
+    try:
+        banner_bbox = draw.textbbox((0, 0), banner_text, font=font_header)
+        banner_width = banner_bbox[2] - banner_bbox[0]
+        # Draw banner background
+        draw.rounded_rectangle(
+            [(width - banner_width) // 2 - 25, 30, (width + banner_width) // 2 + 25, 65],
+            radius=6,
+            fill=(color[0] // 5, color[1] // 5, color[2] // 5),
+            outline=color,
+        )
+        draw.text(
+            ((width - banner_width) // 2, 38),
+            banner_text,
+            font=font_header,
+            fill=color,
+        )
+    except (OSError, IOError, TypeError):
+        pass
+
+    # Large glowing badge circle
+    # Outer glow rings
+    for r in range(140, 100, -2):
+        alpha = int((140 - r) * 2)
+        glow_color = (
+            min(255, color[0] // 4 + alpha // 2),
+            min(255, color[1] // 4 + alpha // 2),
+            min(255, color[2] // 4 + alpha // 2),
+        )
+        draw.ellipse(
+            [center_x - r, center_y - r, center_x + r, center_y + r],
+            outline=glow_color,
+            width=2,
+        )
+
+    # Main badge ring with thick border
+    draw.ellipse(
+        [center_x - 95, center_y - 95, center_x + 95, center_y + 95],
+        fill=color,
+    )
+    draw.ellipse(
+        [center_x - 85, center_y - 85, center_x + 85, center_y + 85],
+        fill=(15, 15, 22),
+    )
+
+    # Inner accent ring
+    draw.ellipse(
+        [center_x - 75, center_y - 75, center_x + 75, center_y + 75],
+        outline=(color[0] // 2, color[1] // 2, color[2] // 2),
+        width=2,
+    )
+
+    # Badge icon (first letter) - large and prominent
+    icon_text = badge.title[0].upper() if badge.title else "?"
+    try:
+        bbox = draw.textbbox((0, 0), icon_text, font=font_xl)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        draw.text(
+            (center_x - text_width // 2, center_y - text_height // 2 - 8),
+            icon_text,
+            font=font_xl,
+            fill=color,
+        )
+    except (OSError, IOError):
+        pass
+
+    # Badge title - large and centered below badge
+    try:
+        title_bbox = draw.textbbox((0, 0), badge.title, font=font_large)
+        title_width = title_bbox[2] - title_bbox[0]
+        draw.text(
+            ((width - title_width) // 2, 400),
+            badge.title,
+            font=font_large,
+            fill=(255, 255, 255),
+        )
+    except (OSError, IOError):
+        pass
+
+    # Rarity and points in styled pills
+    rarity_label = badge.rarity.upper()
+    points_label = f"+{badge.points} PTS"
+    
+    try:
+        # Rarity pill (left)
+        rarity_bbox = draw.textbbox((0, 0), rarity_label, font=font_medium)
+        rarity_w = rarity_bbox[2] - rarity_bbox[0]
+        rarity_x = width // 2 - rarity_w - 50
+        draw.rounded_rectangle(
+            [rarity_x - 20, 465, rarity_x + rarity_w + 20, 505],
+            radius=10,
+            fill=(color[0] // 6, color[1] // 6, color[2] // 6),
+            outline=color,
+        )
+        draw.text((rarity_x, 472), rarity_label, font=font_medium, fill=color)
+        
+        # Points pill (right)
+        points_bbox = draw.textbbox((0, 0), points_label, font=font_medium)
+        points_w = points_bbox[2] - points_bbox[0]
+        points_x = width // 2 + 30
+        draw.rounded_rectangle(
+            [points_x - 20, 465, points_x + points_w + 20, 505],
+            radius=10,
+            fill=(20, 25, 20),
+            outline=(6, 255, 165),
+        )
+        draw.text((points_x, 472), points_label, font=font_medium, fill=(6, 255, 165))
+    except (OSError, IOError, TypeError):
+        pass
+
+    # Description below pills (strictly one-liner, ~45 chars max)
+    if badge.description:
+        desc = (badge.description[:45] + "...") if len(badge.description) > 45 else badge.description
+        try:
+            desc_bbox = draw.textbbox((0, 0), desc, font=font_small)
+            desc_width = desc_bbox[2] - desc_bbox[0]
+            draw.text(
+                ((width - desc_width) // 2, 525),
+                desc,
+                font=font_small,
+                fill=(120, 130, 150),
+            )
+        except (OSError, IOError):
+            pass
+
+    # Bottom bar with branding
+    draw.rectangle([0, height - 70, width, height], fill=(10, 10, 15))
+    draw.line([(0, height - 70), (width, height - 70)], fill=color, width=2)
+
+    # FinBot logo in footer
     logo_path = Path(__file__).parent.parent.parent.parent / "static" / "images" / "common" / "finbot.png"
     try:
         logo = Image.open(logo_path).convert("RGBA")
-        logo = logo.resize((60, 60), Image.Resampling.LANCZOS)
-        mask = Image.new("L", (60, 60), 0)
+        logo = logo.resize((40, 40), Image.Resampling.LANCZOS)
+        mask = Image.new("L", (40, 40), 0)
         mask_draw = ImageDraw.Draw(mask)
-        mask_draw.ellipse([0, 0, 60, 60], fill=255)
-        draw.ellipse([35, 25, 105, 95], fill=(0, 212, 255))
-        draw.ellipse([40, 30, 100, 90], fill=(15, 15, 20))
-        img.paste(logo, (40, 30), mask)
+        mask_draw.ellipse([0, 0, 40, 40], fill=255)
+        img.paste(logo, (60, height - 55), mask)
     except (OSError, IOError):
-        draw.ellipse([40, 30, 100, 90], fill=(0, 212, 255))
+        draw.ellipse([60, height - 55, 100, height - 15], fill=(0, 212, 255))
 
-    # Draw "FINBOT CTF" header
-    draw.text((120, 40), "FINBOT", font=font_medium, fill=(255, 255, 255))
-    draw.text((235, 47), "CTF", font=_get_font(16), fill=(0, 212, 255))
-    draw.text((120, 72), "OWASP ASI", font=_get_font(14), fill=(100, 116, 139))
+    # Branding text with better spacing
+    draw.text((115, height - 50), "FINBOT", font=font_medium, fill=(255, 255, 255))
+    draw.text((220, height - 44), "CTF", font=_get_font(16), fill=(0, 212, 255))
 
-    # Draw badge circle with glow effect
-    center_x, center_y = width // 2, 230
+    # URL centered
+    url_text = "owasp-finbot-ctf.org"
+    try:
+        url_bbox = draw.textbbox((0, 0), url_text, font=font_small)
+        url_width = url_bbox[2] - url_bbox[0]
+        draw.text(((width - url_width) // 2, height - 45), url_text, font=font_small, fill=(100, 110, 130))
+    except (OSError, IOError):
+        draw.text((width // 2 - 80, height - 45), url_text, font=font_small, fill=(100, 110, 130))
+    
+    # Hashtag on right
+    hashtags = "#OWASPFinBotCTF"
+    try:
+        bbox = draw.textbbox((0, 0), hashtags, font=font_small)
+        tag_width = bbox[2] - bbox[0]
+        draw.text((width - 70 - tag_width, height - 45), hashtags, font=font_small, fill=color)
+    except (OSError, IOError):
+        pass
 
-    # Outer glow for rare+ badges
-    if badge.rarity in ("rare", "epic", "legendary"):
-        for r in range(120, 100, -2):
-            alpha = int((120 - r) * 3)
-            glow_color = (
-                min(255, color[0] + alpha),
-                min(255, color[1] + alpha),
-                min(255, color[2] + alpha),
-            )
-            draw.ellipse(
-                [center_x - r, center_y - r, center_x + r, center_y + r],
-                outline=glow_color,
-                width=2,
-            )
+    buffer = BytesIO()
+    img.save(buffer, format="PNG", optimize=True)
+    buffer.seek(0)
 
-    # Main badge circle with gradient ring
-    for r_val in range(95, 85, -1):
-        progress = (95 - r_val) / 10
-        ring_color = (
-            int(color[0] * (1 - progress * 0.3)),
-            int(color[1] * (1 - progress * 0.3)),
-            int(color[2] * (1 - progress * 0.3)),
+    return Response(
+        content=buffer.getvalue(),
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
+
+
+@router.get("/badge/{username}/{badge_id}/card.png")
+async def get_user_badge_card(
+    username: str,
+    badge_id: str,
+    db: Session = Depends(get_db),
+):
+    """Generate a personalized badge card showing the user earned this badge"""
+    # Look up user by username
+    profile_repo = UserProfileRepository(db)
+    profile, user = profile_repo.get_public_profile_with_user(username)
+    
+    if not profile or not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Verify user actually earned this badge (query directly without session context)
+    user_badge = (
+        db.query(UserBadge)
+        .filter(
+            UserBadge.namespace == user.namespace,
+            UserBadge.user_id == profile.user_id,
+            UserBadge.badge_id == badge_id,
+        )
+        .first()
+    )
+    
+    if not user_badge:
+        raise HTTPException(status_code=404, detail="User has not earned this badge")
+    
+    # Get badge details
+    badge_repo = BadgeRepository(db)
+    badge = badge_repo.get_badge(badge_id)
+    
+    if not badge:
+        raise HTTPException(status_code=404, detail="Badge not found")
+    
+    # Generate personalized badge card
+    try:
+        from PIL import Image, ImageDraw
+    except ImportError as exc:
+        raise HTTPException(status_code=500, detail="Image generation not available") from exc
+
+    width, height = 1200, 630
+    img = Image.new("RGB", (width, height), (5, 5, 10))
+    draw = ImageDraw.Draw(img)
+
+    # Rarity colors
+    rarity_colors = {
+        "common": (100, 116, 139),
+        "rare": (59, 130, 246),
+        "epic": (168, 85, 247),
+        "legendary": (251, 191, 36),
+    }
+    color = rarity_colors.get(badge.rarity, (100, 116, 139))
+
+    # Draw dramatic radial gradient from center
+    center_x, center_y = width // 2, 240
+    for r in range(400, 0, -1):
+        progress = r / 400
+        fill_color = (
+            5 + int(color[0] * 0.03 * (1 - progress)),
+            5 + int(color[1] * 0.03 * (1 - progress)),
+            10 + int(color[2] * 0.04 * (1 - progress)),
         )
         draw.ellipse(
-            [center_x - r_val, center_y - r_val, center_x + r_val, center_y + r_val],
-            outline=ring_color,
-            width=1,
+            [center_x - r, center_y - r, center_x + r, center_y + r],
+            fill=fill_color,
         )
-    
+
+    # Add light rays for rare+ badges
+    if badge.rarity in ("rare", "epic", "legendary"):
+        import math
+        num_rays = 12 if badge.rarity == "legendary" else 8
+        for i in range(num_rays):
+            angle = (2 * math.pi * i) / num_rays
+            ray_length = 350 if badge.rarity == "legendary" else 280
+            x1 = center_x + int(100 * math.cos(angle))
+            y1 = center_y + int(100 * math.sin(angle))
+            x2 = center_x + int(ray_length * math.cos(angle))
+            y2 = center_y + int(ray_length * math.sin(angle))
+            ray_color = (color[0] // 8, color[1] // 8, color[2] // 8)
+            draw.line([(x1, y1), (x2, y2)], fill=ray_color, width=3)
+
+    # Diagonal lines pattern
+    for i in range(-height, width + height, 30):
+        draw.line([(i, 0), (i + height, height)], fill=(15, 15, 20), width=1)
+
+    # Load fonts
+    font_xl = _get_font(72, bold=True)
+    font_large = _get_font(48, bold=True)
+    font_medium = _get_font(28)
+    font_header = _get_font(18, bold=True)
+
+    # "ACHIEVEMENT UNLOCKED" banner
+    banner_text = "ACHIEVEMENT UNLOCKED"
+    try:
+        banner_bbox = draw.textbbox((0, 0), banner_text, font=font_header)
+        banner_width = banner_bbox[2] - banner_bbox[0]
+        draw.rounded_rectangle(
+            [(width - banner_width) // 2 - 25, 30, (width + banner_width) // 2 + 25, 65],
+            radius=6,
+            fill=(color[0] // 5, color[1] // 5, color[2] // 5),
+            outline=color,
+        )
+        draw.text(
+            ((width - banner_width) // 2, 38),
+            banner_text,
+            font=font_header,
+            fill=color,
+        )
+    except (OSError, IOError, TypeError):
+        pass
+
+    # Badge circle with glow
+    for r in range(140, 100, -2):
+        alpha = int((140 - r) * 2)
+        glow_color = (
+            min(255, color[0] // 4 + alpha // 2),
+            min(255, color[1] // 4 + alpha // 2),
+            min(255, color[2] // 4 + alpha // 2),
+        )
+        draw.ellipse(
+            [center_x - r, center_y - r, center_x + r, center_y + r],
+            outline=glow_color,
+            width=2,
+        )
+
+    # Main badge ring
     draw.ellipse(
-        [center_x - 80, center_y - 80, center_x + 80, center_y + 80],
-        fill=(21, 21, 32),
+        [center_x - 95, center_y - 95, center_x + 95, center_y + 95],
+        fill=color,
+    )
+    draw.ellipse(
+        [center_x - 85, center_y - 85, center_x + 85, center_y + 85],
+        fill=(15, 15, 22),
+    )
+    draw.ellipse(
+        [center_x - 75, center_y - 75, center_x + 75, center_y + 75],
+        outline=(color[0] // 2, color[1] // 2, color[2] // 2),
+        width=2,
     )
 
     # Badge icon (first letter)
@@ -484,7 +751,7 @@ async def get_badge_card(
         text_width = bbox[2] - bbox[0]
         text_height = bbox[3] - bbox[1]
         draw.text(
-            (center_x - text_width // 2, center_y - text_height // 2 - 5),
+            (center_x - text_width // 2, center_y - text_height // 2 - 8),
             icon_text,
             font=font_xl,
             fill=color,
@@ -497,7 +764,7 @@ async def get_badge_card(
         title_bbox = draw.textbbox((0, 0), badge.title, font=font_large)
         title_width = title_bbox[2] - title_bbox[0]
         draw.text(
-            ((width - title_width) // 2, 370),
+            ((width - title_width) // 2, 385),
             badge.title,
             font=font_large,
             fill=(255, 255, 255),
@@ -505,54 +772,61 @@ async def get_badge_card(
     except (OSError, IOError):
         pass
 
-    # Rarity badge with background
-    rarity_text = f"{badge.rarity.upper()} · {badge.points} pts"
+    # Rarity and points pills
+    rarity_label = badge.rarity.upper()
+    points_label = f"+{badge.points} PTS"
+    
     try:
-        rarity_bbox = draw.textbbox((0, 0), rarity_text, font=font_medium)
-        rarity_width = rarity_bbox[2] - rarity_bbox[0]
-        rarity_x = (width - rarity_width) // 2
+        rarity_bbox = draw.textbbox((0, 0), rarity_label, font=font_medium)
+        rarity_w = rarity_bbox[2] - rarity_bbox[0]
+        rarity_x = width // 2 - rarity_w - 50
         draw.rounded_rectangle(
-            [rarity_x - 15, 425, rarity_x + rarity_width + 15, 465],
-            radius=8,
+            [rarity_x - 20, 450, rarity_x + rarity_w + 20, 490],
+            radius=10,
             fill=(color[0] // 6, color[1] // 6, color[2] // 6),
             outline=color,
         )
-        draw.text(
-            (rarity_x, 430),
-            rarity_text,
-            font=font_medium,
-            fill=color,
+        draw.text((rarity_x, 457), rarity_label, font=font_medium, fill=color)
+        
+        points_bbox = draw.textbbox((0, 0), points_label, font=font_medium)
+        points_w = points_bbox[2] - points_bbox[0]
+        points_x = width // 2 + 30
+        draw.rounded_rectangle(
+            [points_x - 20, 450, points_x + points_w + 20, 490],
+            radius=10,
+            fill=(20, 25, 20),
+            outline=(6, 255, 165),
         )
+        draw.text((points_x, 457), points_label, font=font_medium, fill=(6, 255, 165))
     except (OSError, IOError, TypeError):
         pass
 
-    # Description
-    if badge.description:
-        desc = (badge.description[:70] + "...") if len(badge.description) > 70 else badge.description
-        try:
-            desc_bbox = draw.textbbox((0, 0), desc, font=font_small)
-            desc_width = desc_bbox[2] - desc_bbox[0]
-            draw.text(
-                ((width - desc_width) // 2, 490),
-                desc,
-                font=font_small,
-                fill=(148, 163, 184),
-            )
-        except (OSError, IOError):
-            pass
+    # Bottom bar with branding and "Earned by" text
+    draw.rectangle([0, height - 80, width, height], fill=(10, 10, 15))
+    draw.line([(0, height - 80), (width, height - 80)], fill=color, width=2)
 
-    # Footer line
-    draw.line([(60, 550), (width - 60, 550)], fill=(40, 40, 50), width=1)
-
-    # Footer text
-    draw.text((60, 570), "owasp-finbot-ctf.org", font=font_small, fill=(80, 80, 100))
-
-    # Hashtags
-    hashtags = "#OWASPGenAISecurityProject"
+    # "Earned by @username" - prominent on left
+    earned_text = f"Earned by @{username}"
     try:
-        bbox = draw.textbbox((0, 0), hashtags, font=font_small)
-        tag_width = bbox[2] - bbox[0]
-        draw.text((width - 60 - tag_width, 570), hashtags, font=font_small, fill=color)
+        draw.text((60, height - 55), earned_text, font=font_medium, fill=(0, 212, 255))
+    except (OSError, IOError):
+        pass
+
+    # FinBot logo + CTF branding on right
+    logo_path = Path(__file__).parent.parent.parent.parent / "static" / "images" / "common" / "finbot.png"
+    try:
+        logo = Image.open(logo_path).convert("RGBA")
+        logo = logo.resize((45, 45), Image.Resampling.LANCZOS)
+        mask = Image.new("L", (45, 45), 0)
+        mask_draw = ImageDraw.Draw(mask)
+        mask_draw.ellipse([0, 0, 45, 45], fill=255)
+        img.paste(logo, (width - 295, height - 62), mask)
+    except (OSError, IOError):
+        draw.ellipse([width - 295, height - 62, width - 250, height - 17], fill=(0, 212, 255))
+
+    try:
+        draw.text((width - 240, height - 55), "FINBOT", font=font_medium, fill=(255, 255, 255))
+        draw.text((width - 125, height - 50), "CTF", font=_get_font(16), fill=(0, 212, 255))
     except (OSError, IOError):
         pass
 
@@ -563,5 +837,5 @@ async def get_badge_card(
     return Response(
         content=buffer.getvalue(),
         media_type="image/png",
-        headers={"Cache-Control": "public, max-age=3600"},
+        headers={"Cache-Control": "public, max-age=300"},
     )
