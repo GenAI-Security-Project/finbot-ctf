@@ -4,7 +4,8 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 from finbot.core.auth.session import SessionContext
-from finbot.tools.data.invoice import VALID_INVOICE_STATUSES, update_invoice_status
+from finbot.core.data.models import VALID_INVOICE_STATUSES
+from finbot.tools.data.invoice import update_invoice_status
 
 
 @pytest.mark.asyncio
@@ -41,11 +42,6 @@ async def test_update_invoice_status_accepts_valid_statuses():
     mock_invoice = MagicMock()
     mock_invoice.status = "submitted"
     mock_invoice.agent_notes = "Previous notes"
-    mock_invoice.to_dict.return_value = {
-        "id": 1,
-        "status": "processing",
-        "agent_notes": "Updated notes"
-    }
     
     with patch("finbot.tools.data.invoice.get_db") as mock_get_db, \
          patch("finbot.tools.data.invoice.InvoiceRepository") as mock_repo_class:
@@ -63,6 +59,13 @@ async def test_update_invoice_status_accepts_valid_statuses():
             # Reset mock for each iteration
             mock_repo.update_invoice.reset_mock()
             mock_invoice.status = "submitted"  # Reset to initial state
+            
+            # Set mock to return the status being tested
+            mock_invoice.to_dict.return_value = {
+                "id": 1,
+                "status": valid_status,
+                "agent_notes": f"Testing {valid_status}"
+            }
             
             result = await update_invoice_status(
                 invoice_id=1,
@@ -97,13 +100,19 @@ async def test_update_invoice_status_rejects_similar_invalid_statuses():
         "pending",  # sounds valid but isn't
     ]
     
-    for invalid_status in invalid_statuses:
-        with pytest.raises(ValueError) as exc_info:
-            await update_invoice_status(
-                invoice_id=1,
-                status=invalid_status,
-                agent_notes="test",
-                session_context=mock_session
-            )
+    # Verify fail-fast: database should never be accessed for invalid input
+    with patch("finbot.tools.data.invoice.get_db") as mock_get_db:
+        for invalid_status in invalid_statuses:
+            with pytest.raises(ValueError) as exc_info:
+                await update_invoice_status(
+                    invoice_id=1,
+                    status=invalid_status,
+                    agent_notes="test",
+                    session_context=mock_session
+                )
+            
+            assert "Invalid invoice status" in str(exc_info.value)
         
-        assert "Invalid invoice status" in str(exc_info.value)
+        # Ensure get_db was never called for any invalid status
+        mock_get_db.assert_not_called()
+

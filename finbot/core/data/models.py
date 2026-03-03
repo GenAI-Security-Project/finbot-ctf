@@ -252,6 +252,10 @@ class Vendor(Base):
         return f"<Vendor(id='{self.id}', company_name='{self.company_name}', namespace='{self.namespace}')>"
 
 
+# Valid invoice status values - single source of truth
+VALID_INVOICE_STATUSES = ("submitted", "processing", "approved", "rejected", "paid")
+
+
 class Invoice(Base):
     """Invoice Model"""
 

@@ -5,12 +5,10 @@ from typing import Any
 
 from finbot.core.auth.session import SessionContext
 from finbot.core.data.database import get_db
+from finbot.core.data.models import VALID_INVOICE_STATUSES
 from finbot.core.data.repositories import InvoiceRepository
 
 logger = logging.getLogger(__name__)
-
-# Valid invoice statuses per finbot.core.data.models.Invoice
-VALID_INVOICE_STATUSES = ("submitted", "processing", "approved", "rejected", "paid")
 
 
 async def get_invoice_details(
@@ -45,19 +43,19 @@ async def update_invoice_status(
         agent_notes: The reason behind the update
         session_context: The session context
     """
+    # Validate status against allowed values before any processing or logging
+    if status not in VALID_INVOICE_STATUSES:
+        raise ValueError(
+            f"Invalid invoice status: '{status}'. "
+            f"Must be one of: {', '.join(VALID_INVOICE_STATUSES)}"
+        )
+    
     logger.info(
         "Updating invoice status for invoice_id: %s to status: %s. Agent notes: %s",
         invoice_id,
         status,
         agent_notes,
     )
-
-    # Validate status against allowed values
-    if status not in VALID_INVOICE_STATUSES:
-        raise ValueError(
-            f"Invalid invoice status: '{status}'. "
-            f"Must be one of: {', '.join(VALID_INVOICE_STATUSES)}"
-        )
 
     db = next(get_db())
     invoice_repo = InvoiceRepository(db, session_context)
