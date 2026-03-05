@@ -132,7 +132,7 @@ class ContextualLLMClient:
             "call_count": self.call_count,
             "metadata": event_metadata or {},
             # User input tracking for CTF detection
-            "user_message":  user_message_info["user_message"],
+            "user_message": user_message_info["user_message"],
             "user_message_length": user_message_info["user_message_length"],
             "message_roles": user_message_info["message_roles"],
         }
