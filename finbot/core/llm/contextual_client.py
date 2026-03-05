@@ -8,14 +8,12 @@ import secrets
 import uuid
 from datetime import UTC, datetime
 from typing import Any
-import hashlib
 from finbot.core.auth.session import SessionContext
 from finbot.core.data.models import LLMRequest, LLMResponse
 from finbot.core.llm.client import LLMClient, get_llm_client
 from finbot.core.messaging import event_bus
 
 logger = logging.getLogger(__name__)
-
 
 class ContextualLLMClient:
     """
@@ -113,7 +111,6 @@ class ContextualLLMClient:
         self.call_count += 1
 
         resolved_model = request.model or self.llm_client.default_model
-        resolved_provider = request.provider or self.llm_client.provider
         resolved_temperature = (
             self.llm_client.default_temperature 
             if request.temperature is None 
@@ -121,8 +118,6 @@ class ContextualLLMClient:
         )
         user_message_info = self._extract_user_message_info(request.messages)
         
-        raw_input = user_message_info["user_message"] or ""
-
         event_data = {
             "interaction_id": interaction_id,
             "model": resolved_model,
@@ -130,6 +125,7 @@ class ContextualLLMClient:
             "message_count": len(request.messages or []),
             "agent_name": self.agent_name,
             "call_count": self.call_count,
+            "request_dump": request.model_dump_json(),
             "metadata": event_metadata or {},
             # User input tracking for CTF detection
             "user_message": user_message_info["user_message"],
@@ -165,9 +161,11 @@ class ContextualLLMClient:
                     **event_data,
                     "duration_ms": duration_ms,
                     "response_length": len(response.content or ""),
+                    "response_content": response.content,
                     "has_tool_calls": bool(response.tool_calls),
                     "tool_call_count": len(response.tool_calls or []),
                     "success": True,
+                    "response_dump": response.model_dump_json(),
                 },
                 session_context=self.session_context,
                 workflow_id=self.workflow_id,
