@@ -957,7 +957,7 @@ class LLMRequest(BaseModel):
     - LLM requests are normalized to this internal representation to facilitate multiple providers
     """
 
-    messages: list[dict[str, str]] | None = None  # input conversation messages
+    messages: list[dict[str, Any]] | None = None  # input conversation messages
     model: str | None = None  # model to use for the request
     temperature: float | None = None  # temperature to use
     tools: list[dict[str, Any]] | None = None
@@ -977,4 +977,4 @@ class LLMResponse(BaseModel):
     success: bool = True  # whether the request was successful
     provider: LLMProviderType | None = None
     metadata: dict | None = None  # provider specific metadata
-    messages: list[dict[str, str]] | None = None  # message history
+    messages: list[dict[str, Any]] | None = None  # message history

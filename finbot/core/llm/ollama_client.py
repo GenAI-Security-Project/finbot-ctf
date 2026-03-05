@@ -1,7 +1,7 @@
 """Ollama Client with configurable model"""
 
 import logging
-import json
+from typing import Any
 
 from ollama import AsyncClient
 from finbot.core.llm.utils import retry
@@ -35,9 +35,11 @@ class OllamaClient:
         """
         try:
             model = request.model or self.default_model
-            temperature = request.temperature or self.default_temperature
-            messages = request.messages or []
-            tool_calls = []
+            temperature = self.default_temperature if request.temperature is None else request.temperature
+            
+            # Create a shallow copy to avoid mutating request.messages.
+            # Prevents history leakage when the same LLMRequest object is reused.
+            messages: list[dict[str,Any]] = list(request.messages) if request.messages else []
 
             options = {
                 "temperature": temperature,
@@ -60,29 +62,51 @@ class OllamaClient:
 
             response = await self._client.chat(**chat_params)
 
+            # Guard against invalid SDK responses.
+            # Prevents AttributeError and centralizes response validation.
+            if not response or not getattr(response, "message", None):
+                logger.warning("Invalid Ollama response: message is None")
+                return LLMResponse(
+                    content="",
+                    provider="ollama",
+                    success=False,
+                    messages=messages,
+                    tool_calls=[],
+                )
+
             message = response.message
-            content = message.content or ""
+
+            # Normalize content to str
+            content = message.content if isinstance(message.content, str) else ""
 
             
-            if message.tool_calls:
-                for idx, tc in enumerate(message.tool_calls):
+            tool_calls: list[dict[str,Any]] = []
+            raw_tool_calls = getattr(message, "tool_calls", [])
+            if isinstance(raw_tool_calls, list) and raw_tool_calls:
+                for idx, tc in enumerate(raw_tool_calls):
+                    function = getattr(tc, "function", None)
                     tool_calls.append(
                         {
-                            "name": tc.function.name,
+                            "name": getattr(function, "name", None),
                             "call_id": f"ollama_call_{idx}",
-                            "arguments": tc.function.arguments,
+                            "arguments": getattr(function, "arguments", None),
                         }
                     )
+            elif raw_tool_calls:
+                logger.warning(
+                    "Unexpected tool_calls type from Ollama: %s — ignoring",
+                    type(raw_tool_calls),
+                )
 
-            # Append assistant turn to conversation history
-            history_entry = {
+            # tool_calls normalized to plain dicts — JSON-serializable
+            history_entry: dict[str,Any] = {
                 "role": "assistant",
                 "content": content,
             }
-            if message.tool_calls:
-                history_entry["tool_calls"] = message.tool_calls
+            if tool_calls:
+                history_entry["tool_calls"] = tool_calls
 
-            messages.append(history_entry)
+            messages = messages + [history_entry]
 
             metadata = {
                 "total_duration": getattr(response, "total_duration", None),
@@ -90,6 +114,8 @@ class OllamaClient:
                 "eval_count": getattr(response, "eval_count", None),
             }
 
+           
+        
             return LLMResponse(
                 content=content,
                 provider="ollama",

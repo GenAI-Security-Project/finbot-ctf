@@ -28,7 +28,8 @@ class MockLLMClient:
             return LLMResponse(
                 content="This is a mock LLM response",
                 provider="mock",
+                tool_calls=[],
             )
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error("Mock LLM chat failed: %s", e)
-            raise Exception(f"Mock LLM chat failed: {e}") from e  # pylint: disable=broad-exception-raised
+            raise 
