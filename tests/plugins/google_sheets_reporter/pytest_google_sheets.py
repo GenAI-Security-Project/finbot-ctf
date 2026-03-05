@@ -23,6 +23,7 @@ SECURE_SESSION_MANAGEMENT = 'Secure Session Management'
 BASE_AGENT_FRAMEWORK = 'Base Agent Framework'
 SPECIALIZED_BUSINESS_AGENT = 'Specialized Business Agent'
 EVENT_DRIVEN_CTF = 'Event Driven CTF'
+MULTI_DB_SUPPORT = 'Multi-DB-Support'
 
 
 class GoogleSheetsReporter:
@@ -64,6 +65,61 @@ class GoogleSheetsReporter:
 
         # Get existing worksheet — never create a new tab
         self.worksheet = sheet.worksheet(self.worksheet_name)
+        
+        # Get credentials from environment
+        credentials_json = os.getenv('GOOGLE_CREDENTIALS')
+        sheets_id = os.getenv('GOOGLE_SHEETS_ID')
+
+        if not sheets_id:
+            raise ValueError("GOOGLE_SHEETS_ID not set in environment")
+
+        # Authenticate with Google Sheets
+        scopes = ['https://www.googleapis.com/auth/spreadsheets']
+        if credentials_json:
+            # JSON string from environment (CI/CD)
+            credentials = Credentials.from_service_account_info(json.loads(credentials_json), scopes=scopes)
+        else:
+            # Credentials file (local development)
+            credentials_file = os.getenv('GOOGLE_CREDENTIALS_FILE', 'google-credentials.json')
+            credentials = Credentials.from_service_account_file(credentials_file, scopes=scopes)
+        self.client = gspread.authorize(credentials)
+        self.sheet = self.client.open_by_key(sheets_id)
+        
+        # Get existing worksheet — never create a new tab
+        self.worksheet = self.sheet.worksheet(worksheet_name)
+    
+    def _initialize_headers(self):
+        """Set up column headers if worksheet is new."""
+        if self.worksheet_name == "Summary":
+            headers = [
+                'Timestamp',
+                'Test Suite',
+                'Total Tests',
+                'Passed',
+                'Failed',
+                'Pass Rate',
+                'Duration (s)',
+                'Test Details',
+                'Statuses'
+            ]
+        else:
+            # Standard test case headers - NOW INCLUDES COLUMNS K, L, M
+            headers = [
+                'US ID',
+                'Dependency',
+                'Creator',
+                'Claimed by',
+                'Title',
+                'Description',
+                'Steps',
+                'Expected Results',
+                'Actual Results',
+                'Placeholder J',
+                'Automation Status',
+                'Automation Notes',
+                'Last Run'
+            ]
+        self.worksheet.append_row(headers)
     
     def record_result(self, test_code: str, test_name: str, status: str, duration: float, message: str = ""):
         """Record a single test result."""
@@ -85,6 +141,25 @@ class GoogleSheetsReporter:
             for i, cell_value in enumerate(col_a):
                 if cell_value and query.strip().lower() in str(cell_value).strip().lower():
                     return i + 1
+        """Return 1-indexed row number in col_a matching test_code or test_name, or None.
+
+        test_code uses exact match to avoid 'BA-1' matching 'BA-10'.
+        test_name falls back to substring match since it has no fixed format.
+        """
+        # Exact match on test_code (skip header row at index 0)
+        if test_code:
+            code = test_code.strip().lower()
+            for i, cell_value in enumerate(col_a[1:], start=2):
+                if cell_value and str(cell_value).strip().lower() == code:
+                    return i
+
+        # Substring match on test_name as fallback (skip header row)
+        if test_name:
+            name = test_name.strip().lower()
+            for i, cell_value in enumerate(col_a[1:], start=2):
+                if cell_value and name in str(cell_value).strip().lower():
+                    return i
+
         return None
 
     def save_results(self):
@@ -147,7 +222,7 @@ class GoogleSheetsReporter:
         self._ensure_connected()
         total_tests = len(results)
         passed_tests = sum(1 for r in results if r['status'] == 'PASSED')
-        failed_tests = total_tests - passed_tests
+        failed_tests = sum(1 for r in results if r['status'] == 'FAILED')
         pass_rate = (passed_tests / total_tests * 100) if total_tests > 0 else 0
         total_duration = sum(float(r['duration']) for r in results)
 
@@ -158,16 +233,17 @@ class GoogleSheetsReporter:
 
         statuses_str = "\n".join([r['status'] for r in results])
 
+        
         summary_row = [
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),  # Timestamp
-            total_tests,                                    # Total Tests
-            passed_tests,                                   # Passed
-            failed_tests,                                   # Failed
-            f"{pass_rate:.1f}%",                           # Pass Rate
-            f"{total_duration:.2f}",                        # Duration
-            worksheet_name,                                 # Test Suite
-            test_names,                                     # Test Details
-            statuses_str                                    # Statuses
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            worksheet_name,
+            total_tests,
+            passed_tests,
+            failed_tests,
+            f"{pass_rate:.1f}%",
+            f"{total_duration:.2f}",
+            test_names,
+            statuses_str
         ]
         self.worksheet.insert_row(summary_row, index=2)
 
@@ -183,6 +259,13 @@ def extract_iso_code(docstring: Optional[str]) -> Optional[str]:
 def detect_test_category(item) -> str:
     """Detect which Google Sheets worksheet a test belongs to based on file path."""
     fspath = str(item.fspath).lower()
+    full_path = str(item.fspath).lower()
+
+    # Strip everything before the first 'tests/' component so that keywords
+    # in the project root directory (e.g. 'finbot-ctf' matching 'ctf') are
+    # not falsely matched.
+    tests_idx = full_path.find('/tests/')
+    fspath = full_path[tests_idx:] if tests_idx >= 0 else full_path
 
     # LLM-specific detection — checked first to avoid matching generic keywords
     if '/llm/' in fspath or '\\llm\\' in fspath:
@@ -196,6 +279,9 @@ def detect_test_category(item) -> str:
             return LLM_OPENAI_CLIENT
         if 'test_contextual_client' in fspath:
             return LLM_CONTEXTUAL_CLIENT
+        # Unrecognized LLM test file — default to LLM_CLIENT rather than
+        # silently routing to ISOLATION_TESTING_FRAMEWORK
+        return LLM_CLIENT
 
     path_worksheet_map = {
         'complete_user_isolation': COMPLETE_USER_ISOLATION,
@@ -212,6 +298,7 @@ def detect_test_category(item) -> str:
         'browser': 'Cross_Browser',
         'e2e': 'End-To-End',
         'integration': 'End-To-End',
+        'database': MULTI_DB_SUPPORT,
         'google_sheets': 'Google Sheets Integration',
         'summary': 'Summary'
     }
@@ -233,6 +320,7 @@ class GoogleSheetsPlugin:
         BASE_AGENT_FRAMEWORK,
         SPECIALIZED_BUSINESS_AGENT,
         EVENT_DRIVEN_CTF,
+        MULTI_DB_SUPPORT,
         LLM_CLIENT,
         LLM_MOCK_CLIENT,
         LLM_OLLAMA_CLIENT,
@@ -256,6 +344,7 @@ class GoogleSheetsPlugin:
                 BASE_AGENT_FRAMEWORK,
                 SPECIALIZED_BUSINESS_AGENT,
                 EVENT_DRIVEN_CTF,
+                MULTI_DB_SUPPORT,
                 'Security Penetration Testing',
                 'CTF Challenge Validation',
                 'Performance Testing',
@@ -398,7 +487,7 @@ class GoogleSheetsPlugin:
         print("=" * 90)
 
 
-# Module-level pytest hooks (NOT indented)
+# Module-level pytest hooks 
 def pytest_addoption(parser):
     """Add custom command-line options."""
     parser.addoption(
