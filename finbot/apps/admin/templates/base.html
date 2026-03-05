@@ -79,7 +79,7 @@
 
     <div class="flex h-screen bg-portal-bg-primary">
         <!-- Sidebar -->
-        <aside class="w-72 flex-shrink-0 flex flex-col border-r border-admin-primary/20 bg-portal-bg-secondary/50">
+        <aside id="sidebar" class="ai-sidebar w-80 flex-shrink-0 flex flex-col border-r border-admin-primary/20 bg-portal-bg-secondary/50">
             <!-- Logo -->
             <div class="p-6 border-b border-admin-primary/20">
                 <div class="flex items-center space-x-3">
@@ -225,6 +225,14 @@
     <script src="{{ url_for('static', path='js/common/agreement-check.js') }}"></script>
     <script src="{{ url_for('static', path='js/common/utils.js') }}"></script>
     <script src="{{ url_for('static', path='js/common/api.js') }}"></script>
+    <script>
+        // Initialize mobile sidebar on all pages
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof sidebar !== 'undefined' && sidebar.init) {
+                sidebar.init('#sidebar');
+            }
+        });
+    </script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

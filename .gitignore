@@ -73,3 +73,6 @@ coverage.xml
 .hypothesis/google-credentials.json
 google-credentials.json
 SECURITY_BUGS_REPORT.md
+
+
+.node_modules/ 

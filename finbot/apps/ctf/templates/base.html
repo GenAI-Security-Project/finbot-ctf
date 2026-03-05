@@ -73,7 +73,7 @@
 
     <div class="flex h-screen relative z-10">
         <!-- CTF Sidebar (matching vendor portal style) -->
-        <aside id="sidebar" class="ai-sidebar w-80 flex-shrink-0 flex flex-col">
+        <aside id="sidebar" class="ai-sidebar w-80 flex-shrink-0 flex flex-col border-r border-ctf-primary/20 bg-portal-bg-secondary/50">
             <!-- Logo Section -->
             <div class="p-6 border-b border-ctf-primary/20">
                 <div class="flex items-center space-x-3">
@@ -232,6 +232,14 @@
     <script src="{{ url_for('static', path='js/common/utils.js') }}"></script>
     <script src="{{ url_for('static', path='js/common/api.js') }}"></script>
     <script src="{{ url_for('static', path='js/ctf/api.js') }}"></script>
+    <script>
+        // Initialize mobile sidebar on all pages
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof sidebar !== 'undefined' && sidebar.init) {
+                sidebar.init('#sidebar');
+            }
+        });
+    </script>
     {% block extra_js %}{% endblock %}
 
     {% block analytics %}{% endblock %}

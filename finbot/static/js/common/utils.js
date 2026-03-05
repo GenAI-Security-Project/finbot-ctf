@@ -622,7 +622,7 @@ const sidebar = {
         const toggleButton = document.createElement('button');
         toggleButton.className = className;
         toggleButton.innerHTML = `
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
             </svg>
         `;
@@ -657,6 +657,11 @@ const sidebar = {
         if (this.state.overlay) {
             this.state.overlay.classList.add('show');
         }
+
+        // Hide toggle button when sidebar is open
+        if (this.state.toggleButton) {
+            this.state.toggleButton.classList.add('hidden');
+        }
     },
 
     close(sidebarSelector = '#sidebar') {
@@ -668,6 +673,11 @@ const sidebar = {
 
         if (this.state.overlay) {
             this.state.overlay.classList.remove('show');
+        }
+
+        // Show toggle button when sidebar is closed
+        if (this.state.toggleButton) {
+            this.state.toggleButton.classList.remove('hidden');
         }
     }
 };
