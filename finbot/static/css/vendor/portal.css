@@ -542,6 +542,147 @@ body {
 }
 
 /* ==========================================================================
+   CUSTOM SELECT COMPONENT
+   ========================================================================== */
+
+.custom-select {
+    position: relative;
+}
+
+.custom-select-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
+}
+
+.custom-select-trigger:focus-visible {
+    outline: none;
+    border-color: var(--vendor-primary);
+    box-shadow:
+        0 0 0 3px rgba(0, 212, 255, 0.1),
+        var(--glow-primary);
+    background: var(--portal-surface-hover);
+}
+
+.custom-select-display {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.custom-select-placeholder {
+    color: var(--text-secondary);
+}
+
+.custom-select-arrow {
+    color: var(--text-secondary);
+    flex-shrink: 0;
+    margin-left: 8px;
+    transition: transform 0.2s ease;
+}
+
+.custom-select-open .custom-select-arrow {
+    transform: rotate(180deg);
+    color: var(--vendor-primary);
+}
+
+/* Dropdown panel */
+.custom-select-listbox {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(100% + 4px);
+    background: var(--portal-bg-secondary);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    border-radius: 12px;
+    backdrop-filter: blur(20px);
+    box-shadow:
+        0 12px 40px rgba(0, 0, 0, 0.5),
+        var(--glow-primary);
+    max-height: 260px;
+    overflow-y: auto;
+    z-index: 50;
+    padding: 6px;
+    list-style: none;
+    margin: 0;
+    animation: customSelectOpen 0.15s ease-out;
+}
+
+.custom-select-listbox[hidden] {
+    display: none;
+}
+
+.custom-select-listbox-above {
+    top: auto;
+    bottom: calc(100% + 4px);
+}
+
+/* Options */
+.custom-select-listbox li[role="option"] {
+    padding: 10px 16px;
+    color: var(--text-primary);
+    cursor: pointer;
+    border-radius: 8px;
+    transition: background-color 0.15s ease, color 0.15s ease;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.custom-select-listbox li[role="option"].custom-select-option-active {
+    background: rgba(0, 212, 255, 0.08);
+    color: var(--text-bright);
+}
+
+.custom-select-listbox li[role="option"].custom-select-option-selected {
+    color: var(--vendor-primary);
+    font-weight: 500;
+}
+
+.custom-select-listbox li[role="option"].custom-select-option-selected::after {
+    content: '\2713';
+    float: right;
+    color: var(--vendor-primary);
+}
+
+/* Error state propagation via :has() */
+.vendor-form-group:has(input[type="hidden"].border-red-400) .custom-select-trigger {
+    border-color: #f87171 !important;
+    box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.15);
+}
+
+.vendor-form-group:has(input[type="hidden"].border-red-400) .custom-select-trigger:focus-visible {
+    border-color: #f87171 !important;
+    box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.25);
+}
+
+/* Scrollbar */
+.custom-select-listbox::-webkit-scrollbar {
+    width: 6px;
+}
+
+.custom-select-listbox::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.custom-select-listbox::-webkit-scrollbar-thumb {
+    background: rgba(0, 212, 255, 0.3);
+    border-radius: 3px;
+}
+
+.custom-select-listbox {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 212, 255, 0.3) transparent;
+}
+
+@keyframes customSelectOpen {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ==========================================================================
    CHAT INTERFACE
    ========================================================================== */
 

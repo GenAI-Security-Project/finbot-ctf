@@ -143,39 +143,64 @@
 
                                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div class="vendor-form-group">
-                                                <label for="vendor_category" class="vendor-label">Category *</label>
-                                                <select id="vendor_category" name="vendor_category" required class="vendor-input">
-                                                    <option value="">Select Category</option>
-                                                    <option value="talent">Talent (Actors, Directors, Writers, Musicians)</option>
-                                                    <option value="crew">Crew (Camera, Sound, Lighting, Grip, Production Assistants)</option>
-                                                    <option value="equipment_rental">Equipment Rental (Cameras, Lenses, Lighting, Sound Gear)</option>
-                                                    <option value="location_scouting">Location Scouting &amp; Management</option>
-                                                    <option value="catering">Catering &amp; Craft Services</option>
-                                                    <option value="vfx_animation">Visual Effects (VFX) &amp; Animation</option>
-                                                    <option value="post_production">Post-Production Services (Editing, Color Grading, Sound Mixing)</option>
-                                                    <option value="legal_consulting">Legal &amp; Business Consulting</option>
-                                                    <option value="transportation">Transportation &amp; Logistics</option>
-                                                    <option value="set_design">Set Design &amp; Construction</option>
-                                                    <option value="costume_wardrobe">Costume &amp; Wardrobe</option>
-                                                    <option value="security">Security Services</option>
-                                                    <option value="other_specialized">Other Specialized Services</option>
-                                                </select>
+                                                <label id="vendor_category_label" class="vendor-label">Category *</label>
+                                                <input type="hidden" id="vendor_category" name="vendor_category" required>
+                                                <div class="custom-select" data-for="vendor_category" data-placeholder="Select Category">
+                                                    <div class="custom-select-trigger vendor-input"
+                                                         role="combobox" aria-expanded="false" aria-haspopup="listbox"
+                                                         aria-controls="vendor_category_listbox"
+                                                         aria-labelledby="vendor_category_label"
+                                                         tabindex="0">
+                                                        <span class="custom-select-display custom-select-placeholder">Select Category</span>
+                                                        <svg class="custom-select-arrow" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                                                            <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                                        </svg>
+                                                    </div>
+                                                    <ul id="vendor_category_listbox" class="custom-select-listbox"
+                                                        role="listbox" aria-labelledby="vendor_category_label" hidden>
+                                                        <li role="option" id="vc_opt_talent" data-value="talent" aria-selected="false">Talent (Actors, Directors, Writers, Musicians)</li>
+                                                        <li role="option" id="vc_opt_crew" data-value="crew" aria-selected="false">Crew (Camera, Sound, Lighting, Grip, Production Assistants)</li>
+                                                        <li role="option" id="vc_opt_equipment_rental" data-value="equipment_rental" aria-selected="false">Equipment Rental (Cameras, Lenses, Lighting, Sound Gear)</li>
+                                                        <li role="option" id="vc_opt_location_scouting" data-value="location_scouting" aria-selected="false">Location Scouting &amp; Management</li>
+                                                        <li role="option" id="vc_opt_catering" data-value="catering" aria-selected="false">Catering &amp; Craft Services</li>
+                                                        <li role="option" id="vc_opt_vfx_animation" data-value="vfx_animation" aria-selected="false">Visual Effects (VFX) &amp; Animation</li>
+                                                        <li role="option" id="vc_opt_post_production" data-value="post_production" aria-selected="false">Post-Production Services (Editing, Color Grading, Sound Mixing)</li>
+                                                        <li role="option" id="vc_opt_legal_consulting" data-value="legal_consulting" aria-selected="false">Legal &amp; Business Consulting</li>
+                                                        <li role="option" id="vc_opt_transportation" data-value="transportation" aria-selected="false">Transportation &amp; Logistics</li>
+                                                        <li role="option" id="vc_opt_set_design" data-value="set_design" aria-selected="false">Set Design &amp; Construction</li>
+                                                        <li role="option" id="vc_opt_costume_wardrobe" data-value="costume_wardrobe" aria-selected="false">Costume &amp; Wardrobe</li>
+                                                        <li role="option" id="vc_opt_security" data-value="security" aria-selected="false">Security Services</li>
+                                                        <li role="option" id="vc_opt_other_specialized" data-value="other_specialized" aria-selected="false">Other Specialized Services</li>
+                                                    </ul>
+                                                </div>
                                             </div>
                                             <div class="vendor-form-group">
-                                                <label for="industry" class="vendor-label">Industry *</label>
-                                                <select id="industry" name="industry" required class="vendor-input">
-                                                    <option value="">Select Industry</option>
-                                                    <option value="film">Film, TV & Entertainment</option>
-                                                    <option value="fintech">FinTech</option>
-                                                    <option value="banking">Banking</option>
-                                                    <option value="insurance">Insurance</option>
-                                                    <option value="payments">Payments</option>
-                                                    <option value="lending">Lending</option>
-                                                    <option value="wealth">Wealth Management</option>
-                                                    <option value="other">Other</option>
-                                                </select>
+                                                <label id="industry_label" class="vendor-label">Industry *</label>
+                                                <input type="hidden" id="industry" name="industry" required>
+                                                <div class="custom-select" data-for="industry" data-placeholder="Select Industry">
+                                                    <div class="custom-select-trigger vendor-input"
+                                                         role="combobox" aria-expanded="false" aria-haspopup="listbox"
+                                                         aria-controls="industry_listbox"
+                                                         aria-labelledby="industry_label"
+                                                         tabindex="0">
+                                                        <span class="custom-select-display custom-select-placeholder">Select Industry</span>
+                                                        <svg class="custom-select-arrow" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                                                            <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                                        </svg>
+                                                    </div>
+                                                    <ul id="industry_listbox" class="custom-select-listbox"
+                                                        role="listbox" aria-labelledby="industry_label" hidden>
+                                                        <li role="option" id="ind_opt_film" data-value="film" aria-selected="false">Film, TV &amp; Entertainment</li>
+                                                        <li role="option" id="ind_opt_fintech" data-value="fintech" aria-selected="false">FinTech</li>
+                                                        <li role="option" id="ind_opt_banking" data-value="banking" aria-selected="false">Banking</li>
+                                                        <li role="option" id="ind_opt_insurance" data-value="insurance" aria-selected="false">Insurance</li>
+                                                        <li role="option" id="ind_opt_payments" data-value="payments" aria-selected="false">Payments</li>
+                                                        <li role="option" id="ind_opt_lending" data-value="lending" aria-selected="false">Lending</li>
+                                                        <li role="option" id="ind_opt_wealth" data-value="wealth" aria-selected="false">Wealth Management</li>
+                                                        <li role="option" id="ind_opt_other" data-value="other" aria-selected="false">Other</li>
+                                                    </ul>
+                                                </div>
                                             </div>
-
                                         </div>
                                     </div>
 
@@ -287,6 +312,7 @@
     <script src="{{ url_for('static', path='js/common/utils.js') }}"></script>
     <script src="{{ url_for('static', path='js/common/api.js') }}"></script>
     <script src="{{ url_for('static', path='js/vendor/main.js') }}"></script>
+    <script src="{{ url_for('static', path='js/common/custom-select.js') }}"></script>
     <script src="{{ url_for('static', path='js/vendor/onboarding.js') }}"></script>
     <script src="{{ url_for('static', path='js/vendor/ctf_sidecar.js') }}"></script>
 

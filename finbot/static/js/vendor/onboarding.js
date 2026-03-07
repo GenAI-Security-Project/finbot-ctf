@@ -4,6 +4,8 @@
  */
 
 ready(function() {
+    CustomSelect.initAll();
+
     const onboardingForm = document.getElementById('onboardingForm');
     const submitButton = onboardingForm.querySelector('button[type="submit"]');
 
