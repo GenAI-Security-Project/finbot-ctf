@@ -531,6 +531,16 @@ body {
     color: var(--text-secondary);
 }
 
+.vendor-input.border-red-400 {
+    border-color: #f87171 !important;
+    box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.15);
+}
+
+.vendor-input.border-red-400:focus {
+    border-color: #f87171 !important;
+    box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.25);
+}
+
 /* ==========================================================================
    CHAT INTERFACE
    ========================================================================== */

@@ -162,6 +162,7 @@ function initializeInvoiceModal() {
         const dueDate = new Date();
         dueDate.setDate(dueDate.getDate() + 30);
         dueDateInput.value = formatDateForInput(dueDate);
+        dueDateInput.addEventListener('change', () => clearFieldError(dueDateInput));
     }
 }
 
@@ -256,7 +257,9 @@ async function handleInvoiceSubmit(e) {
             invoice_date: formData.get('invoice_date'),
             due_date: formData.get('due_date')
         };
-
+        
+        clearAllFieldErrors(form);
+        
         // Validate data
         if (!invoiceData.invoice_number || !invoiceData.amount || !invoiceData.description) {
             hideLoading();
@@ -268,6 +271,16 @@ async function handleInvoiceSubmit(e) {
             hideLoading();
             showNotification('Amount must be greater than zero', 'error');
             return;
+        }
+
+        if (invoiceData.invoice_date && invoiceData.due_date) {
+            if (new Date(invoiceData.due_date) < new Date(invoiceData.invoice_date)) {
+                hideLoading();
+                const dueDateField = document.getElementById('invoice-due-date');
+                showFieldError(dueDateField, 'Due date cannot be earlier than invoice date');
+                showNotification('Due date cannot be earlier than invoice date', 'error');
+                return;
+            }
         }
 
         let response;
@@ -296,6 +309,7 @@ async function handleInvoiceSubmit(e) {
         ]);
 
     } catch (error) {
+        hideLoading();
         console.error('Error saving invoice:', error);
 
         // Handle API errors
