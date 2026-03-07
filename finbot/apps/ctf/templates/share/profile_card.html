@@ -3,59 +3,84 @@
 <head>
 <meta charset="utf-8">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap');
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   body {
     width: 1200px;
     height: 630px;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: 'Inter', system-ui, sans-serif;
     overflow: hidden;
-    background: #0a0a0f;
+    background: #06060b;
     color: #fff;
+    -webkit-font-smoothing: antialiased;
   }
 
   .card {
     position: relative;
     width: 100%;
     height: 100%;
-    background:
-      linear-gradient(135deg, rgba(0, 212, 255, 0.06) 0%, transparent 40%),
-      linear-gradient(315deg, rgba(124, 58, 237, 0.05) 0%, transparent 40%),
-      linear-gradient(180deg, #08080c 0%, #0d0d14 100%);
     overflow: hidden;
   }
 
-  .grid-pattern {
+  /* Background layers */
+  .bg-base {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(160deg, #06060b 0%, #0c0c18 40%, #0a0a14 100%);
+  }
+
+  .bg-grid {
     position: absolute;
     inset: 0;
     background-image:
-      linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
-    background-size: 50px 50px;
+      linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px);
+    background-size: 40px 40px;
   }
 
-  .glow-tl {
+  .bg-glow-1 {
     position: absolute;
     top: -120px;
-    left: -120px;
-    width: 400px;
-    height: 400px;
+    left: -40px;
+    width: 460px;
+    height: 460px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(0, 212, 255, 0.10) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(0, 212, 255, 0.07) 0%, transparent 65%);
   }
 
-  .glow-br {
+  .bg-glow-2 {
     position: absolute;
-    bottom: -100px;
-    right: -100px;
-    width: 350px;
-    height: 350px;
+    bottom: -160px;
+    right: -40px;
+    width: 440px;
+    height: 440px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(124, 58, 237, 0.08) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(124, 58, 237, 0.06) 0%, transparent 65%);
   }
 
+  .bg-glow-3 {
+    position: absolute;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 800px;
+    height: 200px;
+    border-radius: 50%;
+    background: radial-gradient(ellipse, rgba(6, 255, 165, 0.018) 0%, transparent 70%);
+  }
+
+  .accent-line-top {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #00d4ff, #7c3aed, #06ffa5);
+  }
+
+  /* Layout */
   .content {
     position: relative;
     z-index: 1;
@@ -63,256 +88,425 @@
     height: 100%;
     display: flex;
     flex-direction: column;
-    padding: 0;
+    justify-content: space-between;
+    padding: 24px 44px;
   }
 
-  /* Header */
+  /* ── Header ── */
   .header {
     display: flex;
     align-items: center;
-    gap: 14px;
-    padding: 28px 48px 0;
-  }
-
-  .logo-ring {
-    width: 52px;
-    height: 52px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #00d4ff, #7c3aed);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    justify-content: space-between;
     flex-shrink: 0;
   }
 
-  .logo-inner {
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .finbot-logo {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
     overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: #111;
+    flex-shrink: 0;
   }
 
-  .logo-inner img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
+  .finbot-logo img { width: 100%; height: 100%; object-fit: cover; }
 
-  .header-text {
+  .brand-text {
     display: flex;
     flex-direction: column;
-  }
-
-  .header-brand {
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
+    align-items: flex-start;
   }
 
   .brand-name {
-    font-size: 20px;
-    font-weight: 700;
+    font-size: 18px;
+    font-weight: 800;
     letter-spacing: 0.5px;
-  }
-
-  .brand-ctf {
-    font-size: 13px;
-    font-weight: 600;
-    color: #00d4ff;
-    letter-spacing: 1px;
+    line-height: 1.1;
   }
 
   .brand-sub {
-    font-size: 11px;
+    font-size: 10px;
+    font-weight: 600;
     color: #64748b;
-    letter-spacing: 0.5px;
-    margin-top: 1px;
-  }
-
-  /* Main profile area */
-  .profile-section {
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
     display: flex;
     align-items: center;
-    gap: 36px;
-    padding: 32px 48px 0 70px;
-    flex: 1;
+    gap: 8px;
+    margin-top: 4px;
   }
 
-  .avatar-container {
-    position: relative;
+
+  .owasp-logo-container {
+    border-radius: 8px;
+    padding: 6px 12px;
+  }
+
+  .owasp-logo {
+    height: 36px;
+    display: block;
+  }
+
+  /* ── Identity row ── */
+  .identity-row {
+    display: flex;
+    align-items: center;
+    gap: 28px;
     flex-shrink: 0;
   }
 
+  .avatar-outer {
+    position: relative;
+    width: 110px;
+    height: 110px;
+    flex-shrink: 0;
+  }
+
+  .avatar-glow {
+    position: absolute;
+    inset: -14px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0, 212, 255, 0.14) 0%, transparent 70%);
+  }
+
   .avatar-ring {
-    width: 150px;
-    height: 150px;
+    position: relative;
+    width: 110px;
+    height: 110px;
     border-radius: 50%;
     background: linear-gradient(135deg, #00d4ff, #7c3aed);
-    padding: 4px;
+    padding: 3px;
   }
 
   .avatar-inner {
     width: 100%;
     height: 100%;
     border-radius: 50%;
-    background: #15151e;
+    background: #111119;
     display: flex;
     align-items: center;
     justify-content: center;
   }
 
   .avatar-letter {
-    font-size: 56px;
-    font-weight: 800;
-    background: linear-gradient(135deg, #00d4ff, #7c3aed);
+    font-size: 42px;
+    font-weight: 900;
+    background: linear-gradient(135deg, #00d4ff, #a78bfa);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     line-height: 1;
   }
 
-  .avatar-emoji {
-    font-size: 64px;
-    line-height: 1;
-  }
+  .avatar-emoji { font-size: 50px; line-height: 1; }
 
-  .profile-info {
+  .identity-info {
     flex: 1;
     min-width: 0;
   }
 
-  .username {
-    font-size: 40px;
-    font-weight: 800;
-    line-height: 1.1;
-    letter-spacing: -0.5px;
+  .identity-top {
+    display: flex;
+    align-items: center;
+    gap: 14px;
   }
 
-  .level-badge {
+  .username {
+    font-size: 34px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    line-height: 1.1;
+  }
+
+  .username span { color: #4a5568; font-weight: 600; }
+
+  .level-pill {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    margin-top: 10px;
-    padding: 6px 16px;
-    border-radius: 8px;
-    background: rgba(124, 58, 237, 0.15);
-    border: 1px solid rgba(124, 58, 237, 0.4);
+    padding: 4px 14px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, rgba(124, 58, 237, 0.18), rgba(0, 212, 255, 0.10));
+    border: 1px solid rgba(124, 58, 237, 0.30);
+    flex-shrink: 0;
   }
 
-  .level-text {
-    font-size: 16px;
-    font-weight: 600;
-    color: #a78bfa;
+  .level-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #a78bfa;
+    box-shadow: 0 0 6px rgba(167, 139, 250, 0.6);
   }
 
-  .bio {
-    margin-top: 12px;
-    font-size: 15px;
-    color: #94a3b8;
-    line-height: 1.4;
-    max-width: 580px;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  .level-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #c4b5fd;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
     white-space: nowrap;
   }
 
-  /* Stats bar */
-  .stats-bar {
-    margin: 0 40px;
-    padding: 20px 32px;
-    background: rgba(20, 20, 28, 0.9);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 14px;
-    display: flex;
-    justify-content: space-around;
-    backdrop-filter: blur(8px);
-  }
-
-  .stat-item {
-    text-align: center;
-    flex: 1;
-    position: relative;
-  }
-
-  .stat-item:not(:last-child)::after {
-    content: '';
-    position: absolute;
-    right: 0;
-    top: 4px;
-    bottom: 4px;
-    width: 1px;
-    background: rgba(255, 255, 255, 0.06);
-  }
-
-  .stat-value {
-    font-size: 32px;
-    font-weight: 800;
-    line-height: 1.2;
-  }
-
-  .stat-label {
-    font-size: 12px;
-    font-weight: 600;
+  .bio-text {
+    margin-top: 8px;
+    font-size: 14px;
     color: #64748b;
+    line-height: 1.5;
+  }
+
+  /* ── Stats section ── */
+  .stats-section {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    flex-shrink: 0;
+  }
+
+  /* Points hero + completion ring side by side */
+  .hero-row {
+    display: flex;
+    gap: 14px;
+  }
+
+  .hero-stat {
+    flex: 1;
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.05) 0%, rgba(124, 58, 237, 0.03) 100%);
+    border: 1px solid rgba(0, 212, 255, 0.10);
+    border-radius: 16px;
+    padding: 18px 28px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .hero-stat-left { display: flex; flex-direction: column; }
+
+  .hero-stat-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #4a5568;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 1.5px;
+  }
+
+  .hero-stat-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 46px;
+    font-weight: 700;
+    color: #00d4ff;
+    line-height: 1.15;
+    letter-spacing: -1px;
+    text-shadow: 0 0 30px rgba(0, 212, 255, 0.15);
+  }
+
+  /* Completion card */
+  .completion-card {
+    width: 200px;
+    flex-shrink: 0;
+    background: rgba(6, 255, 165, 0.03);
+    border: 1px solid rgba(6, 255, 165, 0.10);
+    border-radius: 16px;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .completion-ring-container {
+    position: relative;
+    width: 64px;
+    height: 64px;
+    flex-shrink: 0;
+  }
+
+  .completion-ring-bg { position: absolute; inset: 0; }
+  .completion-ring-bg circle { fill: none; stroke: rgba(255,255,255,0.04); stroke-width: 5; }
+
+  .completion-ring-fg { position: absolute; inset: 0; transform: rotate(-90deg); }
+  .completion-ring-fg circle { fill: none; stroke: url(#ring-gradient); stroke-width: 5; stroke-linecap: round; }
+
+  .completion-pct {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 15px;
+    font-weight: 700;
+    color: #06ffa5;
+  }
+
+  .completion-label {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .completion-label-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 22px;
+    font-weight: 700;
+    color: #06ffa5;
+    line-height: 1.1;
+  }
+
+  .completion-label-text {
+    font-size: 10px;
+    font-weight: 700;
+    color: #4a5568;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
     margin-top: 2px;
   }
 
-  .stat-cyan .stat-value { color: #00d4ff; }
-  .stat-purple .stat-value { color: #7c3aed; }
-  .stat-green .stat-value { color: #06ffa5; }
-  .stat-amber .stat-value { color: #ffb800; }
+  /* Secondary stats: 3-column */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
 
-  /* Footer */
+  .stat-card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 14px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 20px;
+    right: 20px;
+    height: 2px;
+    border-radius: 0 0 2px 2px;
+  }
+
+  .stat-card.sc-purple::before { background: #7c3aed; }
+  .stat-card.sc-amber::before  { background: #ffb800; }
+  .stat-card.sc-cyan::before   { background: #00d4ff; }
+
+  .stat-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .sc-purple .stat-icon { background: rgba(124, 58, 237, 0.12); }
+  .sc-amber  .stat-icon { background: rgba(255, 184, 0, 0.10); }
+  .sc-cyan   .stat-icon { background: rgba(0, 212, 255, 0.10); }
+
+  .stat-data { display: flex; flex-direction: column; }
+
+  .stat-card-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1.1;
+  }
+
+  .sc-purple .stat-card-value { color: #a78bfa; }
+  .sc-amber  .stat-card-value { color: #ffb800; }
+  .sc-cyan   .stat-card-value { color: #00d4ff; }
+
+  .stat-card-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: #4a5568;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    margin-top: 2px;
+  }
+
+  /* ── Footer ── */
   .footer {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 16px 48px 24px;
     border-top: 1px solid rgba(255, 255, 255, 0.04);
-    margin-top: auto;
+    padding-top: 12px;
+    flex-shrink: 0;
   }
 
   .footer-url {
-    font-size: 13px;
-    color: #475569;
-    letter-spacing: 0.3px;
-  }
-
-  .footer-hashtag {
-    font-size: 13px;
+    font-size: 12px;
     color: #00d4ff;
     font-weight: 600;
     letter-spacing: 0.3px;
+    opacity: 0.7;
+  }
+
+  .footer-tag {
+    font-size: 12px;
+    color: #00d4ff;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    opacity: 0.7;
   }
 </style>
 </head>
 <body>
 <div class="card">
-  <div class="grid-pattern"></div>
-  <div class="glow-tl"></div>
-  <div class="glow-br"></div>
+  <div class="bg-base"></div>
+  <div class="bg-grid"></div>
+  <div class="bg-glow-1"></div>
+  <div class="bg-glow-2"></div>
+  <div class="bg-glow-3"></div>
+  <div class="accent-line-top"></div>
+
+  <svg width="0" height="0" style="position:absolute">
+    <defs>
+      <linearGradient id="ring-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#00d4ff"/>
+        <stop offset="100%" stop-color="#06ffa5"/>
+      </linearGradient>
+    </defs>
+  </svg>
 
   <div class="content">
+
+    <!-- Header -->
     <div class="header">
-      <div class="logo-ring">
-        <div class="logo-inner">
+      <div class="header-left">
+        <div class="finbot-logo">
           {% if logo_b64 %}
             <img src="data:image/png;base64,{{ logo_b64 }}" alt="">
           {% endif %}
         </div>
-      </div>
-      <div class="header-text">
-        <div class="header-brand">
+        <div class="brand-text">
           <span class="brand-name">FINBOT</span>
-          <span class="brand-ctf">CTF</span>
+          <span class="brand-sub">OWASP ASI</span>
         </div>
-        <span class="brand-sub">OWASP ASI</span>
       </div>
+      {% if owasp_logo_b64 %}
+        <div class="owasp-logo-container">
+          <img class="owasp-logo" src="data:image/png;base64,{{ owasp_logo_b64 }}" alt="OWASP GenAI Security Project">
+        </div>
+      {% endif %}
     </div>
 
-    <div class="profile-section">
-      <div class="avatar-container">
+    <!-- Identity row -->
+    <div class="identity-row">
+      <div class="avatar-outer">
+        <div class="avatar-glow"></div>
         <div class="avatar-ring">
           <div class="avatar-inner">
             {% if avatar_emoji and avatar_emoji != username[0]|upper %}
@@ -323,38 +517,79 @@
           </div>
         </div>
       </div>
-      <div class="profile-info">
-        <div class="username">@{{ username }}</div>
-        <div class="level-badge">
-          <span class="level-text">Lvl {{ level }} · {{ level_title }}</span>
+      <div class="identity-info">
+        <div class="identity-top">
+          <div class="username"><span>@</span>{{ username }}</div>
+          <div class="level-pill">
+            <div class="level-dot"></div>
+            <span class="level-label">Lvl {{ level }} · {{ level_title }}</span>
+          </div>
         </div>
-        <div class="bio">{{ bio }}</div>
+        <div class="bio-text">{{ bio }}</div>
       </div>
     </div>
 
-    <div class="stats-bar">
-      <div class="stat-item stat-cyan">
-        <div class="stat-value">{{ "{:,}".format(total_points) }}</div>
-        <div class="stat-label">Points</div>
+    <!-- Stats -->
+    <div class="stats-section">
+      <div class="hero-row">
+        <div class="hero-stat">
+          <div class="hero-stat-left">
+            <span class="hero-stat-label">Total Points</span>
+            <span class="hero-stat-value">{{ "{:,}".format(total_points) }}</span>
+          </div>
+        </div>
+        <div class="completion-card">
+          <div class="completion-ring-container">
+            {% set circumference = 2 * 3.14159 * 27 %}
+            {% set dash = (completion_percentage / 100) * circumference %}
+            <svg class="completion-ring-bg" viewBox="0 0 64 64">
+              <circle cx="32" cy="32" r="27"/>
+            </svg>
+            <svg class="completion-ring-fg" viewBox="0 0 64 64">
+              <circle cx="32" cy="32" r="27"
+                stroke-dasharray="{{ dash }} {{ circumference }}"
+              />
+            </svg>
+            <span class="completion-pct">{{ completion_percentage }}%</span>
+          </div>
+          <div class="completion-label">
+            <span class="completion-label-value">{{ challenges_completed }}/{{ total_challenges }}</span>
+            <span class="completion-label-text">Complete</span>
+          </div>
+        </div>
       </div>
-      <div class="stat-item stat-purple">
-        <div class="stat-value">{{ badges_earned }}</div>
-        <div class="stat-label">Badges</div>
-      </div>
-      <div class="stat-item stat-green">
-        <div class="stat-value">{{ completion_percentage }}%</div>
-        <div class="stat-label">Complete</div>
-      </div>
-      <div class="stat-item stat-amber">
-        <div class="stat-value">{{ challenges_completed }}</div>
-        <div class="stat-label">Challenges</div>
+
+      <div class="stats-grid">
+        <div class="stat-card sc-purple">
+          <div class="stat-icon">🏅</div>
+          <div class="stat-data">
+            <div class="stat-card-value">{{ badges_earned }}</div>
+            <div class="stat-card-label">Badges Earned</div>
+          </div>
+        </div>
+        <div class="stat-card sc-amber">
+          <div class="stat-icon">⚡</div>
+          <div class="stat-data">
+            <div class="stat-card-value">{{ challenges_completed }}</div>
+            <div class="stat-card-label">Challenges</div>
+          </div>
+        </div>
+        <div class="stat-card sc-cyan">
+          <div class="stat-icon">🎯</div>
+          <div class="stat-data">
+            <div class="stat-card-value">Lvl {{ level }}</div>
+            <div class="stat-card-label">{{ level_title }}</div>
+          </div>
+        </div>
       </div>
     </div>
 
+    <!-- Footer -->
     <div class="footer">
-      <span class="footer-url">owasp-finbot-ctf.org</span>
-      <span class="footer-hashtag">#OWASPGenAISecurityProject</span>
+      <span class="footer-url">genai.owasp.org</span>
+      <span class="footer-tag">#OWASPGenAISecurityProject &nbsp;&nbsp;&nbsp; #OWASPFinBotCTF</span>
     </div>
+
   </div>
 </div>
 </body>

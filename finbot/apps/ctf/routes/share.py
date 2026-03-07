@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse, Response
 from jinja2 import Environment, FileSystemLoader
 from sqlalchemy.orm import Session
 
+from finbot.apps.ctf.rendering import get_renderer
 from finbot.config import settings
 from finbot.core.data.database import get_db
 from finbot.core.data.models import UserBadge, UserChallengeProgress
@@ -18,7 +19,6 @@ from finbot.core.data.repositories import (
     ChallengeRepository,
     UserProfileRepository,
 )
-from finbot.apps.ctf.rendering import get_renderer
 
 from .profile import calculate_level
 
@@ -45,21 +45,24 @@ RARITY_COLORS_HEX = {
     "legendary": "#fbbf24",
 }
 
-_logo_b64_cache: str | None = None
+_STATIC_IMAGES = (
+    Path(__file__).parent.parent.parent.parent / "static" / "images" / "common"
+)
+_b64_cache: dict[str, str] = {}
 
 
-def _get_logo_b64() -> str:
-    """Load the FinBot logo as a base64 string (cached after first call)."""
-    global _logo_b64_cache  # noqa: PLW0603
-    if _logo_b64_cache is not None:
-        return _logo_b64_cache
+def _get_image_b64(filename: str) -> str:
+    """Load a static image as a base64 string (cached after first call)."""
+    if filename in _b64_cache:
+        return _b64_cache[filename]
 
-    logo_path = Path(__file__).parent.parent.parent.parent / "static" / "images" / "common" / "finbot.png"
     try:
-        _logo_b64_cache = base64.b64encode(logo_path.read_bytes()).decode()
+        _b64_cache[filename] = base64.b64encode(
+            (_STATIC_IMAGES / filename).read_bytes()
+        ).decode()
     except (OSError, IOError):
-        _logo_b64_cache = ""
-    return _logo_b64_cache
+        _b64_cache[filename] = ""
+    return _b64_cache[filename]
 
 
 def get_cache_path(cache_key: str) -> Path:
@@ -87,7 +90,7 @@ def _badge_template_context(badge: object) -> dict:
         "rarity_color": rarity_color,
         "show_rays": show_rays,
         "ray_angles": ray_angles,
-        "logo_b64": _get_logo_b64(),
+        "logo_b64": _get_image_b64("finbot.png"),
     }
 
 
@@ -112,7 +115,9 @@ async def _render_card(template_name: str, context: dict) -> bytes:
 async def get_profile_card(
     username: str,
     db: Session = Depends(get_db),
-    html: bool = Query(False, description="Return raw HTML instead of PNG (debug mode)"),
+    html: bool = Query(
+        False, description="Return raw HTML instead of PNG (debug mode)"
+    ),
 ):
     """Generate and return a profile share card image."""
     profile_repo = UserProfileRepository(db)
@@ -151,14 +156,14 @@ async def get_profile_card(
 
     total_challenges = len(challenge_repo.list_challenges())
     completion_pct = (
-        int((len(completed_progress) / total_challenges) * 100) if total_challenges > 0 else 0
+        int((len(completed_progress) / total_challenges) * 100)
+        if total_challenges > 0
+        else 0
     )
 
     level, level_title = calculate_level(total_points)
 
     bio = profile.bio or "AI Security Enthusiast"
-    if len(bio) > 100:
-        bio = bio[:97] + "..."
 
     template_context = {
         "username": profile.username,
@@ -169,14 +174,18 @@ async def get_profile_card(
         "total_points": total_points,
         "badges_earned": len(earned_badges),
         "challenges_completed": len(completed_progress),
+        "total_challenges": total_challenges,
         "completion_percentage": completion_pct,
-        "logo_b64": _get_logo_b64(),
+        "logo_b64": _get_image_b64("finbot.png"),
+        "owasp_logo_b64": _get_image_b64("GenAI_OWASP_Logo.png"),
     }
 
     if html and settings.DEBUG:
         return HTMLResponse(_render_html("profile_card.html", template_context))
 
-    cache_data = f"{username}:{total_points}:{len(earned_badges)}:{len(completed_progress)}"
+    cache_data = (
+        f"{username}:{total_points}:{len(earned_badges)}:{len(completed_progress)}"
+    )
     cache_key = hashlib.md5(cache_data.encode()).hexdigest()
     cache_path = get_cache_path(cache_key)
 
@@ -208,7 +217,9 @@ async def get_user_badge_card(
     username: str,
     badge_id: str,
     db: Session = Depends(get_db),
-    html: bool = Query(False, description="Return raw HTML instead of PNG (debug mode)"),
+    html: bool = Query(
+        False, description="Return raw HTML instead of PNG (debug mode)"
+    ),
 ):
     """Generate a personalized badge card showing the user earned this badge."""
     profile_repo = UserProfileRepository(db)
