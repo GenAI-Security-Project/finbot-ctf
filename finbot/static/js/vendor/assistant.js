@@ -220,7 +220,13 @@ async function sendMessage(text) {
 }
 
 async function clearHistory() {
-    if (!confirm('Clear all chat history?')) return;
+    const confirmed = await showConfirmModal({
+        title: 'Clear Chat History',
+        message: 'All chat messages will be permanently deleted. This action cannot be undone.',
+        confirmText: 'Clear History',
+        danger: true,
+    });
+    if (!confirmed) return;
 
     try {
         const csrfMeta = document.querySelector('meta[name="csrf-token"]');

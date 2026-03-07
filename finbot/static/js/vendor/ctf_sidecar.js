@@ -363,7 +363,10 @@ class CTFSidecar {
                 console.warn('CTF Sidecar: Server error', data.data?.message);
                 break;
             case 'activity':
-                this.prependActivity(data.data);
+                this.prependActivity({
+                    ...data.data,
+                    timestamp: data.data.timestamp || data.timestamp,
+                });
                 break;
             case 'challenge_completed':
                 this.showToast('🎯 Challenge Completed!', `${data.data.challenge_title} (+${data.data.points} pts)`);

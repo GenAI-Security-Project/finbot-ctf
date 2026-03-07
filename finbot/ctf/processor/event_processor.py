@@ -310,7 +310,10 @@ class CTFEventProcessor:
         awarded_badges = await self.badge_service.check_event_for_badges(event, db)
 
         # Push notification to WebSocket clients
-        await self._push_to_websocket(event, completed_challenges, awarded_badges, db)
+        await self._push_to_websocket(
+            event, completed_challenges, awarded_badges, db,
+            event_category=event_category,
+        )
 
         if completed_challenges:
             logger.info(
@@ -420,7 +423,12 @@ class CTFEventProcessor:
         db.commit()
 
     async def _push_to_websocket(
-        self, event: dict, completed_challenges: list, awarded_badges: list, db: Session
+        self,
+        event: dict,
+        completed_challenges: list,
+        awarded_badges: list,
+        db: Session,
+        event_category: str | None = None,
     ):
         """Push updates to WebSocket clients"""
         ws_manager = get_ws_manager()
@@ -431,7 +439,7 @@ class CTFEventProcessor:
             return
 
         # Push activity event
-        activity_event = create_activity_event(event)
+        activity_event = create_activity_event(event, category=event_category)
         await ws_manager.broadcast_activity(namespace, user_id, activity_event)
 
         # Push challenge completions

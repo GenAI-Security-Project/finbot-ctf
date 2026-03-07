@@ -21,6 +21,7 @@ _SERVER_FACTORIES: dict[str, Any] = {
     "finstripe": "finbot.mcp.servers.finstripe.server.create_finstripe_server",
     "taxcalc": "finbot.mcp.servers.taxcalc.server.create_taxcalc_server",
     "systemutils": "finbot.mcp.servers.systemutils.server.create_systemutils_server",
+    "findrive": "finbot.mcp.servers.findrive.server.create_findrive_server",
 }
 
 

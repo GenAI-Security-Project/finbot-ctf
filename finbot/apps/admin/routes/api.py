@@ -13,6 +13,7 @@ from finbot.core.data.repositories import (
     MCPActivityLogRepository,
     MCPServerConfigRepository,
 )
+from finbot.mcp.servers.findrive.server import DEFAULT_CONFIG as FINDRIVE_DEFAULTS
 from finbot.mcp.servers.finstripe.server import DEFAULT_CONFIG as FINSTRIPE_DEFAULTS
 from finbot.mcp.servers.systemutils.server import DEFAULT_CONFIG as SYSTEMUTILS_DEFAULTS
 from finbot.mcp.servers.taxcalc.server import DEFAULT_CONFIG as TAXCALC_DEFAULTS
@@ -31,11 +32,13 @@ MCP_SERVER_DEFAULTS = {
         },
         "description": "Mock Stripe payment processor for fund transfers to vendor accounts.",
     },
-    "gdrive": {
-        "display_name": "GDrive",
-        "enabled": False,
-        "config": {},
-        "description": "Mock Google Drive for invoice document storage. (Phase 2)",
+    "findrive": {
+        "display_name": "FinDrive",
+        "enabled": True,
+        "config": {
+            **FINDRIVE_DEFAULTS,
+        },
+        "description": "Mock Google Drive for invoice document storage. Files uploaded here can be read by agents during invoice processing -- the indirect prompt injection delivery mechanism.",
     },
     "taxcalc": {
         "display_name": "TaxCalc",
@@ -271,6 +274,7 @@ _SERVER_INTROSPECTORS = {
     "finstripe": "finbot.mcp.servers.finstripe.server.create_finstripe_server",
     "taxcalc": "finbot.mcp.servers.taxcalc.server.create_taxcalc_server",
     "systemutils": "finbot.mcp.servers.systemutils.server.create_systemutils_server",
+    "findrive": "finbot.mcp.servers.findrive.server.create_findrive_server",
 }
 
 

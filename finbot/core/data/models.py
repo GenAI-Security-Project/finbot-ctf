@@ -48,6 +48,74 @@ class User(Base):
         return f"<User(user_id='{self.user_id}', namespace='{self.namespace}')>"
 
 
+class UserProfile(Base):
+    """User Profile for public sharing and social features.
+    Linked to User by user_id. Usernames are globally unique for public URLs.
+    """
+
+    __tablename__ = "user_profiles"
+
+    id = Column[int](Integer, primary_key=True, autoincrement=True)
+    user_id = Column[str](
+        String(32), ForeignKey("users.user_id"), unique=True, nullable=False, index=True
+    )
+
+    # Public identity
+    username = Column[str](String(32), unique=True, nullable=True, index=True)
+    bio = Column[str](String(160), nullable=True)
+    avatar_emoji = Column[str](String(10), default="🦊")
+
+    # Privacy settings (public by default per user preference)
+    is_public = Column[bool](Boolean, default=True)
+    show_activity = Column[bool](Boolean, default=False)  # Activity feed is opt-in
+
+    # Featured badges (user picks up to 6 badge IDs to showcase)
+    featured_badge_ids = Column[str](Text, nullable=True)  # JSON array of badge IDs
+
+    created_at = Column[datetime](DateTime, default=datetime.now(UTC))
+    updated_at = Column[datetime](
+        DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC)
+    )
+
+    # Relationships
+    user = relationship("User", backref="profile", uselist=False)
+
+    __table_args__ = (
+        Index("idx_user_profiles_username", "username"),
+        Index("idx_user_profiles_user_id", "user_id"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<UserProfile(user_id='{self.user_id}', username='{self.username}')>"
+
+    def get_featured_badge_ids(self) -> list[str]:
+        """Get list of featured badge IDs"""
+        if not self.featured_badge_ids:
+            return []
+        return json.loads(self.featured_badge_ids)
+
+    def set_featured_badge_ids(self, badge_ids: list[str]) -> None:
+        """Set featured badge IDs (max 6)"""
+        self.featured_badge_ids = json.dumps(badge_ids[:6])
+
+    def to_dict(self) -> dict:
+        """Convert profile to dictionary"""
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "username": self.username,
+            "bio": self.bio,
+            "avatar_emoji": self.avatar_emoji,
+            "is_public": self.is_public,
+            "show_activity": self.show_activity,
+            "featured_badge_ids": self.get_featured_badge_ids(),
+            "created_at": self.created_at.isoformat().replace("+00:00", "Z"),
+            "updated_at": self.updated_at.isoformat().replace("+00:00", "Z")
+            if self.updated_at
+            else None,
+        }
+
+
 class UserSession(Base):
     """User Session Model
     - HMAC signatures
@@ -889,7 +957,7 @@ class LLMRequest(BaseModel):
     - LLM requests are normalized to this internal representation to facilitate multiple providers
     """
 
-    messages: list[dict[str, str]] | None = None  # input conversation messages
+    messages: list[dict[str, Any]] | None = None  # input conversation messages
     model: str | None = None  # model to use for the request
     temperature: float | None = None  # temperature to use
     tools: list[dict[str, Any]] | None = None
@@ -909,4 +977,4 @@ class LLMResponse(BaseModel):
     success: bool = True  # whether the request was successful
     provider: LLMProviderType | None = None
     metadata: dict | None = None  # provider specific metadata
-    messages: list[dict[str, str]] | None = None  # message history
+    messages: list[dict[str, Any]] | None = None  # message history

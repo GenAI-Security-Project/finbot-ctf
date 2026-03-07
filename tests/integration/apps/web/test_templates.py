@@ -76,11 +76,13 @@ class TestErrorHandling:
 
     def test_error_pages_exist(self):
         """Test that error page files exist."""
-        error_dir = Path("finbot/static/pages/error")
+        error_dir = Path("finbot/templates/errors")
 
-        for status in [400, 403, 404, 500, 503]:
+        for status in [400, 401, 403, 404, 500, 503]:
             error_file = error_dir / f"{status}.html"
             assert error_file.exists()
+        assert (error_dir / "403_csrf.html").exists()
+        assert (error_dir / "_base.html").exists()
 
     def test_web_vs_api_error_responses(self, integration_client: TestClient):
         """Test that web and API requests get different error responses."""

@@ -264,7 +264,7 @@ async function saveConfig(serverType) {
     });
 
     if (parseError) {
-        alert(parseError);
+        showNotification(parseError, 'error');
         return;
     }
 

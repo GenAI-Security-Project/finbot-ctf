@@ -57,6 +57,9 @@ finbot_test.db*
 *.log
 uploads/
 !uploads/.gitkeep
+cache/**
+!cache/**/
+!cache/**/.gitkeep
 
 # Testing
 .coverage

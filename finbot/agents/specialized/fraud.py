@@ -64,8 +64,11 @@ class FraudComplianceAgent(BaseAgent):
         }
 
     async def _get_mcp_servers(self) -> dict[str, FastMCP | str]:
-        """Connect to available MCP servers for security scanning and diagnostics."""
+        """Connect to available MCP servers for security scanning and file review."""
         servers: dict[str, FastMCP | str] = {}
+        findrive = await create_mcp_server("findrive", self.session_context)
+        if findrive:
+            servers["findrive"] = findrive
         systemutils = await create_mcp_server("systemutils", self.session_context)
         if systemutils:
             servers["systemutils"] = systemutils

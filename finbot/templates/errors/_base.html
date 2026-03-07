@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Error{% endblock %} | FinBot</title>
+
+    <link rel="icon" type="image/x-icon" href="/static/images/common/favicon.ico">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'cine-gold': '#D4AF37',
+                        'cine-dark': '#0F0F0F',
+                        'cine-gray': '#1A1A1A',
+                        'cine-light': '#F8F8F8',
+                    },
+                    fontFamily: {
+                        'display': ['Playfair Display', 'serif'],
+                        'sans': ['Inter', 'sans-serif'],
+                    },
+                    animation: {
+                        'float': 'float 6s ease-in-out infinite',
+                        'pulse-slow': 'pulse 3s infinite',
+                        'bounce-slow': 'bounce 2s infinite',
+                        {% block extra_animations %}{% endblock %}
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0px)' },
+                            '50%': { transform: 'translateY(-20px)' },
+                        },
+                        {% block extra_keyframes %}{% endblock %}
+                    }
+                }
+            }
+        }
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+</head>
+<body class="bg-cine-dark text-white font-sans antialiased min-h-screen flex items-center justify-center overflow-hidden">
+    {% block background %}
+    <div class="absolute inset-0 bg-gradient-to-br from-cine-dark via-cine-gray to-cine-dark"></div>
+    {% endblock %}
+
+    <div class="relative z-10 text-center px-6 max-w-4xl mx-auto">
+        {% block content %}{% endblock %}
+    </div>
+
+    {% block floating_elements %}{% endblock %}
+</body>
+</html>

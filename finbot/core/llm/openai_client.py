@@ -6,6 +6,7 @@ TODO: for reasoning capabilities, we need to use Responses API
 
 import json
 import logging
+from typing import Any
 
 from openai import AsyncOpenAI
 
@@ -36,10 +37,18 @@ class OpenAIClient:
         """
         try:
             model = request.model or self.default_model
-            temperature = request.temperature or self.default_temperature
+            temperature = (
+                self.default_temperature
+                if request.temperature is None
+                else request.temperature
+            )
             max_tokens = settings.LLM_MAX_TOKENS
-            input_list = request.messages or []
-            tool_calls = []
+
+            input_list: list[dict[str, Any]] = (
+                list(request.messages) if request.messages else []
+            )
+
+            tool_calls: list[dict[str, Any]] = []
 
             create_params = {
                 "model": model,
@@ -67,40 +76,85 @@ class OpenAIClient:
 
             response = await self._client.responses.create(**create_params)
 
-            metadata = {
-                "response_id": response.id,
-            }
+
+            # Guard against malformed or empty SDK responses.
+            # Prevents AttributeError when accessing response.message.content
+            # and ensures consistent failure handling.
+            if not response:
+                logger.warning("Invalid OpenAI response: response is None")
+                return LLMResponse(
+                    content="",
+                    provider="openai",
+                    success=False,
+                    messages=input_list,
+                    tool_calls=[],
+                )
+
+            output = response.output if isinstance(response.output, list) else []
+            if not isinstance(response.output, list) and response.output:
+                logger.warning(
+                    "Unexpected response.output type from OpenAI: %s — ignoring",
+                    type(response.output),
+                )
+
+            new_entries: list[dict[str, Any]] = []
 
             # Extract tool calls and messages for future calls
             # (TODO): take care of refusals
-            for item in response.output:
+            for item in output:
+
                 if item.type == "message":
                     texts = []
+
                     for content in item.content:
-                        if content.type == "output_text":
-                            texts.append(content.text)
-                    input_list.append(
+                        # Handle content whether it arrives as a raw dictionary
+                        # or an SDK object (TypedDict vs Pydantic)
+                        content_type = (
+                            content.get("type")
+                            if isinstance(content, dict)
+                            else getattr(content, "type", None)
+                        )
+                        content_text = (
+                            content.get("text")
+                            if isinstance(content, dict)
+                            else getattr(content, "text", None)
+                        )
+
+                        if content_type == "output_text" and content_text:
+                            texts.append(content_text)
+
+                    new_entries.append(
                         {
                             "role": item.role,
                             "content": "".join(texts),
                         }
                     )
                 elif item.type == "function_call":
+                    # Safe JSON parsing (avoid crash if malformed)
+                    raw_args = item.arguments
+                    parsed_args = json.loads(raw_args)
+                    
                     tool_call = {
                         "name": item.name,
                         "call_id": item.call_id,
-                        "arguments": json.loads(item.arguments),
+                        "arguments": parsed_args,
                     }
                     tool_calls.append(tool_call)
                     # Add the function call to the conversation history
-                    input_list.append(
+                    new_entries.append(
                         {
                             "type": "function_call",
                             "name": item.name,
                             "call_id": item.call_id,
-                            "arguments": item.arguments,
+                            "arguments": raw_args,
                         }
                     )
+
+            input_list = input_list + new_entries
+
+            metadata = {
+                "response_id": response.id,
+            }
 
             return LLMResponse(
                 content=response.output_text,

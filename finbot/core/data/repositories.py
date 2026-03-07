@@ -15,8 +15,10 @@ from finbot.core.data.models import (
     Invoice,
     MCPActivityLog,
     MCPServerConfig,
+    User,
     UserBadge,
     UserChallengeProgress,
+    UserProfile,
     Vendor,
     VendorMessage,
 )
@@ -38,6 +40,181 @@ class NamespacedRepository:
         """Ensure object has correct namespace before saving"""
         if hasattr(obj, "namespace"):
             obj.namespace = self.namespace
+
+
+# =============================================================================
+# User Profile Repository
+# =============================================================================
+
+# Reserved usernames that cannot be claimed
+RESERVED_USERNAMES = frozenset({
+    "admin", "administrator", "api", "app", "auth", "badge", "badges",
+    "challenge", "challenges", "ctf", "dashboard", "finbot", "h", "hack",
+    "hacker", "help", "home", "login", "logout", "me", "messages", "null",
+    "owasp", "portal", "profile", "root", "settings", "share", "static",
+    "support", "system", "test", "undefined", "user", "users", "vendor",
+    "vendors", "web", "www",
+})
+
+
+def validate_username(username: str) -> tuple[bool, str | None]:
+    """Validate username format and rules.
+
+    Returns (is_valid, error_message).
+    """
+    import re
+
+    if not username:
+        return False, "Username is required"
+
+    if len(username) < 3:
+        return False, "Username must be at least 3 characters"
+
+    if len(username) > 20:
+        return False, "Username must be 20 characters or less"
+
+    if not re.match(r"^[a-zA-Z][a-zA-Z0-9_]*$", username):
+        return False, "Username must start with a letter and contain only letters, numbers, and underscores"
+
+    if username.lower() in RESERVED_USERNAMES:
+        return False, "This username is reserved"
+
+    return True, None
+
+
+class UserProfileRepository:
+    """Repository for UserProfile - not namespaced, linked to user_id."""
+
+    def __init__(self, db: Session, session_context: SessionContext | None = None):
+        self.db = db
+        self.session_context = session_context
+
+    def get_by_user_id(self, user_id: str) -> UserProfile | None:
+        """Get profile by user_id"""
+        return (
+            self.db.query(UserProfile)
+            .filter(UserProfile.user_id == user_id)
+            .first()
+        )
+
+    def get_by_username(self, username: str) -> UserProfile | None:
+        """Get profile by username (case-insensitive)"""
+        return (
+            self.db.query(UserProfile)
+            .filter(func.lower(UserProfile.username) == username.lower())
+            .first()
+        )
+
+    def get_current_user_profile(self) -> UserProfile | None:
+        """Get profile for current session user"""
+        if not self.session_context:
+            raise ValueError("Session context required")
+        return self.get_by_user_id(self.session_context.user_id)
+
+    def get_or_create_for_current_user(self) -> UserProfile:
+        """Get or create profile for current session user"""
+        if not self.session_context:
+            raise ValueError("Session context required")
+
+        profile = self.get_by_user_id(self.session_context.user_id)
+        if not profile:
+            profile = UserProfile(
+                user_id=self.session_context.user_id,
+                is_public=True,
+                show_activity=False,
+            )
+            self.db.add(profile)
+            self.db.commit()
+            self.db.refresh(profile)
+        return profile
+
+    def is_username_available(self, username: str, exclude_user_id: str | None = None) -> bool:
+        """Check if username is available"""
+        is_valid, _ = validate_username(username)
+        if not is_valid:
+            return False
+
+        query = self.db.query(UserProfile).filter(
+            func.lower(UserProfile.username) == username.lower()
+        )
+        if exclude_user_id:
+            query = query.filter(UserProfile.user_id != exclude_user_id)
+
+        return query.first() is None
+
+    def claim_username(self, user_id: str, username: str) -> tuple[UserProfile | None, str | None]:
+        """Claim a username for a user.
+
+        Returns (profile, error_message). If successful, error_message is None.
+        """
+        is_valid, error = validate_username(username)
+        if not is_valid:
+            return None, error
+
+        if not self.is_username_available(username, exclude_user_id=user_id):
+            return None, "This username is already taken"
+
+        profile = self.get_by_user_id(user_id)
+        if not profile:
+            profile = UserProfile(user_id=user_id, is_public=True)
+            self.db.add(profile)
+
+        profile.username = username
+        profile.updated_at = datetime.now(UTC)
+        self.db.commit()
+        self.db.refresh(profile)
+
+        return profile, None
+
+    def update_profile(
+        self,
+        user_id: str,
+        bio: str | None = None,
+        avatar_emoji: str | None = None,
+        is_public: bool | None = None,
+        show_activity: bool | None = None,
+    ) -> UserProfile | None:
+        """Update profile fields"""
+        profile = self.get_by_user_id(user_id)
+        if not profile:
+            return None
+
+        if bio is not None:
+            profile.bio = bio[:160] if bio else None
+        if avatar_emoji is not None:
+            profile.avatar_emoji = avatar_emoji[:10] if avatar_emoji else "🦊"
+        if is_public is not None:
+            profile.is_public = is_public
+        if show_activity is not None:
+            profile.show_activity = show_activity
+
+        profile.updated_at = datetime.now(UTC)
+        self.db.commit()
+        self.db.refresh(profile)
+
+        return profile
+
+    def set_featured_badges(self, user_id: str, badge_ids: list[str]) -> UserProfile | None:
+        """Set featured badge IDs (max 6)"""
+        profile = self.get_by_user_id(user_id)
+        if not profile:
+            return None
+
+        profile.set_featured_badge_ids(badge_ids)
+        profile.updated_at = datetime.now(UTC)
+        self.db.commit()
+        self.db.refresh(profile)
+
+        return profile
+
+    def get_public_profile_with_user(self, username: str) -> tuple[UserProfile | None, User | None]:
+        """Get public profile with associated user data"""
+        profile = self.get_by_username(username)
+        if not profile or not profile.is_public:
+            return None, None
+
+        user = self.db.query(User).filter(User.user_id == profile.user_id).first()
+        return profile, user
 
 
 # =============================================================================
@@ -1181,76 +1358,6 @@ class CTFEventRepository(NamespacedRepository):
             query = query.filter(CTFEvent.vendor_id == vendor_id)
 
         return query.count()
-
-    def get_recent_completions(
-        self, limit: int = 5
-    ) -> list[dict[str, str | int | None]]:
-        """Get recent challenge completions and badge awards from progress/badge tables.
-
-        Returns a merged, time-ordered list of dicts with keys:
-        kind ("challenge" | "badge"), id, title, points, timestamp (ISO).
-        """
-        ns = self.namespace
-        uid = self.session_context.user_id
-
-        completed = (
-            self.db.query(UserChallengeProgress, Challenge)
-            .join(Challenge, UserChallengeProgress.challenge_id == Challenge.id)
-            .filter(
-                UserChallengeProgress.namespace == ns,
-                UserChallengeProgress.user_id == uid,
-                UserChallengeProgress.status == "completed",
-                UserChallengeProgress.completed_at.isnot(None),
-            )
-            .order_by(UserChallengeProgress.completed_at.desc())
-            .limit(limit)
-            .all()
-        )
-        badges = (
-            self.db.query(UserBadge, Badge)
-            .join(Badge, UserBadge.badge_id == Badge.id)
-            .filter(
-                UserBadge.namespace == ns,
-                UserBadge.user_id == uid,
-            )
-            .order_by(UserBadge.earned_at.desc())
-            .limit(limit)
-            .all()
-        )
-        items: list[dict[str, str | int | None]] = []
-        for prog, challenge in completed:
-            modifier = prog.points_modifier if prog.points_modifier is not None else 1.0
-            effective_points = int(challenge.points * modifier)
-            items.append(
-                {
-                    "kind": "challenge",
-                    "id": prog.challenge_id,
-                    "title": challenge.title,
-                    "points": effective_points,
-                    "base_points": challenge.points,
-                    "points_modifier": modifier,
-                    "timestamp": prog.completed_at.isoformat().replace("+00:00", "Z")
-                    if prog.completed_at
-                    else None,
-                }
-            )
-        for ub, badge in badges:
-            items.append(
-                {
-                    "kind": "badge",
-                    "id": ub.badge_id,
-                    "title": badge.title,
-                    "points": badge.points,
-                    "timestamp": ub.earned_at.isoformat().replace("+00:00", "Z")
-                    if ub.earned_at
-                    else None,
-                }
-            )
-        items.sort(
-            key=lambda x: x["timestamp"] or "",
-            reverse=True,
-        )
-        return items[:limit]
 
     def get_workflow_events(self, workflow_id: str) -> list[CTFEvent]:
         """Get all events for a specific workflow"""

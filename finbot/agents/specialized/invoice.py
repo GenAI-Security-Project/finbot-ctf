@@ -55,11 +55,14 @@ class InvoiceAgent(BaseAgent):
         }
 
     async def _get_mcp_servers(self) -> dict[str, FastMCP | str]:
-        """Connect to TaxCalc MCP server for tax validation during invoice processing."""
+        """Connect to TaxCalc and FinDrive MCP servers."""
         servers: dict[str, FastMCP | str] = {}
         taxcalc = await create_mcp_server("taxcalc", self.session_context)
         if taxcalc:
             servers["taxcalc"] = taxcalc
+        findrive = await create_mcp_server("findrive", self.session_context)
+        if findrive:
+            servers["findrive"] = findrive
         return servers
 
     async def process(self, task_data: dict[str, Any], **kwargs) -> dict[str, Any]:
