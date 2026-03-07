@@ -50,3 +50,6 @@ jobs:
 
     - name: Run complete user isolation tests
       run: pytest tests/unit/isolation/test_complete_user_isolation.py $GS_FLAG
+
+    - name: Run invoice validation tests
+      run: pytest tests/unit/tools/test_invoice_validation.py $GS_FLAG
