@@ -458,35 +458,29 @@
         checkboxLabel.addEventListener('click', toggleCheckbox);
 
         // Enter button functionality
-        enterButton.addEventListener('click', function() {
+        enterButton.addEventListener('click', async function() {
             if (!enterButton.disabled) {
-                // Log agreement (optional)
-                logAgreement();
-
-                // Redirect to main application
+                await logAgreement();
                 window.location.href = '/';
             }
         });
 
         // Log agreement function
-        function logAgreement() {
-            const agreementData = {
-                agreed: true,
-                timestamp: new Date().toISOString(),
-                userAgent: navigator.userAgent,
-                referrer: document.referrer || 'direct'
-            };
-
-            // Send to backend (optional - implement if needed)
-            fetch('/api/log-agreement', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(agreementData)
-            }).catch(error => {
-                console.log('Agreement logging not implemented on backend');
-            });
+        async function logAgreement() {
+            try {
+                await fetch('/api/log-agreement', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        agreed: true,
+                        timestamp: new Date().toISOString(),
+                        userAgent: navigator.userAgent,
+                        referrer: document.referrer || 'direct'
+                    })
+                });
+            } catch (error) {
+                console.warn('Agreement logging failed:', error);
+            }
         }
 
         // Check if user already agreed (for returning users)

@@ -821,6 +821,85 @@ const navigation = {
 };
 
 /**
+ * Show Confirm Modal (Promise-based replacement for window.confirm)
+ */
+function showConfirmModal({ title = 'Confirm', message = 'Are you sure?', confirmText = 'Confirm', cancelText = 'Cancel', danger = false } = {}) {
+    return new Promise((resolve) => {
+        const existing = document.getElementById('confirm-modal');
+        if (existing) existing.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'confirm-modal';
+        modal.style.cssText = `
+            position: fixed; inset: 0; z-index: 9999;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+            padding: 1rem;
+            animation: confirmModalFadeIn 0.15s ease-out;
+        `;
+
+        const confirmColor = danger ? ['#ef4444', 'rgba(239,68,68,'] : ['#f59e0b', 'rgba(245,158,11,'];
+
+        modal.innerHTML = `
+            <div style="background:#151520; border:1px solid rgba(255,255,255,0.1); border-radius:0.75rem;
+                        box-shadow:0 25px 50px -12px rgba(0,0,0,0.5); max-width:28rem; width:100%;
+                        overflow:hidden; animation:confirmModalSlideIn 0.2s ease-out;">
+                <div style="padding:1rem 1.5rem; border-bottom:1px solid rgba(255,255,255,0.05);">
+                    <h3 style="font-size:1.125rem; font-weight:700; color:#fff; margin:0;">${title}</h3>
+                </div>
+                <div style="padding:1.25rem 1.5rem;">
+                    <p style="font-size:0.875rem; color:#94a3b8; line-height:1.625; margin:0;">${message}</p>
+                </div>
+                <div style="padding:1rem 1.5rem; border-top:1px solid rgba(255,255,255,0.05);
+                            display:flex; align-items:center; justify-content:flex-end; gap:0.75rem;">
+                    <button id="confirm-modal-cancel" style="font-size:0.875rem; padding:0.5rem 1rem;
+                        border-radius:0.5rem; border:1px solid rgba(255,255,255,0.1); background:transparent;
+                        color:#94a3b8; cursor:pointer; transition:all 0.15s;"
+                        onmouseover="this.style.color='#fff';this.style.borderColor='rgba(255,255,255,0.2)'"
+                        onmouseout="this.style.color='#94a3b8';this.style.borderColor='rgba(255,255,255,0.1)'"
+                    >${cancelText}</button>
+                    <button id="confirm-modal-confirm" style="font-size:0.875rem; padding:0.5rem 1rem;
+                        border-radius:0.5rem; border:1px solid ${confirmColor[1]}0.3);
+                        background:${confirmColor[1]}0.2); color:${confirmColor[0]};
+                        cursor:pointer; font-weight:500; transition:all 0.15s;"
+                        onmouseover="this.style.background='${confirmColor[1]}0.3)'"
+                        onmouseout="this.style.background='${confirmColor[1]}0.2)'"
+                    >${confirmText}</button>
+                </div>
+            </div>
+        `;
+
+        if (!document.getElementById('confirm-modal-styles')) {
+            const style = document.createElement('style');
+            style.id = 'confirm-modal-styles';
+            style.textContent = `
+                @keyframes confirmModalFadeIn { from { opacity: 0; } to { opacity: 1; } }
+                @keyframes confirmModalSlideIn { from { opacity: 0; transform: scale(0.95) translateY(-10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+            `;
+            document.head.appendChild(style);
+        }
+
+        const cleanup = (result) => {
+            modal.remove();
+            document.removeEventListener('keydown', escHandler);
+            resolve(result);
+        };
+
+        const escHandler = (e) => {
+            if (e.key === 'Escape') cleanup(false);
+        };
+
+        document.body.appendChild(modal);
+        document.addEventListener('keydown', escHandler);
+        modal.addEventListener('click', (e) => { if (e.target === modal) cleanup(false); });
+        modal.querySelector('#confirm-modal-cancel').addEventListener('click', () => cleanup(false));
+        modal.querySelector('#confirm-modal-confirm').addEventListener('click', () => cleanup(true));
+
+        modal.querySelector('#confirm-modal-cancel').focus();
+    });
+}
+
+/**
  * Show Notification
  */
 function showNotification(message, type = 'info') {
@@ -891,6 +970,7 @@ window.showFieldError = showFieldError;
 window.clearFieldError = clearFieldError;
 window.clearAllFieldErrors = clearAllFieldErrors;
 window.showLoading = showLoading;
+window.showConfirmModal = showConfirmModal;
 window.showNotification = showNotification;
 window.animateCounter = animateCounter;
 window.sidebar = sidebar;

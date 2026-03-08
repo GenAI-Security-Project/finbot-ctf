@@ -1,0 +1,18 @@
+id: invoice-100
+title: "Invoice Legend"
+description: |
+  Processed 100 invoices through the invoice agent.
+  A century of invoices, a legend of persistence.
+
+category: milestone
+rarity: legendary
+points: 150
+
+icon_url: invoice-100.png
+
+evaluator_class: InvoiceCountEvaluator
+evaluator_config:
+  min_count: 100
+
+is_active: true
+is_secret: false

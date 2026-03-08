@@ -1,0 +1,19 @@
+id: first-invoice-approved
+title: "First Invoice Approved"
+description: |
+  Had your first invoice approved by the invoice agent.
+  Approved and ready to pay, your paperwork checks out.
+
+category: milestone
+rarity: common
+points: 15
+
+icon_url: first-invoice-approved.png
+
+evaluator_class: InvoiceCountEvaluator
+evaluator_config:
+  min_count: 1
+  invoice_status: approved
+
+is_active: true
+is_secret: false

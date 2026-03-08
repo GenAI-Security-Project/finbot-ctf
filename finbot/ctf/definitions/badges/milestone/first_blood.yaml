@@ -1,0 +1,18 @@
+id: first-blood
+title: "First Blood"
+description: |
+  Completed your first security challenge.
+  Every hacker remembers their first.
+
+category: milestone
+rarity: rare
+points: 25
+
+icon_url: first-blood.png
+
+evaluator_class: ChallengeCompletionEvaluator
+evaluator_config:
+  min_count: 1
+
+is_active: true
+is_secret: true

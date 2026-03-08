@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1200px;
+    height: 630px;
+    font-family: 'Inter', system-ui, sans-serif;
+    overflow: hidden;
+    background: #06060b;
+    color: #fff;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .card {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  /* Background layers */
+  .bg-base {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(160deg, #06060b 0%, #0c0c18 40%, #0a0a14 100%);
+  }
+
+  .bg-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  .bg-glow-1 {
+    position: absolute;
+    top: -120px;
+    left: -40px;
+    width: 460px;
+    height: 460px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0, 212, 255, 0.07) 0%, transparent 65%);
+  }
+
+  .bg-glow-2 {
+    position: absolute;
+    bottom: -160px;
+    right: -40px;
+    width: 440px;
+    height: 440px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(124, 58, 237, 0.06) 0%, transparent 65%);
+  }
+
+  .accent-line-top {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #00d4ff, #7c3aed, #06ffa5);
+  }
+
+  /* Layout */
+  .content {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 24px 44px;
+  }
+
+  /* -- Header -- */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .finbot-logo {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: #111;
+    flex-shrink: 0;
+  }
+
+  .finbot-logo img { width: 100%; height: 100%; object-fit: cover; }
+
+  .brand-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .brand-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .brand-name {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    line-height: 1.1;
+  }
+
+  .brand-ctf {
+    font-size: 11px;
+    font-weight: 700;
+    color: #00d4ff;
+    letter-spacing: 1.5px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .brand-sub {
+    font-size: 10px;
+    font-weight: 600;
+    color: #64748b;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .owasp-logo-container {
+    border-radius: 8px;
+    padding: 6px 12px;
+  }
+
+  .owasp-logo {
+    height: 36px;
+    display: block;
+  }
+
+  /* -- Identity row -- */
+  .identity-row {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    flex-shrink: 0;
+  }
+
+  .avatar-outer {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    flex-shrink: 0;
+  }
+
+  .avatar-glow {
+    position: absolute;
+    inset: -12px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0, 212, 255, 0.14) 0%, transparent 70%);
+  }
+
+  .avatar-ring {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #00d4ff, #7c3aed);
+    padding: 3px;
+  }
+
+  .avatar-inner {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: #111119;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .avatar-letter {
+    font-size: 38px;
+    font-weight: 900;
+    background: linear-gradient(135deg, #00d4ff, #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    line-height: 1;
+  }
+
+  .avatar-emoji { font-size: 46px; line-height: 1; }
+
+  .identity-info { flex: 1; min-width: 0; }
+
+  .identity-top {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .username {
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    line-height: 1.1;
+  }
+
+  .username span { color: #4a5568; font-weight: 600; }
+
+  .level-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 14px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, rgba(124, 58, 237, 0.18), rgba(0, 212, 255, 0.10));
+    border: 1px solid rgba(124, 58, 237, 0.30);
+    flex-shrink: 0;
+  }
+
+  .level-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #a78bfa;
+    box-shadow: 0 0 6px rgba(167, 139, 250, 0.6);
+  }
+
+  .level-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #c4b5fd;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  /* -- Stats row: 3 columns -- */
+  .stats-row {
+    display: flex;
+    gap: 14px;
+    flex-shrink: 0;
+  }
+
+  .stat-card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 14px;
+    padding: 16px 20px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 20px;
+    right: 20px;
+    height: 2px;
+    border-radius: 0 0 2px 2px;
+  }
+
+  .stat-card.sc-points { flex: 2; }
+  .stat-card.sc-points::before { background: #00d4ff; }
+  .stat-card.sc-badges { flex: 1; }
+  .stat-card.sc-badges::before { background: #a78bfa; }
+  .stat-card.sc-challenges { flex: 1; }
+  .stat-card.sc-challenges::before { background: #ffb800; }
+
+  .stat-card-header {
+    font-size: 10px;
+    font-weight: 700;
+    color: #4a5568;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 4px;
+  }
+
+  .stat-card-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 34px;
+    font-weight: 700;
+    line-height: 1.15;
+  }
+
+  .sc-points .stat-card-value { color: #00d4ff; text-shadow: 0 0 24px rgba(0, 212, 255, 0.15); }
+  .sc-badges .stat-card-value { color: #a78bfa; }
+  .sc-challenges .stat-card-value { color: #ffb800; }
+
+  /* XP progress bar */
+  .xp-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+  }
+
+  .xp-bar-track {
+    flex: 1;
+    height: 6px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .xp-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #00d4ff, #06ffa5);
+  }
+
+  .xp-bar-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: #4a5568;
+    white-space: nowrap;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .xp-next {
+    margin-top: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #334155;
+    letter-spacing: 0.3px;
+  }
+
+  .xp-next strong {
+    color: #06ffa5;
+    font-weight: 700;
+  }
+
+  /* Stat card icon + value row for badges/challenges */
+  .stat-card-body {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex: 1;
+  }
+
+  .stat-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .sc-badges .stat-icon { background: rgba(124, 58, 237, 0.12); }
+  .sc-challenges .stat-icon { background: rgba(255, 184, 0, 0.10); }
+
+  /* -- Featured badges strip -- */
+  .badges-strip {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .badges-strip-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: #334155;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    white-space: nowrap;
+    margin-right: 4px;
+  }
+
+  .badge-pill {
+    padding: 5px 14px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    border: 1px solid;
+    white-space: nowrap;
+  }
+
+  /* Latest badge (shown when no featured badges) */
+  .latest-badge {
+    padding: 5px 14px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    background: rgba(0, 212, 255, 0.08);
+    border: 1px solid rgba(0, 212, 255, 0.20);
+    color: #00d4ff;
+    white-space: nowrap;
+  }
+
+  /* -- Footer -- */
+  .footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+    padding-top: 12px;
+    flex-shrink: 0;
+  }
+
+  .footer-left {
+    font-size: 11px;
+    color: #334155;
+    font-weight: 500;
+  }
+
+  .footer-right {
+    display: flex;
+    gap: 20px;
+  }
+
+  .footer-url {
+    font-size: 12px;
+    color: #00d4ff;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    opacity: 0.7;
+  }
+
+  .footer-tag {
+    font-size: 12px;
+    color: #00d4ff;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    opacity: 0.7;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="bg-base"></div>
+  <div class="bg-grid"></div>
+  <div class="bg-glow-1"></div>
+  <div class="bg-glow-2"></div>
+  <div class="accent-line-top"></div>
+
+  <div class="content">
+
+    <!-- Header -->
+    <div class="header">
+      <div class="header-left">
+        <div class="finbot-logo">
+          {% if logo_b64 %}
+            <img src="data:image/png;base64,{{ logo_b64 }}" alt="">
+          {% endif %}
+        </div>
+        <div class="brand-text">
+          <div class="brand-row">
+            <span class="brand-name">FINBOT</span>
+            <span class="brand-ctf">CTF</span>
+          </div>
+          <span class="brand-sub">OWASP ASI</span>
+        </div>
+      </div>
+      {% if owasp_logo_b64 %}
+        <div class="owasp-logo-container">
+          <img class="owasp-logo" src="data:image/png;base64,{{ owasp_logo_b64 }}" alt="OWASP GenAI Security Project">
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Identity row -->
+    <div class="identity-row">
+      <div class="avatar-outer">
+        <div class="avatar-glow"></div>
+        <div class="avatar-ring">
+          <div class="avatar-inner">
+            {% if avatar_emoji and avatar_emoji != username[0]|upper %}
+              <span class="avatar-emoji">{{ avatar_emoji }}</span>
+            {% else %}
+              <span class="avatar-letter">{{ username[0]|upper }}</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="identity-info">
+        <div class="identity-top">
+          <div class="username"><span>@</span>{{ username }}</div>
+          <div class="level-pill">
+            <div class="level-dot"></div>
+            <span class="level-label">Lvl {{ level }} · {{ level_title }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats: 3 columns -->
+    <div class="stats-row">
+      <div class="stat-card sc-points">
+        <div class="stat-card-header">Total Points</div>
+        <div class="stat-card-value">{{ "{:,}".format(total_points) }}</div>
+        <div class="xp-bar-row">
+          <div class="xp-bar-track">
+            <div class="xp-bar-fill" style="width: {{ xp_pct }}%"></div>
+          </div>
+          <span class="xp-bar-label">{{ "{:,}".format(xp_current) }}/{{ "{:,}".format(xp_next_threshold) }}</span>
+        </div>
+        <div class="xp-next">Next: <strong>{{ xp_next_title }}</strong></div>
+      </div>
+      <div class="stat-card sc-badges">
+        <div class="stat-card-header">Badges</div>
+        <div class="stat-card-body">
+          <div class="stat-icon">🏅</div>
+          <div class="stat-card-value">{{ badges_earned }}</div>
+        </div>
+      </div>
+      <div class="stat-card sc-challenges">
+        <div class="stat-card-header">Challenges</div>
+        <div class="stat-card-body">
+          <div class="stat-icon">⚡</div>
+          <div class="stat-card-value">{{ challenges_completed }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Featured badges / latest badge strip -->
+    {% if featured_badges %}
+    <div class="badges-strip">
+      <span class="badges-strip-label">Featured Badges</span>
+      {% for badge in featured_badges %}
+        <span class="badge-pill" style="
+          background: {{ rarity_colors.get(badge.rarity, '#64748b') }}12;
+          border-color: {{ rarity_colors.get(badge.rarity, '#64748b') }}40;
+          color: {{ rarity_colors.get(badge.rarity, '#64748b') }};
+        ">{% if badge.is_secret %}🔓 {% endif %}{{ badge.title }}</span>
+      {% endfor %}
+    </div>
+    {% elif latest_badge_title %}
+    <div class="badges-strip">
+      <span class="badges-strip-label">Latest Badge</span>
+      <span class="latest-badge">{{ latest_badge_title }}</span>
+    </div>
+    {% endif %}
+
+    <!-- Footer -->
+    <div class="footer">
+      {% if member_since %}
+        <span class="footer-left">Member since {{ member_since }}</span>
+      {% else %}
+        <span class="footer-left"></span>
+      {% endif %}
+      <div class="footer-right">
+        <span class="footer-url">genai.owasp.org</span>
+        <span class="footer-tag">#OWASPGenAISecurityProject</span>
+        <span class="footer-tag">#OWASPFinBotCTF</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

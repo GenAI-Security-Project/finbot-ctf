@@ -261,7 +261,7 @@ function handleAPIError(error, options = {}) {
 
     if (error.isAuthError()) {
         if (options.redirectOnAuth !== false) {
-            window.location.href = '/login';
+            window.location.href = '/portals';
             return;
         }
     }

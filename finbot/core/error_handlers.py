@@ -2,18 +2,42 @@
 Error handling utilities and exception handlers for the FinBot platform.
 """
 
-import os
 from typing import Any, Dict
 
 from fastapi import HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.templating import Jinja2Templates
+
+error_templates = Jinja2Templates(directory="finbot/templates/errors")
+
+PORTAL_ROUTES = {
+    "/vendor": ("/vendor/dashboard", "Back to Vendor Portal"),
+    "/ctf": ("/ctf/dashboard", "Back to CTF Portal"),
+    "/admin": ("/admin/dashboard", "Back to Admin Portal"),
+}
+DEFAULT_BACK = ("/", "Back to Home")
 
 
 def is_api_request(request: Request) -> bool:
     """Determine if the request is for an API endpoint."""
     return request.url.path.startswith("/api/")
+
+
+def get_portal_context(request: Request) -> dict:
+    """Derive back_url and back_label from the request path.
+
+    In mounted sub-apps, request.url.path is relative to the mount point,
+    so we check root_path (the mount prefix) first, then fall back to the
+    full URL path for requests handled by the root app.
+    """
+    root_path = request.scope.get("root_path", "")
+    full_path = root_path + request.url.path
+    for prefix, (url, label) in PORTAL_ROUTES.items():
+        if full_path.startswith(prefix):
+            return {"back_url": url, "back_label": label}
+    return {"back_url": DEFAULT_BACK[0], "back_label": DEFAULT_BACK[1]}
 
 
 def get_json_error_response(status_code: int, detail: str = None) -> Dict[str, Any]:
@@ -36,24 +60,27 @@ def get_json_error_response(status_code: int, detail: str = None) -> Dict[str, A
     return {"error": {"code": status_code, "message": message, "type": "api_error"}}
 
 
-def get_error_page_path(status_code: int) -> str:
-    """Get the path to the error page for a given status code."""
-    # (TODO): reduce disk I/O by caching the error page here and return contents instead
-    error_page = f"finbot/static/pages/error/{status_code}.html"
-    if os.path.exists(error_page):
-        return error_page
-    # Fallback to generic error page based on status code range
+def get_error_template_name(status_code: int) -> str:
+    """Get the template name for a given status code."""
+    known = {400, 401, 403, 404, 500, 503}
+    if status_code in known:
+        return f"{status_code}.html"
     if 400 <= status_code < 500:
-        return "finbot/static/pages/error/400.html"
-    elif 500 <= status_code < 600:
-        return "finbot/static/pages/error/500.html"
-    else:
-        return "finbot/static/pages/error/404.html"
+        return "400.html"
+    if 500 <= status_code < 600:
+        return "500.html"
+    return "404.html"
+
+
+def render_error_page(request: Request, status_code: int, template_name: str = None):
+    """Render an error page template with portal-aware context."""
+    name = template_name or get_error_template_name(status_code)
+    ctx = {"request": request, **get_portal_context(request)}
+    return error_templates.TemplateResponse(name, ctx, status_code=status_code)
 
 
 async def fastapi_http_exception_handler(request: Request, exc: HTTPException):
     """Handle FastAPI HTTP exceptions"""
-    # Convert FastAPI HTTPException to StarletteHTTPException and reuse handler
     starlette_exc = StarletteHTTPException(
         status_code=exc.status_code, detail=exc.detail
     )
@@ -63,7 +90,6 @@ async def fastapi_http_exception_handler(request: Request, exc: HTTPException):
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     """Handle HTTP exceptions with custom error pages or JSON responses."""
 
-    # Special handling for CSRF errors
     if exc.status_code == 403 and "CSRF" in str(exc.detail):
         if is_api_request(request):
             return JSONResponse(
@@ -77,47 +103,18 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
                 },
                 status_code=403,
             )
-        else:
-            # For web requests, show a dedicated CSRF error page
-            try:
-                with open(
-                    "finbot/static/pages/error/403_csrf.html", "r", encoding="utf-8"
-                ) as f:
-                    content = f.read()
-                return HTMLResponse(content=content, status_code=403)
-            except FileNotFoundError:
-                # Fallback if CSRF error page is missing
-                return HTMLResponse(
-                    content="<h1>403 Forbidden</h1><p>Security validation failed. Please refresh the page and try again.</p>",
-                    status_code=403,
-                )
+        return render_error_page(request, 403, template_name="403_csrf.html")
 
-    # Return JSON response for API requests
     if is_api_request(request):
         error_data = get_json_error_response(exc.status_code, exc.detail)
         return JSONResponse(content=error_data, status_code=exc.status_code)
 
-    # Return HTML response for web requests
-    error_page_path = get_error_page_path(exc.status_code)
-
-    try:
-        # (TODO): reduce disk I/O by caching the error page
-        with open(error_page_path, "r", encoding="utf-8") as f:
-            content = f.read()
-        return HTMLResponse(content=content, status_code=exc.status_code)
-    except FileNotFoundError:
-        # Fallback to basic error response if error page is missing
-        return HTMLResponse(
-            content=f"<h1>Error {exc.status_code}</h1><p>{exc.detail}</p>",
-            status_code=exc.status_code,
-        )
+    return render_error_page(request, exc.status_code)
 
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """Handle request validation errors with 400 error page or JSON response."""
-    # Return JSON response for API requests
     if is_api_request(request):
-        # Format validation errors for API response
         error_details = []
         for error in exc.errors():
             error_details.append(
@@ -138,57 +135,25 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         }
         return JSONResponse(content=error_data, status_code=422)
 
-    # Return HTML response for web requests
-    error_page_path = get_error_page_path(400)
-
-    try:
-        with open(error_page_path, "r", encoding="utf-8") as f:
-            content = f.read()
-        return HTMLResponse(content=content, status_code=400)
-    except FileNotFoundError:
-        return HTMLResponse(
-            content="<h1>Error 400</h1><p>Bad Request</p>", status_code=400
-        )
+    return render_error_page(request, 400)
 
 
 async def not_found_handler(request: Request, exc: HTTPException):
     """Handle 404 errors with custom error page or JSON response."""
-    # Return JSON response for API requests
     if is_api_request(request):
         error_data = get_json_error_response(404, exc.detail)
         return JSONResponse(content=error_data, status_code=404)
 
-    # Return HTML response for web requests
-    error_page_path = get_error_page_path(404)
-
-    try:
-        with open(error_page_path, "r", encoding="utf-8") as f:
-            content = f.read()
-        return HTMLResponse(content=content, status_code=404)
-    except FileNotFoundError:
-        return HTMLResponse(
-            content="<h1>Error 404</h1><p>Page Not Found</p>", status_code=404
-        )
+    return render_error_page(request, 404)
 
 
 async def internal_server_error_handler(request: Request, exc: HTTPException):
     """Handle 500 errors with custom error page or JSON response."""
-    # Return JSON response for API requests
     if is_api_request(request):
         error_data = get_json_error_response(500, exc.detail)
         return JSONResponse(content=error_data, status_code=500)
 
-    # Return HTML response for web requests
-    error_page_path = get_error_page_path(500)
-
-    try:
-        with open(error_page_path, "r", encoding="utf-8") as f:
-            content = f.read()
-        return HTMLResponse(content=content, status_code=500)
-    except FileNotFoundError:
-        return HTMLResponse(
-            content="<h1>Error 500</h1><p>Internal Server Error</p>", status_code=500
-        )
+    return render_error_page(request, 500)
 
 
 def register_error_handlers(app):

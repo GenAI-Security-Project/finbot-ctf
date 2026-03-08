@@ -105,6 +105,9 @@ def _configure_third_party_loggers(app_level: int) -> None:
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
 
+    # OpenAI SDK internals
+    logging.getLogger("openai").setLevel(logging.WARNING)
+
 
 def update_log_level(log_level: str) -> None:
     """

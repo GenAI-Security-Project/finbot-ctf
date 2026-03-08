@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1200px;
+    height: 630px;
+    font-family: 'Inter', system-ui, sans-serif;
+    overflow: hidden;
+    background: #05050a;
+    color: #fff;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .card {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  /* Background layers */
+  .bg-gradient {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 600px 500px at 50% 38%, var(--glow-bg) 0%, transparent 70%),
+      linear-gradient(160deg, #05050a 0%, #0a0a14 40%, #080810 100%);
+  }
+
+  .bg-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  .rays {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 700px;
+    height: 700px;
+    margin-top: -380px;
+    margin-left: -350px;
+    opacity: 0.10;
+  }
+
+  .ray {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 2px;
+    height: 350px;
+    background: linear-gradient(to bottom, var(--rarity-color), transparent);
+    transform-origin: top center;
+  }
+
+  .accent-line-top {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, transparent 10%, var(--rarity-color), transparent 90%);
+  }
+
+  /* Layout */
+  .content {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: 28px 48px 0;
+  }
+
+  /* Header */
+  .header {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .finbot-logo {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: #111;
+    flex-shrink: 0;
+  }
+
+  .finbot-logo img { width: 100%; height: 100%; object-fit: cover; }
+
+  .brand-text {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .brand-name {
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    line-height: 1.1;
+  }
+
+  .brand-sub {
+    font-size: 9px;
+    font-weight: 600;
+    color: #4a5568;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  .banner {
+    padding: 6px 20px;
+    border-radius: 6px;
+    background: var(--rarity-bg);
+    border: 1px solid var(--rarity-border);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 3px;
+    color: var(--rarity-color);
+    text-transform: uppercase;
+  }
+
+  /* Center content */
+  .center-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    justify-content: center;
+    gap: 0;
+    margin-top: -10px;
+  }
+
+  /* Badge circle */
+  .badge-container {
+    position: relative;
+    margin-bottom: 20px;
+  }
+
+  .badge-glow {
+    position: absolute;
+    inset: -40px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--glow-soft) 0%, transparent 70%);
+  }
+
+  .badge-ring {
+    position: relative;
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    background: var(--rarity-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow:
+      0 0 40px var(--glow-soft),
+      0 0 80px var(--glow-faint);
+  }
+
+  .badge-inner {
+    width: 126px;
+    height: 126px;
+    border-radius: 50%;
+    background: #0c0c14;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--rarity-dim);
+  }
+
+  .badge-icon {
+    font-size: 52px;
+    font-weight: 900;
+    color: var(--rarity-color);
+    line-height: 1;
+    text-shadow: 0 0 30px var(--glow-soft);
+  }
+
+  /* Title + description */
+  .badge-title {
+    font-size: 36px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    text-align: center;
+    max-width: 800px;
+    line-height: 1.15;
+    margin-bottom: 8px;
+  }
+
+  .badge-description {
+    font-size: 14px;
+    color: #64748b;
+    text-align: center;
+    max-width: 600px;
+    line-height: 1.5;
+    margin-bottom: 16px;
+  }
+
+  /* Pills */
+  .pills {
+    display: flex;
+    gap: 12px;
+  }
+
+  .pill {
+    padding: 6px 16px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    border: 1px solid;
+    text-transform: uppercase;
+  }
+
+  .pill-rarity {
+    background: var(--rarity-bg);
+    border-color: var(--rarity-border);
+    color: var(--rarity-color);
+  }
+
+  .pill-points {
+    background: rgba(6, 255, 165, 0.08);
+    border-color: rgba(6, 255, 165, 0.30);
+    color: #06ffa5;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Footer */
+  .footer {
+    width: 100%;
+    height: 64px;
+    flex-shrink: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 4px;
+  }
+
+  .earned-by {
+    font-size: 16px;
+    font-weight: 700;
+    color: #00d4ff;
+    letter-spacing: 0.3px;
+  }
+
+  .earned-by span { color: #4a5568; font-weight: 500; }
+
+  .footer-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .owasp-logo { height: 30px; display: block; opacity: 0.7; }
+
+  .footer-tags {
+    display: flex;
+    gap: 14px;
+  }
+
+  .footer-tag {
+    font-size: 11px;
+    color: #00d4ff;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    opacity: 0.6;
+  }
+
+  .secret-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 14px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(217, 119, 6, 0.08));
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: #fbbf24;
+    text-transform: uppercase;
+  }
+
+  .secret-badge::before {
+    content: '🔓';
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+<div class="card" style="
+  --rarity-color: {{ rarity_color }};
+  --rarity-bg: {{ rarity_color }}12;
+  --rarity-border: {{ rarity_color }}40;
+  --rarity-dim: {{ rarity_color }}80;
+  --glow-bg: {{ rarity_color }}0a;
+  --glow-soft: {{ rarity_color }}30;
+  --glow-faint: {{ rarity_color }}10;
+">
+  <div class="bg-gradient"></div>
+  <div class="bg-grid"></div>
+  <div class="accent-line-top"></div>
+
+  {% if show_rays %}
+  <div class="rays">
+    {% for angle in ray_angles %}
+    <div class="ray" style="transform: rotate({{ angle }}deg);"></div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="content">
+
+    <!-- Header -->
+    <div class="header">
+      <div class="header-left">
+        <div class="finbot-logo">
+          {% if logo_b64 %}
+            <img src="data:image/png;base64,{{ logo_b64 }}" alt="">
+          {% endif %}
+        </div>
+        <div class="brand-text">
+          <span class="brand-name">FINBOT</span>
+          <span class="brand-sub">OWASP ASI</span>
+        </div>
+      </div>
+      <div class="banner">{% if is_secret %}Secret Achievement{% else %}Achievement Unlocked{% endif %}</div>
+    </div>
+
+    <!-- Center -->
+    <div class="center-block">
+      <div class="badge-container">
+        <div class="badge-glow"></div>
+        <div class="badge-ring">
+          <div class="badge-inner">
+            <span class="badge-icon">{{ badge_icon }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="badge-title">{{ badge_title }}</div>
+
+      {% if badge_description %}
+      <div class="badge-description">{{ badge_description }}</div>
+      {% endif %}
+
+      <div class="pills">
+        <span class="pill pill-rarity">{{ rarity_label }}</span>
+        <span class="pill pill-points">+{{ badge_points }} PTS</span>
+        {% if is_secret %}
+        <span class="secret-badge">Secret</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <span class="earned-by"><span>Earned by</span> @{{ username }}</span>
+      <div class="footer-right">
+        {% if owasp_logo_b64 %}
+          <img class="owasp-logo" src="data:image/png;base64,{{ owasp_logo_b64 }}" alt="OWASP">
+        {% endif %}
+        <div class="footer-tags">
+          <span class="footer-tag">#OWASPFinBotCTF</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

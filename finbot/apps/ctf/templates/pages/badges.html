@@ -14,21 +14,29 @@
 <!-- Stats -->
 <div id="stats-row" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
     <div class="glass-card p-4 text-center">
-        <div id="stat-earned" class="text-3xl font-bold text-text-bright">-</div>
+        <div id="stat-earned" class="text-3xl font-bold text-ctf-accent">-</div>
         <div class="text-sm text-text-secondary">Badges Earned</div>
     </div>
     <div class="glass-card p-4 text-center">
-        <div id="stat-locked" class="text-3xl font-bold text-text-secondary">-</div>
-        <div class="text-sm text-text-secondary">Locked</div>
+        <div id="stat-milestone" class="text-3xl font-bold text-ctf-primary">-</div>
+        <div class="text-sm text-text-secondary">Milestones</div>
     </div>
     <div class="glass-card p-4 text-center">
-        <div id="stat-rare" class="text-3xl font-bold text-blue-400">-</div>
-        <div class="text-sm text-text-secondary">Rare+</div>
+        <div id="stat-achievement" class="text-3xl font-bold text-emerald-400">-</div>
+        <div class="text-sm text-text-secondary">Achievements</div>
     </div>
     <div class="glass-card p-4 text-center">
-        <div id="stat-legendary" class="text-3xl font-bold text-yellow-400">-</div>
-        <div class="text-sm text-text-secondary">Legendary</div>
+        <div id="stat-special" class="text-3xl font-bold text-amber-400">-</div>
+        <div class="text-sm text-text-secondary">Special</div>
     </div>
+</div>
+
+<!-- Category Filter Tabs -->
+<div id="filter-tabs" class="flex gap-2 mb-8 flex-wrap">
+    <button class="category-tab active" data-category="all">All</button>
+    <button class="category-tab" data-category="milestone">Milestones</button>
+    <button class="category-tab" data-category="achievement">Achievements</button>
+    <button class="category-tab" data-category="special">Special</button>
 </div>
 
 <!-- Loading State -->
@@ -44,39 +52,66 @@
     </div>
 </div>
 
-<!-- Badges Content -->
-<div id="badges-content" class="hidden space-y-10">
-    <!-- Earned Badges -->
-    <section id="earned-section" class="hidden">
-        <h2 class="text-xl font-bold text-text-bright mb-4">Earned Badges</h2>
-        <div id="earned-badges" class="grid grid-cols-2 md:grid-cols-4 gap-6"></div>
-    </section>
+<!-- Badges Content (dynamically populated by JS) -->
+<div id="badges-content" class="hidden space-y-10"></div>
 
-    <!-- Locked Badges -->
-    <section id="locked-section" class="hidden">
-        <h2 class="text-xl font-bold text-text-bright mb-4">Locked Badges</h2>
-        <div id="locked-badges" class="grid grid-cols-2 md:grid-cols-4 gap-6"></div>
-    </section>
+<!-- Empty State -->
+<div id="empty-state" class="hidden glass-card p-8 text-center">
+    <div class="text-4xl mb-4">🏅</div>
+    <h3 class="text-lg font-semibold text-text-bright mb-2">No Badges Yet</h3>
+    <p class="text-text-secondary text-sm mb-4">Complete challenges and reach milestones to earn badges!</p>
+    <a href="/ctf/challenges" class="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-ctf-primary/20 text-ctf-primary font-medium hover:bg-ctf-primary/30 transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+        </svg>
+        Browse Challenges
+    </a>
+</div>
 
-    <!-- Secret Badges -->
-    <section id="secret-section" class="hidden">
-        <h2 class="text-xl font-bold text-text-bright mb-4">Secret Badges</h2>
-        <p class="text-text-secondary text-sm mb-4">Hidden achievements waiting to be discovered...</p>
-        <div id="secret-badges" class="grid grid-cols-2 md:grid-cols-4 gap-6"></div>
-    </section>
-
-    <!-- Empty State -->
-    <div id="empty-state" class="hidden glass-card p-8 text-center">
-        <div class="text-4xl mb-4">🏅</div>
-        <h3 class="text-lg font-semibold text-text-bright mb-2">No Badges Yet</h3>
-        <p class="text-text-secondary text-sm mb-4">Complete challenges and reach milestones to earn badges!</p>
-        <a href="/ctf/challenges" class="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-ctf-primary/20 text-ctf-primary font-medium hover:bg-ctf-primary/30 transition-colors">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-            </svg>
-            Browse Challenges
-        </a>
+<!-- Share Badge Modal -->
+<div id="share-badge-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="glass-card p-6 max-w-2xl w-full">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-text-bright">Share Badge</h3>
+            <button id="close-share-modal" class="text-text-secondary hover:text-text-bright">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        
+        <!-- Badge Card Preview -->
+        <div class="mb-6 rounded-xl overflow-hidden border border-ctf-primary/20">
+            <img id="share-badge-card" src="" alt="Badge Card" class="w-full h-auto">
+        </div>
+        
+        <div class="space-y-4">
+            <!-- Copy Link -->
+            <div class="flex gap-2">
+                <input id="share-badge-url" type="text" readonly class="flex-1 bg-portal-bg-primary border border-ctf-primary/30 rounded-lg px-4 py-2 text-text-primary text-sm font-mono">
+                <button id="copy-badge-link" class="px-4 py-2 bg-ctf-primary text-portal-bg-primary font-semibold rounded-lg hover:opacity-90 transition-opacity">
+                    Copy
+                </button>
+            </div>
+            
+            <!-- Social Links -->
+            <div class="flex gap-3">
+                <a id="share-badge-twitter" href="#" target="_blank" class="flex-1 flex items-center justify-center gap-2 py-3 bg-black text-white rounded-lg hover:opacity-90 transition-opacity border border-white/10 text-sm">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                    Twitter
+                </a>
+                <a id="share-badge-linkedin" href="#" target="_blank" class="flex-1 flex items-center justify-center gap-2 py-3 bg-[#0A66C2] text-white rounded-lg hover:opacity-90 transition-opacity text-sm">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                    LinkedIn
+                </a>
+            </div>
+        </div>
     </div>
+</div>
+
+<!-- Copied Toast -->
+<div id="copied-toast" class="fixed bottom-6 right-6 px-4 py-2 bg-ctf-accent text-portal-bg-primary font-semibold rounded-lg shadow-lg hidden">
+    ✓ Link copied!
 </div>
 {% endblock %}
 
@@ -197,6 +232,27 @@
         color: #fbbf24;
     }
 
+    /* Earned secret badge */
+    .badge-card.earned.secret-earned {
+        border-color: rgba(245, 158, 11, 0.4);
+        background: linear-gradient(135deg, #1a1520, #1e1028, #1a1520);
+    }
+
+    .secret-ribbon {
+        position: absolute;
+        top: 14px;
+        left: -30px;
+        background: linear-gradient(90deg, #f59e0b, #d97706);
+        color: #000;
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        padding: 3px 36px;
+        transform: rotate(-45deg);
+        box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
+    }
+
     /* Earned date */
     .earned-date {
         position: absolute;
@@ -208,94 +264,265 @@
         border-radius: 6px;
         font-size: 10px;
     }
+
+    /* Share button */
+    .share-badge-btn {
+        position: absolute;
+        bottom: 12px;
+        right: 12px;
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        background: rgba(0, 212, 255, 0.1);
+        border: 1px solid rgba(0, 212, 255, 0.2);
+        color: #00d4ff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transition: all 0.2s;
+        cursor: pointer;
+    }
+
+    .badge-card.earned:hover .share-badge-btn {
+        opacity: 1;
+    }
+
+    .share-badge-btn:hover {
+        background: rgba(0, 212, 255, 0.2);
+        border-color: rgba(0, 212, 255, 0.4);
+    }
+
+    /* Category filter tabs */
+    .category-tab {
+        padding: 8px 20px;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #94a3b8;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .category-tab:hover {
+        color: #e2e8f0;
+        border-color: rgba(0, 212, 255, 0.2);
+    }
+
+    .category-tab.active {
+        color: #00d4ff;
+        background: rgba(0, 212, 255, 0.1);
+        border-color: rgba(0, 212, 255, 0.3);
+    }
+
+    /* Category section headers */
+    .category-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 6px;
+    }
+
+    .category-header .cat-icon {
+        font-size: 1.5rem;
+    }
+
+    .category-header .cat-label {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #e2e8f0;
+    }
+
+    .category-header .cat-count {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #94a3b8;
+        background: rgba(255, 255, 255, 0.05);
+        padding: 2px 10px;
+        border-radius: 12px;
+    }
+
+    .category-desc {
+        font-size: 0.8rem;
+        color: #64748b;
+        margin-bottom: 16px;
+    }
 </style>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-document.addEventListener('DOMContentLoaded', loadBadges);
+// User profile data for sharing
+let userProfile = null;
+let allBadges = [];
+
+const BADGE_CATEGORIES = {
+    milestone:    { label: 'Milestones',    icon: '\u{1F3C1}', desc: '"First" and progress markers' },
+    achievement:  { label: 'Achievements',  icon: '\u{1F3C6}', desc: 'Concrete accomplishments' },
+    special:      { label: 'Special',       icon: '\u{26A1}',  desc: 'Combo and cross-agent badges' },
+};
+const CATEGORY_ORDER = ['milestone', 'achievement', 'special'];
+
+document.addEventListener('DOMContentLoaded', async () => {
+    initFilterTabs();
+    await Promise.all([loadUserProfile(), loadBadges()]);
+});
+
+function initFilterTabs() {
+    document.querySelectorAll('.category-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.category-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            renderBadges(allBadges, tab.dataset.category);
+        });
+    });
+}
+
+async function loadUserProfile() {
+    try {
+        userProfile = await CTF.fetch('/profile');
+    } catch (error) {
+        userProfile = null;
+    }
+}
 
 async function loadBadges() {
     try {
-        const badges = await CTF.getBadges();
-        renderBadges(badges);
+        allBadges = await CTF.getBadges();
+        renderBadges(allBadges);
     } catch (error) {
         console.error('Failed to load badges:', error);
         document.getElementById('loading-state').classList.add('hidden');
-        document.getElementById('badges-content').classList.remove('hidden');
         document.getElementById('empty-state').classList.remove('hidden');
     }
 }
 
-function renderBadges(badges) {
+function renderBadges(badges, filterCategory = 'all') {
     document.getElementById('loading-state').classList.add('hidden');
     document.getElementById('badges-content').classList.remove('hidden');
+    document.getElementById('empty-state').classList.add('hidden');
 
-    // Categorize badges
+    if (badges.length === 0) {
+        document.getElementById('badges-content').classList.add('hidden');
+        document.getElementById('empty-state').classList.remove('hidden');
+        document.getElementById('stat-earned').textContent = '0';
+        document.getElementById('stat-milestone').textContent = '0';
+        document.getElementById('stat-achievement').textContent = '0';
+        document.getElementById('stat-special').textContent = '0';
+        return;
+    }
+
+    // Update stats (always reflect totals, regardless of filter)
     const earned = badges.filter(b => b.earned);
-    const locked = badges.filter(b => !b.earned && !b.secret);
-    const secret = badges.filter(b => b.secret && !b.earned);
-
-    // Update stats
-    const rareCount = earned.filter(b => b.rarity === 'rare' || b.rarity === 'epic' || b.rarity === 'legendary').length;
-    const legendaryCount = earned.filter(b => b.rarity === 'legendary').length;
+    const byCat = {};
+    for (const cat of CATEGORY_ORDER) byCat[cat] = badges.filter(b => b.category === cat);
 
     document.getElementById('stat-earned').textContent = earned.length;
-    document.getElementById('stat-locked').textContent = locked.length + secret.length;
-    document.getElementById('stat-rare').textContent = rareCount;
-    document.getElementById('stat-legendary').textContent = legendaryCount;
+    document.getElementById('stat-milestone').textContent =
+        byCat.milestone.filter(b => b.earned).length + '/' + byCat.milestone.length;
+    document.getElementById('stat-achievement').textContent =
+        byCat.achievement.filter(b => b.earned).length + '/' + byCat.achievement.length;
+    document.getElementById('stat-special').textContent =
+        byCat.special.filter(b => b.earned).length + '/' + byCat.special.length;
 
-    // Render earned badges
-    if (earned.length > 0) {
-        const earnedSection = document.getElementById('earned-section');
-        const earnedContainer = document.getElementById('earned-badges');
-        earnedSection.classList.remove('hidden');
+    // Determine which categories to show
+    const categoriesToRender = filterCategory === 'all'
+        ? CATEGORY_ORDER
+        : [filterCategory];
 
-        // Sort by rarity (legendary first) then by earned date (recent first)
-        const rarityOrder = { legendary: 0, epic: 1, rare: 2, common: 3 };
-        earned.sort((a, b) => {
-            const rarityDiff = (rarityOrder[a.rarity] || 4) - (rarityOrder[b.rarity] || 4);
-            if (rarityDiff !== 0) return rarityDiff;
+    const container = document.getElementById('badges-content');
+    container.innerHTML = '';
+
+    const rarityOrder = { legendary: 0, epic: 1, rare: 2, common: 3 };
+
+    for (const cat of categoriesToRender) {
+        const catBadges = badges.filter(b => b.category === cat);
+        if (catBadges.length === 0) continue;
+
+        const catMeta = BADGE_CATEGORIES[cat] || { label: cat, icon: '\u{1F3C5}', desc: '' };
+
+        const catEarned = catBadges.filter(b => b.earned);
+        const catLocked = catBadges.filter(b => !b.earned && !b.is_secret);
+        const catSecret = catBadges.filter(b => b.is_secret && !b.earned);
+
+        // Sort earned by rarity then date
+        catEarned.sort((a, b) => {
+            const rd = (rarityOrder[a.rarity] || 4) - (rarityOrder[b.rarity] || 4);
+            if (rd !== 0) return rd;
             return new Date(b.earned_at) - new Date(a.earned_at);
         });
 
-        earnedContainer.innerHTML = earned.map(badge => renderBadgeCard(badge, true)).join('');
+        const orderedBadges = [
+            ...catEarned.map(b => renderBadgeCard(b, true)),
+            ...catLocked.map(b => renderBadgeCard(b, false)),
+            ...catSecret.map(() => renderSecretBadge()),
+        ];
+
+        const section = document.createElement('section');
+        section.innerHTML = `
+            <div class="category-header">
+                <span class="cat-icon">${catMeta.icon}</span>
+                <span class="cat-label">${catMeta.label}</span>
+                <span class="cat-count">${catEarned.length} / ${catBadges.length} earned</span>
+            </div>
+            <p class="category-desc">${catMeta.desc}</p>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+                ${orderedBadges.join('')}
+            </div>
+        `;
+        container.appendChild(section);
     }
 
-    // Render locked badges
-    if (locked.length > 0) {
-        const lockedSection = document.getElementById('locked-section');
-        const lockedContainer = document.getElementById('locked-badges');
-        lockedSection.classList.remove('hidden');
-        lockedContainer.innerHTML = locked.map(badge => renderBadgeCard(badge, false)).join('');
+    if (container.children.length === 0) {
+        container.innerHTML = `
+            <div class="glass-card p-8 text-center">
+                <div class="text-4xl mb-4">${(BADGE_CATEGORIES[filterCategory] || {}).icon || '\u{1F3C5}'}</div>
+                <h3 class="text-lg font-semibold text-text-bright mb-2">No ${(BADGE_CATEGORIES[filterCategory] || {}).label || ''} badges yet</h3>
+                <p class="text-text-secondary text-sm">Badges in this category will appear here as they become available.</p>
+            </div>
+        `;
     }
+}
 
-    // Render secret badges
-    if (secret.length > 0) {
-        const secretSection = document.getElementById('secret-section');
-        const secretContainer = document.getElementById('secret-badges');
-        secretSection.classList.remove('hidden');
-        secretContainer.innerHTML = secret.map(() => renderSecretBadge()).join('');
-    }
+const RARITY_EMOJIS = { common: '⭐', rare: '💎', epic: '🌟', legendary: '👑' };
 
-    // Show empty state if no badges at all
-    if (badges.length === 0) {
-        document.getElementById('empty-state').classList.remove('hidden');
-    }
+function badgeIconHtml(badge) {
+    const fallback = RARITY_EMOJIS[badge.rarity] || '🏅';
+    if (!badge.icon_url) return fallback;
+    return `<img src="/static/images/ctf/${badge.icon_url}" alt="${escapeHtml(badge.title)}" class="w-10 h-10"
+                 onerror="this.replaceWith(document.createTextNode('${fallback}'))">`;
 }
 
 function renderBadgeCard(badge, isEarned) {
     const earnedClass = isEarned ? 'earned' : 'locked';
+    const secretClass = isEarned && badge.is_secret ? 'secret-earned' : '';
     const rarityClass = `rarity-${badge.rarity || 'common'}`;
     const earnedDate = isEarned && badge.earned_at
         ? `<span class="earned-date">${formatShortDate(badge.earned_at)}</span>`
         : '';
+    const secretRibbon = isEarned && badge.is_secret
+        ? '<span class="secret-ribbon">Secret</span>'
+        : '';
+    
+    // Share button only shows if user has claimed a username
+    let shareBtn = '';
+    if (isEarned && userProfile && userProfile.username) {
+        shareBtn = `<button class="share-badge-btn" onclick="openShareModal('${badge.id}', '${escapeHtml(badge.title)}', '${badge.rarity}')" title="Share">
+               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
+               </svg>
+           </button>`;
+    }
 
     return `
-        <div class="badge-card ${earnedClass} ${rarityClass}">
+        <div class="badge-card ${earnedClass} ${secretClass} ${rarityClass}">
+            ${secretRibbon}
             ${earnedDate}
-            <div class="badge-icon">${badge.icon || '🏅'}</div>
-            <h3 class="font-semibold text-text-bright mb-1">${escapeHtml(badge.name)}</h3>
+            ${shareBtn}
+            <div class="badge-icon">${badgeIconHtml(badge)}</div>
+            <h3 class="font-semibold text-text-bright mb-1">${escapeHtml(badge.title)}</h3>
             <p class="text-xs text-text-secondary mb-3">${escapeHtml(badge.description || '')}</p>
             <span class="rarity-badge">${badge.rarity || 'common'}</span>
         </div>
@@ -324,5 +551,57 @@ function escapeHtml(text) {
     div.textContent = text;
     return div.innerHTML;
 }
+
+// Share Modal Functions
+const shareModal = document.getElementById('share-badge-modal');
+const closeShareModal = document.getElementById('close-share-modal');
+const shareBadgeUrl = document.getElementById('share-badge-url');
+const copyBadgeLink = document.getElementById('copy-badge-link');
+const shareBadgeTwitter = document.getElementById('share-badge-twitter');
+const shareBadgeLinkedin = document.getElementById('share-badge-linkedin');
+const copiedToast = document.getElementById('copied-toast');
+
+function openShareModal(badgeId, badgeTitle, badgeRarity) {
+    if (!userProfile || !userProfile.username) {
+        alert('Please claim a username in Profile Settings to share badges.');
+        return;
+    }
+    
+    const baseUrl = window.location.origin;
+    const username = userProfile.username;
+    
+    // Use user-specific card URL (proves ownership)
+    const cardUrl = `${baseUrl}/ctf/share/badge/${username}/${badgeId}/card.png`;
+    // Share URL is the user's public profile
+    const profileUrl = `${baseUrl}/h/${username}`;
+
+    // Update modal content - show personalized card image
+    document.getElementById('share-badge-card').src = cardUrl + '?t=' + Date.now();
+    shareBadgeUrl.value = profileUrl;
+
+    // Update social links - point to public profile
+    const shareText = `I earned the "${badgeTitle}" badge on FinBot CTF! Check out my profile: #OWASPGenAISecurityProject #OWASPFinBotCTF`;
+    shareBadgeTwitter.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(profileUrl)}`;
+    shareBadgeLinkedin.href = `https://www.linkedin.com/shareArticle?mini=true&url=${encodeURIComponent(profileUrl)}&title=${encodeURIComponent('@' + username + ' earned ' + badgeTitle + ' - FinBot CTF')}&summary=${encodeURIComponent('Check out my hacker profile on FinBot CTF!')}`;
+    
+    shareModal.classList.remove('hidden');
+}
+
+closeShareModal.addEventListener('click', () => {
+    shareModal.classList.add('hidden');
+});
+
+shareModal.addEventListener('click', (e) => {
+    if (e.target === shareModal) {
+        shareModal.classList.add('hidden');
+    }
+});
+
+copyBadgeLink.addEventListener('click', () => {
+    navigator.clipboard.writeText(shareBadgeUrl.value).then(() => {
+        copiedToast.classList.remove('hidden');
+        setTimeout(() => copiedToast.classList.add('hidden'), 2000);
+    });
+});
 </script>
 {% endblock %}

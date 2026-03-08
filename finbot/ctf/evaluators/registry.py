@@ -69,7 +69,12 @@ def list_registered_evaluators() -> list[str]:
 
 def _register_all_evaluators():
     """Import all evaluator implementations to trigger registration"""
-    from finbot.ctf.evaluators.implementations import vendor_count
+    from finbot.ctf.evaluators.implementations import (
+        challenge_completion,
+        invoice_amount,
+        invoice_count,
+        vendor_count,
+    )
 
     logger.info("Registered %d evaluators", len(_EVALUATOR_REGISTRY))
 

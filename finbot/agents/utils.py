@@ -2,10 +2,12 @@
 
 import asyncio
 import functools
-import json
 import logging
 import time
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Any, Callable, TypeVar, cast
+from uuid import UUID
 
 from finbot.core.messaging import event_bus
 
@@ -13,6 +15,30 @@ logger = logging.getLogger(__name__)
 
 # Type variable for generic function typing
 F = TypeVar("F", bound=Callable[..., Any])
+
+
+def _json_safe_value(value: Any) -> Any:
+    """Convert value to JSON-serializable type.
+
+    Recursively converts non-JSON-safe types to safe equivalents:
+    - datetime/date -> ISO format string
+    - UUID/Decimal -> string
+    - tuple -> list
+    - dict/list -> recursively processed
+    - Other types -> string representation
+    """
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, (UUID, Decimal)):
+        return str(value)
+    if isinstance(value, dict):
+        return {str(k): _json_safe_value(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe_value(v) for v in value]
+    # Fallback for any other type
+    return str(value)
 
 
 def agent_tool(func: F) -> F:
@@ -61,14 +87,17 @@ def agent_tool(func: F) -> F:
 
         # Emit tool_call_start event
         start_time = time.time()
+        tool_args = _json_safe_value(list(args)) if args else []
+        tool_kwargs = _json_safe_value(kwargs) if kwargs else {}
+
         await event_bus.emit_agent_event(
             agent_name=agent_name,
             event_type="tool_call_start",
             event_subtype="tool",
             event_data={
                 "tool_name": tool_name,
-                "args": str(args) if args else "",
-                "kwargs": str(kwargs) if kwargs else "",
+                "tool_args": tool_args,
+                "tool_kwargs": tool_kwargs,
             },
             session_context=session_context,
             workflow_id=workflow_id,
@@ -92,10 +121,10 @@ def agent_tool(func: F) -> F:
                 event_subtype="tool",
                 event_data={
                     "tool_name": tool_name,
-                    "args": str(args) if args else "",
-                    "kwargs": str(kwargs) if kwargs else "",
+                    "tool_args": tool_args,
+                    "tool_kwargs": tool_kwargs,
                     "duration_ms": duration_ms,
-                    "tool_output": json.dumps(result) if result else "",
+                    "tool_output": _json_safe_value(result) if result else None,
                 },
                 session_context=session_context,
                 workflow_id=workflow_id,
@@ -115,8 +144,8 @@ def agent_tool(func: F) -> F:
                 event_subtype="tool",
                 event_data={
                     "tool_name": tool_name,
-                    "args": str(args) if args else "",
-                    "kwargs": str(kwargs) if kwargs else "",
+                    "tool_args": tool_args,
+                    "tool_kwargs": tool_kwargs,
                     "duration_ms": duration_ms,
                     "error_type": type(e).__name__,
                     "error_message": str(e),
@@ -148,6 +177,8 @@ def agent_tool(func: F) -> F:
         # Create async function for event emission and execution
         async def execute_with_events() -> Any:
             start_time = time.time()
+            tool_args = _json_safe_value(list(args)) if args else []
+            tool_kwargs = _json_safe_value(kwargs) if kwargs else {}
 
             # Emit tool_call_start event
             await event_bus.emit_agent_event(
@@ -156,8 +187,8 @@ def agent_tool(func: F) -> F:
                 event_subtype="tool",
                 event_data={
                     "tool_name": tool_name,
-                    "args": str(args) if args else "",
-                    "kwargs": str(kwargs) if kwargs else "",
+                    "tool_args": tool_args,
+                    "tool_kwargs": tool_kwargs,
                 },
                 session_context=session_context,
                 workflow_id=workflow_id,
@@ -178,10 +209,10 @@ def agent_tool(func: F) -> F:
                     event_subtype="tool",
                     event_data={
                         "tool_name": tool_name,
-                        "args": str(args) if args else "",
-                        "kwargs": str(kwargs) if kwargs else "",
+                        "tool_args": tool_args,
+                        "tool_kwargs": tool_kwargs,
                         "duration_ms": duration_ms,
-                        "tool_output": json.dumps(result) if result else "",
+                        "tool_output": _json_safe_value(result) if result else None,
                     },
                     session_context=session_context,
                     workflow_id=workflow_id,
@@ -201,8 +232,8 @@ def agent_tool(func: F) -> F:
                     event_subtype="tool",
                     event_data={
                         "tool_name": tool_name,
-                        "args": str(args) if args else "",
-                        "kwargs": str(kwargs) if kwargs else "",
+                        "tool_args": tool_args,
+                        "tool_kwargs": tool_kwargs,
                         "duration_ms": duration_ms,
                         "error_type": type(e).__name__,
                         "error_message": str(e),

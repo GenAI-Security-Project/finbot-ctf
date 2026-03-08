@@ -93,7 +93,7 @@ class Settings(BaseSettings):
     LLM_DEFAULT_MODEL: str = "gpt-5-nano"
     LLM_DEFAULT_TEMPERATURE: float = 1
     LLM_MAX_TOKENS: int = 5000
-    LLM_TIMEOUT: int = 30
+    LLM_TIMEOUT: int = 60
 
     # Agent Config
     AGENT_MAX_ITERATIONS: int = 10

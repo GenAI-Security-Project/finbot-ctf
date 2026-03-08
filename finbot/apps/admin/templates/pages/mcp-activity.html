@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+
+{% block title %}MCP Activity Log - FinBot Admin{% endblock %}
+{% block nav_mcp_activity %}active{% endblock %}
+{% block page_title %}MCP Activity Log{% endblock %}
+{% block page_subtitle %}MCP protocol messages between agents and servers{% endblock %}
+
+{% block header_actions %}
+<button id="refresh-activity-btn" class="vendor-btn quantum-secondary text-sm">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+    </svg>
+    Refresh
+</button>
+{% endblock %}
+
+{% block content %}
+<!-- Filters -->
+<div class="flex items-center gap-4 mb-6">
+    <select id="filter-server" class="config-input w-48">
+        <option value="">All Servers</option>
+        <option value="finstripe">FinStripe</option>
+        <option value="findrive">FinDrive</option>
+        <option value="taxcalc">TaxCalc</option>
+        <option value="systemutils">SystemUtils</option>
+    </select>
+    <span id="activity-count" class="text-sm text-text-secondary ml-auto"></span>
+</div>
+
+<!-- Activity Table -->
+<div class="bg-portal-bg-secondary border border-admin-primary/20 rounded-xl overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead>
+                <tr class="border-b border-admin-primary/10">
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Time</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Server</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Dir</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Method</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Tool</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Duration</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Payload</th>
+                </tr>
+            </thead>
+            <tbody id="activity-table-body">
+                <tr>
+                    <td colspan="7" class="px-4 py-8 text-center text-text-secondary">Loading activity...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.config-input {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0.5rem;
+    color: #e2e8f0;
+    font-size: 0.875rem;
+    padding: 0.5rem 0.75rem;
+    transition: border-color 0.2s;
+}
+.config-input:focus {
+    outline: none;
+    border-color: #f59e0b;
+}
+.dir-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.dir-badge.request {
+    background: rgba(59, 130, 246, 0.15);
+    color: #60a5fa;
+}
+.dir-badge.response {
+    background: rgba(34, 197, 94, 0.15);
+    color: #4ade80;
+}
+.payload-preview {
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: monospace;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    cursor: pointer;
+}
+.payload-preview:hover {
+    color: #e2e8f0;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', path='js/admin/mcp-activity.js') }}"></script>
+{% endblock %}

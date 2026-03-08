@@ -1,0 +1,168 @@
+{% extends 'base.html' %}
+
+{% block title %}Files - FinBot Vendor Portal{% endblock %}
+
+{% block meta_description %}Manage your invoice documents and files stored in FinDrive.{% endblock %}
+
+{% block nav_profile %}{% endblock %}
+
+{% block page_title %}FinDrive{% endblock %}
+{% block page_subtitle %}Manage invoice PDFs and supporting documents{% endblock %}
+
+{% block header_actions %}
+<button id="create-file-btn" class="vendor-btn quantum-accent">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+    </svg>
+    New File
+</button>
+<a href="/vendor/assistant" class="vendor-btn quantum-primary">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z"/>
+    </svg>
+    AI Assistant
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- File Stats -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <div class="neural-metric" data-no-animate>
+        <div class="metric-icon">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+            </svg>
+        </div>
+        <div id="stat-file-count" class="metric-value">0</div>
+        <div class="metric-label">Documents</div>
+    </div>
+
+    <div class="neural-metric" data-no-animate>
+        <div class="metric-icon">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/>
+            </svg>
+        </div>
+        <div id="stat-storage-provider" class="metric-value text-lg">FinDrive</div>
+        <div class="metric-label">Storage Provider</div>
+    </div>
+
+    <div class="neural-metric" data-no-animate>
+        <div class="metric-icon">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+        </div>
+        <div id="stat-drive-status" class="metric-value text-lg">Connected</div>
+        <div class="metric-label">Status</div>
+    </div>
+</div>
+
+<!-- File List -->
+<div class="holo-card">
+    <div class="holo-header">
+        <h2 class="text-xl font-bold text-text-bright">Documents</h2>
+    </div>
+    <div class="holo-body">
+        <div id="files-list" class="space-y-3">
+            <div class="flex items-center justify-center py-8">
+                <svg class="animate-spin h-5 w-5 text-vendor-primary" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span class="ml-3 text-text-secondary">Loading files...</span>
+            </div>
+        </div>
+
+        <div id="files-empty-state" class="hidden text-center py-12">
+            <svg class="w-16 h-16 mx-auto text-text-secondary mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+            </svg>
+            <h3 class="text-lg font-medium text-text-bright mb-2">No documents yet</h3>
+            <p class="text-text-secondary mb-4">Upload your first invoice PDF to get started</p>
+        </div>
+    </div>
+</div>
+
+<!-- Create/Edit File Modal -->
+<div id="file-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-portal-bg-secondary border border-vendor-primary/30 rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden">
+        <div class="p-6 border-b border-vendor-primary/20">
+            <div class="flex items-center justify-between">
+                <h3 id="file-modal-title" class="text-xl font-bold text-text-bright">New Document</h3>
+                <button id="close-file-modal-btn" class="text-text-secondary hover:text-text-bright transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <div class="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+            <form id="file-form" class="space-y-4">
+                {{ csrf_token_field | safe }}
+                <input type="hidden" id="file-edit-id" value="">
+
+                <div class="vendor-form-group">
+                    <label for="file-name" class="vendor-label">Document Name <span class="text-vendor-danger">*</span></label>
+                    <input type="text" id="file-name" class="vendor-input" placeholder="invoice-2026-001.pdf" required>
+                </div>
+
+                <div class="vendor-form-group">
+                    <label for="file-content" class="vendor-label">Document Content <span class="text-vendor-danger">*</span></label>
+                    <p class="text-xs text-text-secondary mb-2">Paste the text content of your PDF document</p>
+                    <textarea id="file-content" rows="14" class="vendor-input resize-none font-mono text-sm" placeholder="Enter document content..." required></textarea>
+                </div>
+
+                <div class="flex items-center justify-end space-x-4 pt-4 border-t border-vendor-primary/20">
+                    <button type="button" id="cancel-file-btn" class="vendor-btn quantum-secondary">Cancel</button>
+                    <button type="submit" id="submit-file-btn" class="vendor-btn quantum-accent">
+                        <span id="submit-file-text">Create File</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- File View Modal -->
+<div id="file-view-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-portal-bg-secondary border border-vendor-primary/30 rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden">
+        <div class="p-6 border-b border-vendor-primary/20">
+            <div class="flex items-center justify-between">
+                <h3 id="file-view-title" class="text-xl font-bold text-text-bright">File</h3>
+                <button id="close-file-view-btn" class="text-text-secondary hover:text-text-bright transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <div class="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+            <pre id="file-view-content" class="text-sm text-text-primary font-mono whitespace-pre-wrap break-words bg-portal-bg-primary rounded-lg p-4 border border-vendor-primary/10"></pre>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.file-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    border-radius: 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.02);
+    transition: border-color 0.2s, background 0.2s;
+}
+.file-row:hover {
+    border-color: rgba(0, 212, 255, 0.2);
+    background: rgba(0, 212, 255, 0.03);
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', path='js/vendor/findrive.js') }}"></script>
+{% endblock %}

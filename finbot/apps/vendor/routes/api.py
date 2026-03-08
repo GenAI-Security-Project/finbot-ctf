@@ -4,13 +4,19 @@ import secrets
 from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from finbot.agents.runner import run_invoice_agent, run_onboarding_agent
+from finbot.agents.runner import run_orchestrator_agent
 from finbot.core.auth.middleware import get_session_context
 from finbot.core.auth.session import SessionContext
 from finbot.core.data.database import get_db
-from finbot.core.data.repositories import InvoiceRepository, VendorRepository
+from finbot.core.data.repositories import (
+    ChatMessageRepository,
+    InvoiceRepository,
+    VendorMessageRepository,
+    VendorRepository,
+)
 from finbot.core.messaging import event_bus
 
 # Create API router
@@ -97,15 +103,13 @@ async def register_vendor(
             phone=vendor_data.phone,
         )
 
-        # Run the onboarding agent
         workflow_id = f"wf_{secrets.token_urlsafe(12)}"
 
-        # queue background task to run the onboarding agent
         background_tasks.add_task(
-            run_onboarding_agent,
+            run_orchestrator_agent,
             task_data={
                 "vendor_id": vendor.id,
-                "description": "Evaluate and onboard a new vendor with provided vendor_id",
+                "description": "A new vendor has registered. Evaluate and onboard the vendor, then notify them of the decision.",
             },
             session_context=session_context,
             workflow_id=workflow_id,
@@ -222,6 +226,18 @@ async def update_vendor(
         db.commit()
         db.refresh(vendor)
 
+        await event_bus.emit_business_event(
+            event_type="vendor.updated",
+            event_subtype="lifecycle",
+            event_data={
+                "vendor_id": vendor.id,
+                "company_name": vendor.company_name,
+                "updates": list(update_data.keys()),
+            },
+            session_context=session_context,
+            summary=f"Vendor profile updated: {vendor.company_name}",
+        )
+
         return {
             "success": True,
             "message": "Vendor profile updated successfully",
@@ -261,10 +277,19 @@ async def delete_vendor(
             status_code=403, detail="Not authorized to delete this vendor"
         )
 
+    company_name = vendor.company_name
     success = vendor_repo.delete_vendor(vendor_id)
 
     if not success:
         raise HTTPException(status_code=500, detail="Failed to delete vendor")
+
+    await event_bus.emit_business_event(
+        event_type="vendor.deleted",
+        event_subtype="lifecycle",
+        event_data={"vendor_id": vendor_id, "company_name": company_name},
+        session_context=session_context,
+        summary=f"Vendor deleted: {company_name}",
+    )
 
     return {"success": True, "message": "Vendor deleted successfully"}
 
@@ -294,12 +319,11 @@ async def request_vendor_review(
         # Generate workflow ID for tracking
         workflow_id = f"wf_review_{secrets.token_urlsafe(12)}"
 
-        # Queue background task to run the onboarding agent
         background_tasks.add_task(
-            run_onboarding_agent,
+            run_orchestrator_agent,
             task_data={
                 "vendor_id": vendor.id,
-                "description": "Re-evaluate vendor profile and update status based on current data",
+                "description": "Vendor requested a re-review of their profile. Re-evaluate the vendor and notify them of the outcome.",
             },
             session_context=session_context,
             workflow_id=workflow_id,
@@ -351,6 +375,17 @@ async def switch_vendor(
     if not success:
         raise HTTPException(status_code=500, detail="Failed to switch vendor")
 
+    await event_bus.emit_business_event(
+        event_type="vendor.switched",
+        event_subtype="lifecycle",
+        event_data={
+            "vendor_id": vendor.id,
+            "company_name": vendor.company_name,
+        },
+        session_context=session_context,
+        summary=f"Switched to vendor: {vendor.company_name}",
+    )
+
     return {
         "success": True,
         "message": "Vendor switched successfully",
@@ -373,17 +408,92 @@ async def get_dashboard_metrics(
     db = next(get_db())
 
     invoice_repo = InvoiceRepository(db, session_context)
+    msg_repo = VendorMessageRepository(db, session_context)
 
     invoice_stats = invoice_repo.get_current_vendor_invoice_stats()
+    message_stats = msg_repo.get_message_stats_for_current_vendor()
+
+    recent_messages = msg_repo.list_messages_for_current_vendor(limit=5)
+    recent_invoices = invoice_repo.list_invoices_for_current_vendor()[:5]
+
+    payment_summary = {}
+    try:
+        from finbot.mcp.servers.finstripe.repositories import (
+            PaymentTransactionRepository,
+        )
+
+        txn_repo = PaymentTransactionRepository(db, session_context)
+        transactions = txn_repo.list_for_vendor(
+            session_context.current_vendor_id, limit=1000
+        )
+        payment_summary = {
+            "total_paid": sum(
+                t.amount for t in transactions if t.status == "completed"
+            ),
+            "total_pending": sum(
+                t.amount for t in transactions if t.status == "pending"
+            ),
+            "completed_count": sum(
+                1 for t in transactions if t.status == "completed"
+            ),
+            "pending_count": sum(
+                1 for t in transactions if t.status == "pending"
+            ),
+            "failed_count": sum(
+                1 for t in transactions if t.status == "failed"
+            ),
+            "transaction_count": len(transactions),
+        }
+    except Exception:
+        payment_summary = {
+            "total_paid": 0,
+            "total_pending": 0,
+            "completed_count": 0,
+            "pending_count": 0,
+            "failed_count": 0,
+            "transaction_count": 0,
+        }
+
+    file_count = 0
+    try:
+        from finbot.mcp.servers.findrive.repositories import FinDriveFileRepository
+
+        file_repo = FinDriveFileRepository(db, session_context)
+        files = file_repo.list_files(
+            vendor_id=session_context.current_vendor_id, limit=1000
+        )
+        file_count = len(files)
+    except Exception:
+        pass
 
     return {
         "vendor_context": session_context.current_vendor,
         "metrics": {
             "invoices": invoice_stats,
+            "payments": payment_summary,
+            "messages": message_stats,
+            "files": {"total_count": file_count},
             "completion_rate": (
-                invoice_stats["paid_count"] / max(invoice_stats["total_count"], 1) * 100
+                invoice_stats["paid_count"]
+                / max(invoice_stats["total_count"], 1)
+                * 100
             ),
         },
+        "recent_invoices": [
+            {
+                "id": inv.id,
+                "invoice_number": inv.invoice_number,
+                "amount": float(inv.amount),
+                "status": inv.status,
+                "description": inv.description,
+                "due_date": inv.due_date.isoformat() if inv.due_date else None,
+                "created_at": inv.created_at.isoformat()
+                if inv.created_at
+                else None,
+            }
+            for inv in recent_invoices
+        ],
+        "recent_messages": [m.to_dict() for m in recent_messages],
     }
 
 
@@ -435,15 +545,14 @@ async def create_invoice(
 
         invoice = invoice_repo.create_invoice_for_current_vendor(**invoice_dict)
 
-        # Run the invoice processing agent
         workflow_id = f"wf_{secrets.token_urlsafe(12)}"
 
-        # queue background task to run the process invoice
         background_tasks.add_task(
-            run_invoice_agent,
+            run_orchestrator_agent,
             task_data={
                 "invoice_id": invoice.id,
-                "description": "Please process a new invoice for this vendor with provided invoice_id",
+                "vendor_id": session_context.current_vendor_id,
+                "description": "A new invoice has been submitted. Process the invoice and notify the vendor of the decision.",
             },
             session_context=session_context,
             workflow_id=workflow_id,
@@ -609,12 +718,12 @@ async def reprocess_invoice(
     # Create workflow ID for tracking
     workflow_id = f"wf_{secrets.token_urlsafe(12)}"
 
-    # Queue background task to run the invoice processing agent
     background_tasks.add_task(
-        run_invoice_agent,
+        run_orchestrator_agent,
         task_data={
             "invoice_id": invoice.id,
-            "description": "Please re-process this invoice and update the status and review notes",
+            "vendor_id": session_context.current_vendor_id,
+            "description": "Vendor requested invoice re-processing. Re-evaluate the invoice and notify the vendor of the updated decision.",
         },
         session_context=session_context,
         workflow_id=workflow_id,
@@ -652,3 +761,363 @@ async def reprocess_invoice(
         "message": "Invoice re-processing has been queued. The AI agent will review it shortly.",
         "workflow_id": workflow_id,
     }
+
+
+# =============================================================================
+# Payment endpoints (vendor-scoped)
+# =============================================================================
+
+
+@router.get("/payments/summary")
+async def get_payment_summary(
+    session_context: SessionContext = Depends(get_session_context),
+):
+    """Get payment summary for current vendor -- stats and mock account balance."""
+    if not session_context.current_vendor_id:
+        raise HTTPException(status_code=400, detail="Vendor context required")
+
+    from finbot.mcp.servers.finstripe.repositories import PaymentTransactionRepository
+
+    db = next(get_db())
+    txn_repo = PaymentTransactionRepository(db, session_context)
+    transactions = txn_repo.list_for_vendor(session_context.current_vendor_id, limit=1000)
+
+    total_paid = sum(t.amount for t in transactions if t.status == "completed")
+    total_pending = sum(t.amount for t in transactions if t.status == "pending")
+    total_failed = sum(t.amount for t in transactions if t.status == "failed")
+
+    completed_count = sum(1 for t in transactions if t.status == "completed")
+    pending_count = sum(1 for t in transactions if t.status == "pending")
+    failed_count = sum(1 for t in transactions if t.status == "failed")
+
+    return {
+        "summary": {
+            "total_paid": total_paid,
+            "total_pending": total_pending,
+            "total_failed": total_failed,
+            "completed_count": completed_count,
+            "pending_count": pending_count,
+            "failed_count": failed_count,
+            "transaction_count": len(transactions),
+        },
+        "vendor_context": session_context.current_vendor,
+    }
+
+
+@router.get("/payments/transactions")
+async def get_payment_transactions(
+    limit: int = 50,
+    offset: int = 0,
+    session_context: SessionContext = Depends(get_session_context),
+):
+    """List payment transactions for current vendor."""
+    if not session_context.current_vendor_id:
+        raise HTTPException(status_code=400, detail="Vendor context required")
+
+    from finbot.mcp.servers.finstripe.repositories import PaymentTransactionRepository
+
+    db = next(get_db())
+    txn_repo = PaymentTransactionRepository(db, session_context)
+    transactions = txn_repo.list_for_vendor(
+        session_context.current_vendor_id, limit=limit, offset=offset
+    )
+
+    return {
+        "transactions": [t.to_dict() for t in transactions],
+        "total_count": len(transactions),
+        "vendor_context": session_context.current_vendor,
+    }
+
+
+# =============================================================================
+# FinDrive file endpoints (vendor-scoped)
+# =============================================================================
+
+
+class FileCreateRequest(BaseModel):
+    filename: str
+    content: str
+    folder: str = "/invoices"
+
+
+class FileUpdateRequest(BaseModel):
+    filename: str | None = None
+    content: str | None = None
+
+
+@router.get("/findrive")
+async def list_vendor_files(
+    limit: int = 100,
+    session_context: SessionContext = Depends(get_session_context),
+):
+    """List files for current vendor from FinDrive."""
+    if not session_context.current_vendor_id:
+        raise HTTPException(status_code=400, detail="Vendor context required")
+
+    from finbot.mcp.servers.findrive.repositories import FinDriveFileRepository
+
+    db = next(get_db())
+    repo = FinDriveFileRepository(db, session_context)
+    files = repo.list_files(vendor_id=session_context.current_vendor_id, limit=limit)
+
+    return {
+        "files": [f.to_dict() for f in files],
+        "total_count": len(files),
+        "vendor_context": session_context.current_vendor,
+    }
+
+
+@router.post("/findrive")
+async def create_vendor_file(
+    file_data: FileCreateRequest,
+    session_context: SessionContext = Depends(get_session_context),
+):
+    """Upload a file to FinDrive for current vendor."""
+    if not session_context.current_vendor_id:
+        raise HTTPException(status_code=400, detail="Vendor context required")
+
+    from finbot.mcp.servers.findrive.repositories import FinDriveFileRepository
+
+    db = next(get_db())
+    repo = FinDriveFileRepository(db, session_context)
+    f = repo.create_file(
+        filename=file_data.filename,
+        content_text=file_data.content,
+        vendor_id=session_context.current_vendor_id,
+        folder_path=file_data.folder,
+    )
+
+    return {
+        "success": True,
+        "file": f.to_dict(),
+    }
+
+
+@router.get("/findrive/{file_id}")
+async def get_vendor_file(
+    file_id: int,
+    session_context: SessionContext = Depends(get_session_context),
+):
+    """Get a file's content from FinDrive."""
+    if not session_context.current_vendor_id:
+        raise HTTPException(status_code=400, detail="Vendor context required")
+
+    from finbot.mcp.servers.findrive.repositories import FinDriveFileRepository
+
+    db = next(get_db())
+    repo = FinDriveFileRepository(db, session_context)
+    f = repo.get_file(file_id)
+
+    if not f:
+        raise HTTPException(status_code=404, detail="File not found")
+    if f.vendor_id != session_context.current_vendor_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    return {"file": f.to_dict_with_content()}
+
+
+@router.put("/findrive/{file_id}")
+async def update_vendor_file(
+    file_id: int,
+    file_data: FileUpdateRequest,
+    session_context: SessionContext = Depends(get_session_context),
+):
+    """Update a file in FinDrive."""
+    if not session_context.current_vendor_id:
+        raise HTTPException(status_code=400, detail="Vendor context required")
+
+    from finbot.mcp.servers.findrive.repositories import FinDriveFileRepository
+
+    db = next(get_db())
+    repo = FinDriveFileRepository(db, session_context)
+    f = repo.get_file(file_id)
+
+    if not f:
+        raise HTTPException(status_code=404, detail="File not found")
+    if f.vendor_id != session_context.current_vendor_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    updated = repo.update_file(
+        file_id,
+        filename=file_data.filename,
+        content_text=file_data.content,
+    )
+
+    return {"success": True, "file": updated.to_dict() if updated else None}
+
+
+@router.delete("/findrive/{file_id}")
+async def delete_vendor_file(
+    file_id: int,
+    session_context: SessionContext = Depends(get_session_context),
+):
+    """Delete a file from FinDrive."""
+    if not session_context.current_vendor_id:
+        raise HTTPException(status_code=400, detail="Vendor context required")
+
+    from finbot.mcp.servers.findrive.repositories import FinDriveFileRepository
+
+    db = next(get_db())
+    repo = FinDriveFileRepository(db, session_context)
+    f = repo.get_file(file_id)
+
+    if not f:
+        raise HTTPException(status_code=404, detail="File not found")
+    if f.vendor_id != session_context.current_vendor_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    repo.delete_file(file_id)
+
+    return {"success": True, "deleted": True}
+
+
+# =============================================================================
+# Message endpoints (vendor-scoped)
+# =============================================================================
+
+
+@router.get("/messages")
+async def get_messages(
+    message_type: str | None = None,
+    is_read: bool | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    session_context: SessionContext = Depends(get_session_context),
+):
+    """Get messages for current vendor"""
+    db = next(get_db())
+    msg_repo = VendorMessageRepository(db, session_context)
+
+    messages = msg_repo.list_messages_for_current_vendor(
+        message_type=message_type,
+        is_read=is_read,
+        limit=limit,
+        offset=offset,
+    )
+    stats = msg_repo.get_message_stats_for_current_vendor()
+
+    return {
+        "messages": [m.to_dict() for m in messages],
+        "stats": stats,
+        "vendor_context": session_context.current_vendor,
+    }
+
+
+@router.get("/messages/stats")
+async def get_message_stats(
+    session_context: SessionContext = Depends(get_session_context),
+):
+    """Get message stats for current vendor (unread count, type breakdown)"""
+    db = next(get_db())
+    msg_repo = VendorMessageRepository(db, session_context)
+
+    return msg_repo.get_message_stats_for_current_vendor()
+
+
+@router.get("/messages/{message_id}")
+async def get_message(
+    message_id: int,
+    session_context: SessionContext = Depends(get_session_context),
+):
+    """Get a specific message"""
+    db = next(get_db())
+    msg_repo = VendorMessageRepository(db, session_context)
+
+    msg = msg_repo.get_message(message_id)
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    if msg.vendor_id != session_context.current_vendor_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    return {"message": msg.to_dict()}
+
+
+@router.post("/messages/{message_id}/read")
+async def mark_message_read(
+    message_id: int,
+    session_context: SessionContext = Depends(get_session_context),
+):
+    """Mark a message as read"""
+    db = next(get_db())
+    msg_repo = VendorMessageRepository(db, session_context)
+
+    msg = msg_repo.get_message(message_id)
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    if msg.vendor_id != session_context.current_vendor_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    msg = msg_repo.mark_as_read(message_id)
+    return {"success": True, "message": msg.to_dict()}
+
+
+@router.post("/messages/read-all")
+async def mark_all_messages_read(
+    session_context: SessionContext = Depends(get_session_context),
+):
+    """Mark all messages as read for current vendor"""
+    db = next(get_db())
+    msg_repo = VendorMessageRepository(db, session_context)
+
+    count = msg_repo.mark_all_as_read()
+    return {"success": True, "messages_updated": count}
+
+
+# =============================================================================
+# Chat Assistant endpoints
+# =============================================================================
+
+
+class ChatRequest(BaseModel):
+    """Chat message request"""
+
+    message: str
+
+
+@router.post("/chat")
+async def chat(
+    request: ChatRequest,
+    background_tasks: BackgroundTasks,
+    session_context: SessionContext = Depends(get_session_context),
+):
+    """Stream a chat response from the AI assistant"""
+    from finbot.agents.chat import ChatAssistant  # pylint: disable=import-outside-toplevel
+
+    assistant = ChatAssistant(
+        session_context=session_context,
+        background_tasks=background_tasks,
+    )
+
+    return StreamingResponse(
+        assistant.stream_response(request.message),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.get("/chat/history")
+async def get_chat_history(
+    limit: int = 100,
+    session_context: SessionContext = Depends(get_session_context),
+):
+    """Get chat history for the current user and vendor"""
+    db = next(get_db())
+    repo = ChatMessageRepository(db, session_context)
+    messages = repo.get_history(limit=limit)
+    return {"messages": [m.to_dict() for m in messages]}
+
+
+@router.delete("/chat/history")
+async def clear_chat_history(
+    session_context: SessionContext = Depends(get_session_context),
+):
+    """Clear chat history for the current user and vendor"""
+    db = next(get_db())
+    repo = ChatMessageRepository(db, session_context)
+    count = repo.clear_history()
+    return {"success": True, "messages_deleted": count}

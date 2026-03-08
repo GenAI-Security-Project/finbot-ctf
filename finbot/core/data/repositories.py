@@ -3,24 +3,29 @@
 import json
 from datetime import UTC, datetime
 
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from finbot.core.auth.session import SessionContext
 from finbot.core.data.models import (
     Badge,
     Challenge,
+    ChatMessage,
     CTFEvent,
     Invoice,
-    UserActivity,
+    MCPActivityLog,
+    MCPServerConfig,
+    User,
     UserBadge,
     UserChallengeProgress,
+    UserProfile,
     Vendor,
+    VendorMessage,
 )
 
 
 class NamespacedRepository:
-    """Base Repository for automatic isolation and activity logging"""
+    """Base Repository for namespace isolation (audit trail is event-driven via CTFEvent)."""
 
     def __init__(self, db: Session, session_context: SessionContext):
         self.db = db
@@ -36,35 +41,180 @@ class NamespacedRepository:
         if hasattr(obj, "namespace"):
             obj.namespace = self.namespace
 
-    def log_activity(
-        self,
-        activity_type: str,
-        description: str,
-        metadata: dict | None = None,
-        commit: bool = False,
-    ) -> UserActivity:
-        """Log user activity
 
-        Args:
-            activity_type: Type of activity being logged
-            description: Human-readable description
-            metadata: Optional metadata dictionary
-            commit: Whether to commit immediately (default: False, relies on caller to commit)
-        """
-        activity = UserActivity(
-            namespace=self.namespace,
-            user_id=self.session_context.user_id,
-            activity_type=activity_type,
-            description=description,
-            activity_metadata=json.dumps(metadata) if metadata else None,
+# =============================================================================
+# User Profile Repository
+# =============================================================================
+
+# Reserved usernames that cannot be claimed
+RESERVED_USERNAMES = frozenset({
+    "admin", "administrator", "api", "app", "auth", "badge", "badges",
+    "challenge", "challenges", "ctf", "dashboard", "finbot", "h", "hack",
+    "hacker", "help", "home", "login", "logout", "me", "messages", "null",
+    "owasp", "portal", "profile", "root", "settings", "share", "static",
+    "support", "system", "test", "undefined", "user", "users", "vendor",
+    "vendors", "web", "www",
+})
+
+
+def validate_username(username: str) -> tuple[bool, str | None]:
+    """Validate username format and rules.
+
+    Returns (is_valid, error_message).
+    """
+    import re
+
+    if not username:
+        return False, "Username is required"
+
+    if len(username) < 3:
+        return False, "Username must be at least 3 characters"
+
+    if len(username) > 20:
+        return False, "Username must be 20 characters or less"
+
+    if not re.match(r"^[a-zA-Z][a-zA-Z0-9_]*$", username):
+        return False, "Username must start with a letter and contain only letters, numbers, and underscores"
+
+    if username.lower() in RESERVED_USERNAMES:
+        return False, "This username is reserved"
+
+    return True, None
+
+
+class UserProfileRepository:
+    """Repository for UserProfile - not namespaced, linked to user_id."""
+
+    def __init__(self, db: Session, session_context: SessionContext | None = None):
+        self.db = db
+        self.session_context = session_context
+
+    def get_by_user_id(self, user_id: str) -> UserProfile | None:
+        """Get profile by user_id"""
+        return (
+            self.db.query(UserProfile)
+            .filter(UserProfile.user_id == user_id)
+            .first()
         )
 
-        self.db.add(activity)
-        if commit:
-            self.db.commit()
-            self.db.refresh(activity)
+    def get_by_username(self, username: str) -> UserProfile | None:
+        """Get profile by username (case-insensitive)"""
+        return (
+            self.db.query(UserProfile)
+            .filter(func.lower(UserProfile.username) == username.lower())
+            .first()
+        )
 
-        return activity
+    def get_current_user_profile(self) -> UserProfile | None:
+        """Get profile for current session user"""
+        if not self.session_context:
+            raise ValueError("Session context required")
+        return self.get_by_user_id(self.session_context.user_id)
+
+    def get_or_create_for_current_user(self) -> UserProfile:
+        """Get or create profile for current session user"""
+        if not self.session_context:
+            raise ValueError("Session context required")
+
+        profile = self.get_by_user_id(self.session_context.user_id)
+        if not profile:
+            profile = UserProfile(
+                user_id=self.session_context.user_id,
+                is_public=True,
+                show_activity=False,
+            )
+            self.db.add(profile)
+            self.db.commit()
+            self.db.refresh(profile)
+        return profile
+
+    def is_username_available(self, username: str, exclude_user_id: str | None = None) -> bool:
+        """Check if username is available"""
+        is_valid, _ = validate_username(username)
+        if not is_valid:
+            return False
+
+        query = self.db.query(UserProfile).filter(
+            func.lower(UserProfile.username) == username.lower()
+        )
+        if exclude_user_id:
+            query = query.filter(UserProfile.user_id != exclude_user_id)
+
+        return query.first() is None
+
+    def claim_username(self, user_id: str, username: str) -> tuple[UserProfile | None, str | None]:
+        """Claim a username for a user.
+
+        Returns (profile, error_message). If successful, error_message is None.
+        """
+        is_valid, error = validate_username(username)
+        if not is_valid:
+            return None, error
+
+        if not self.is_username_available(username, exclude_user_id=user_id):
+            return None, "This username is already taken"
+
+        profile = self.get_by_user_id(user_id)
+        if not profile:
+            profile = UserProfile(user_id=user_id, is_public=True)
+            self.db.add(profile)
+
+        profile.username = username
+        profile.updated_at = datetime.now(UTC)
+        self.db.commit()
+        self.db.refresh(profile)
+
+        return profile, None
+
+    def update_profile(
+        self,
+        user_id: str,
+        bio: str | None = None,
+        avatar_emoji: str | None = None,
+        is_public: bool | None = None,
+        show_activity: bool | None = None,
+    ) -> UserProfile | None:
+        """Update profile fields"""
+        profile = self.get_by_user_id(user_id)
+        if not profile:
+            return None
+
+        if bio is not None:
+            profile.bio = bio[:300] if bio else None
+        if avatar_emoji is not None:
+            profile.avatar_emoji = avatar_emoji[:10] if avatar_emoji else "🦊"
+        if is_public is not None:
+            profile.is_public = is_public
+        if show_activity is not None:
+            profile.show_activity = show_activity
+
+        profile.updated_at = datetime.now(UTC)
+        self.db.commit()
+        self.db.refresh(profile)
+
+        return profile
+
+    def set_featured_badges(self, user_id: str, badge_ids: list[str]) -> UserProfile | None:
+        """Set featured badge IDs (max 6)"""
+        profile = self.get_by_user_id(user_id)
+        if not profile:
+            return None
+
+        profile.set_featured_badge_ids(badge_ids)
+        profile.updated_at = datetime.now(UTC)
+        self.db.commit()
+        self.db.refresh(profile)
+
+        return profile
+
+    def get_public_profile_with_user(self, username: str) -> tuple[UserProfile | None, User | None]:
+        """Get public profile with associated user data"""
+        profile = self.get_by_username(username)
+        if not profile or not profile.is_public:
+            return None, None
+
+        user = self.db.query(User).filter(User.user_id == profile.user_id).first()
+        return profile, user
 
 
 # =============================================================================
@@ -111,18 +261,6 @@ class VendorRepository(NamespacedRepository):
         self.db.commit()
         self.db.refresh(vendor)
 
-        self.log_activity(
-            "vendor_created",
-            f"Created vendor: {company_name}",
-            metadata={
-                "vendor_id": vendor.id,
-                "company_name": company_name,
-                "vendor_category": vendor_category,
-                "industry": industry,
-            },
-            commit=True,
-        )
-
         return vendor
 
     def get_vendor(self, vendor_id: int) -> Vendor | None:
@@ -153,17 +291,6 @@ class VendorRepository(NamespacedRepository):
         vendor.updated_at = datetime.now(UTC)
         self.db.commit()
 
-        self.log_activity(
-            "vendor_updated",
-            f"Updated vendor: {vendor.company_name}",
-            metadata={
-                "vendor_id": vendor.id,
-                "vendor_name": vendor.company_name,
-                "updates": list(updates.keys()),
-            },
-            commit=True,
-        )
-
         return vendor
 
     def delete_vendor(self, vendor_id: int) -> bool:
@@ -172,17 +299,8 @@ class VendorRepository(NamespacedRepository):
         if not vendor:
             return False
 
-        vendor_name = vendor.company_name
-        vendor_id = vendor.id
         self.db.delete(vendor)
         self.db.commit()
-
-        self.log_activity(
-            "vendor_deleted",
-            f"Deleted vendor: {vendor_name}",
-            metadata={"vendor_id": vendor_id, "vendor_name": vendor_name},
-            commit=True,
-        )
 
         return True
 
@@ -201,22 +319,9 @@ class VendorRepository(NamespacedRepository):
         # avoid circular import; pylint: disable=import-outside-toplevel
         from finbot.core.auth.session import session_manager
 
-        success = session_manager.update_vendor_context(
+        return session_manager.update_vendor_context(
             self.session_context.session_id, vendor_id
         )
-
-        if success:
-            self.log_activity(
-                "vendor_switched",
-                f"Switched to vendor: {vendor.company_name}",
-                metadata={
-                    "vendor_id": vendor_id,
-                    "company_name": vendor.company_name,
-                },
-                commit=True,
-            )
-
-        return success
 
 
 # =============================================================================
@@ -259,17 +364,6 @@ class InvoiceRepository(NamespacedRepository):
         self.db.add(invoice)
         self.db.commit()
         self.db.refresh(invoice)
-
-        self.log_activity(
-            "invoice_created",
-            f"Created invoice: {invoice.invoice_number}",
-            metadata={
-                "invoice_id": invoice.id,
-                "vendor_id": self.current_vendor_id,
-                "amount": float(invoice.amount),
-            },
-            commit=True,
-        )
 
         return invoice
 
@@ -432,94 +526,424 @@ class InvoiceRepository(NamespacedRepository):
         invoice.updated_at = datetime.now(UTC)
         self.db.commit()
 
-        self.log_activity(
-            "invoice_updated",
-            f"Updated invoice: {invoice.invoice_number}",
-            metadata={
-                "invoice_id": invoice.id,
-                "vendor_id": invoice.vendor_id,
-                "updates": list(updates.keys()),
-            },
-            commit=True,
-        )
-
         return invoice
 
 
 # =============================================================================
-# User Activity Repository
+# Message Repository
 # =============================================================================
 
 
-class UserActivityRepository(NamespacedRepository):
-    """User activity tracking repository"""
+class VendorMessageRepository(NamespacedRepository):
+    """Repository for VendorMessage - Namespaced to user"""
 
-    def log_activity(
+    def __init__(self, db: Session, session_context: SessionContext):
+        super().__init__(db, session_context)
+        self.current_vendor_id = session_context.current_vendor_id
+
+    # -- Write --
+
+    def create_message(
         self,
-        activity_type: str,
-        description: str,
-        metadata: dict | None = None,
-        commit: bool = True,
-    ) -> UserActivity:
-        """Log user activity with immediate commit by default"""
-
-        activity = UserActivity(
+        vendor_id: int,
+        subject: str,
+        body: str,
+        message_type: str,
+        sender_name: str,
+        direction: str = "outbound",
+        channel: str = "email",
+        sender_type: str = "agent",
+        related_invoice_id: int | None = None,
+        workflow_id: str | None = None,
+        metadata_json: str | None = None,
+    ) -> VendorMessage:
+        """Persist a new message."""
+        msg = VendorMessage(
             namespace=self.namespace,
-            user_id=self.session_context.user_id,
-            activity_type=activity_type,
-            description=description,
-            activity_metadata=json.dumps(metadata) if metadata else None,
+            vendor_id=vendor_id,
+            direction=direction,
+            message_type=message_type,
+            channel=channel,
+            subject=subject,
+            body=body,
+            sender_name=sender_name,
+            sender_type=sender_type,
+            related_invoice_id=related_invoice_id,
+            workflow_id=workflow_id,
+            metadata_json=metadata_json,
         )
+        self.db.add(msg)
+        self.db.commit()
+        self.db.refresh(msg)
+        return msg
 
-        self.db.add(activity)
-        if commit:
-            self.db.commit()
-            self.db.refresh(activity)
+    # -- Vendor-portal reads (scoped to current vendor) --
 
-        return activity
+    def list_messages_for_current_vendor(
+        self,
+        message_type: str | None = None,
+        is_read: bool | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[VendorMessage]:
+        """Vendor portal: list messages for the active vendor context."""
+        if not self.current_vendor_id:
+            raise ValueError("Vendor context required for this operation")
 
-    def get_user_activities(self, limit: int = 50) -> list[UserActivity]:
-        """Get user activities in their namespace"""
+        query = self._add_namespace_filter(
+            self.db.query(VendorMessage), VendorMessage
+        ).filter(VendorMessage.vendor_id == self.current_vendor_id)
+
+        if message_type:
+            query = query.filter(VendorMessage.message_type == message_type)
+        if is_read is not None:
+            query = query.filter(VendorMessage.is_read == is_read)
+
         return (
-            self._add_namespace_filter(
-                self.db.query(UserActivity).filter(
-                    UserActivity.user_id == self.session_context.user_id
-                ),
-                UserActivity,
-            )
-            .order_by(UserActivity.created_at.desc())
+            query.order_by(VendorMessage.created_at.desc(), VendorMessage.id.desc())
+            .offset(offset)
             .limit(limit)
             .all()
         )
 
-    def get_activity_stats(self) -> dict:
-        """Get activity statistics for user"""
-        query = self._add_namespace_filter(
-            self.db.query(UserActivity).filter(
-                UserActivity.user_id == self.session_context.user_id
-            ),
-            UserActivity,
+    def get_unread_count_for_current_vendor(self) -> int:
+        """Vendor portal: unread badge count."""
+        if not self.current_vendor_id:
+            return 0
+
+        return (
+            self._add_namespace_filter(
+                self.db.query(VendorMessage), VendorMessage
+            )
+            .filter(
+                VendorMessage.vendor_id == self.current_vendor_id,
+                VendorMessage.is_read == False,
+            )
+            .count()
         )
 
-        total_activities = query.count()
+    def get_message_stats_for_current_vendor(self) -> dict:
+        """Vendor portal: message counts by type and read status."""
+        if not self.current_vendor_id:
+            raise ValueError("Vendor context required for this operation")
 
-        activity_types = {}
-        activity_type_query = (
-            query.with_entities(UserActivity.activity_type)
-            .group_by(UserActivity.activity_type)
+        query = self._add_namespace_filter(
+            self.db.query(VendorMessage), VendorMessage
+        ).filter(VendorMessage.vendor_id == self.current_vendor_id)
+
+        total = query.count()
+        unread = query.filter(VendorMessage.is_read == False).count()
+
+        type_counts = (
+            self._add_namespace_filter(
+                self.db.query(
+                    VendorMessage.message_type,
+                    func.count(VendorMessage.id),
+                ),
+                VendorMessage,
+            )
+            .filter(VendorMessage.vendor_id == self.current_vendor_id)
+            .group_by(VendorMessage.message_type)
             .all()
         )
-        for activity_type_result in activity_type_query:
-            activity_type = activity_type_result[0]
-            count = query.filter(UserActivity.activity_type == activity_type).count()
-            activity_types[activity_type] = count
 
-        return {"total_activities": total_activities, "activity_types": activity_types}
+        return {
+            "total": total,
+            "unread": unread,
+            "by_type": {t: c for t, c in type_counts},
+        }
+
+    # -- Single-message operations --
+
+    def get_message(self, message_id: int) -> VendorMessage | None:
+        """Get a single message (validates namespace)."""
+        return self._add_namespace_filter(
+            self.db.query(VendorMessage).filter(VendorMessage.id == message_id),
+            VendorMessage,
+        ).first()
+
+    def mark_as_read(self, message_id: int) -> VendorMessage | None:
+        """Mark a message as read."""
+        msg = self.get_message(message_id)
+        if not msg or msg.is_read:
+            return msg
+
+        msg.is_read = True
+        msg.read_at = datetime.now(UTC)
+        self.db.commit()
+        return msg
+
+    def mark_all_as_read(self) -> int:
+        """Vendor portal: mark all unread messages as read for current vendor.
+        Returns count of messages updated.
+        """
+        if not self.current_vendor_id:
+            raise ValueError("Vendor context required for this operation")
+
+        now = datetime.now(UTC)
+        count = (
+            self._add_namespace_filter(
+                self.db.query(VendorMessage), VendorMessage
+            )
+            .filter(
+                VendorMessage.vendor_id == self.current_vendor_id,
+                VendorMessage.is_read == False,
+            )
+            .update({"is_read": True, "read_at": now}, synchronize_session="fetch")
+        )
+        self.db.commit()
+        return count
+
+    # -- Flexible reads (for agents / admin) --
+
+    def list_messages_for_vendor(
+        self,
+        vendor_id: int,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[VendorMessage]:
+        """List messages for a specific vendor (agent use)."""
+        return (
+            self._add_namespace_filter(
+                self.db.query(VendorMessage), VendorMessage
+            )
+            .filter(VendorMessage.vendor_id == vendor_id)
+            .order_by(VendorMessage.created_at.desc(), VendorMessage.id.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+
+
+# =============================================================================
+# MCP Server Config Repository
+# =============================================================================
+
+
+class MCPServerConfigRepository(NamespacedRepository):
+    """Repository for MCPServerConfig -- per-namespace MCP server settings."""
+
+    def get_by_type(self, server_type: str) -> MCPServerConfig | None:
+        return (
+            self._add_namespace_filter(
+                self.db.query(MCPServerConfig), MCPServerConfig
+            )
+            .filter(MCPServerConfig.server_type == server_type)
+            .first()
+        )
+
+    def list_all(self) -> list[MCPServerConfig]:
+        return (
+            self._add_namespace_filter(
+                self.db.query(MCPServerConfig), MCPServerConfig
+            )
+            .order_by(MCPServerConfig.server_type)
+            .all()
+        )
+
+    def upsert(
+        self,
+        server_type: str,
+        display_name: str,
+        enabled: bool = True,
+        config_json: str | None = None,
+        tool_overrides_json: str | None = None,
+    ) -> MCPServerConfig:
+        existing = self.get_by_type(server_type)
+        if existing:
+            existing.display_name = display_name
+            existing.enabled = enabled
+            if config_json is not None:
+                existing.config_json = config_json
+            if tool_overrides_json is not None:
+                existing.tool_overrides_json = tool_overrides_json
+            existing.updated_at = datetime.now(UTC)
+            self.db.commit()
+            self.db.refresh(existing)
+            return existing
+
+        config = MCPServerConfig(
+            namespace=self.namespace,
+            server_type=server_type,
+            display_name=display_name,
+            enabled=enabled,
+            config_json=config_json,
+            tool_overrides_json=tool_overrides_json,
+        )
+        self.db.add(config)
+        self.db.commit()
+        self.db.refresh(config)
+        return config
+
+    def update_config(
+        self, server_type: str, config_json: str
+    ) -> MCPServerConfig | None:
+        config = self.get_by_type(server_type)
+        if config:
+            config.config_json = config_json
+            config.updated_at = datetime.now(UTC)
+            self.db.commit()
+            self.db.refresh(config)
+        return config
+
+    def update_tool_overrides(
+        self, server_type: str, tool_overrides_json: str
+    ) -> MCPServerConfig | None:
+        config = self.get_by_type(server_type)
+        if config:
+            config.tool_overrides_json = tool_overrides_json
+            config.updated_at = datetime.now(UTC)
+            self.db.commit()
+            self.db.refresh(config)
+        return config
+
+    def toggle_enabled(self, server_type: str) -> MCPServerConfig | None:
+        config = self.get_by_type(server_type)
+        if config:
+            config.enabled = not config.enabled
+            config.updated_at = datetime.now(UTC)
+            self.db.commit()
+            self.db.refresh(config)
+        return config
+
+    def reset_tool_overrides(self, server_type: str) -> MCPServerConfig | None:
+        config = self.get_by_type(server_type)
+        if config:
+            config.tool_overrides_json = None
+            config.updated_at = datetime.now(UTC)
+            self.db.commit()
+            self.db.refresh(config)
+        return config
+
+
+# =============================================================================
+# MCP Activity Log Repository
+# =============================================================================
+
+
+class MCPActivityLogRepository(NamespacedRepository):
+    """Repository for MCPActivityLog -- MCP protocol message history."""
+
+    def log_activity(
+        self,
+        server_type: str,
+        direction: str,
+        method: str,
+        tool_name: str | None = None,
+        payload_json: str | None = None,
+        workflow_id: str | None = None,
+        duration_ms: float | None = None,
+    ) -> MCPActivityLog:
+        entry = MCPActivityLog(
+            namespace=self.namespace,
+            server_type=server_type,
+            direction=direction,
+            method=method,
+            tool_name=tool_name,
+            payload_json=payload_json,
+            workflow_id=workflow_id,
+            duration_ms=duration_ms,
+        )
+        self.db.add(entry)
+        self.db.commit()
+        self.db.refresh(entry)
+        return entry
+
+    def list_activity(
+        self,
+        server_type: str | None = None,
+        workflow_id: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[MCPActivityLog]:
+        query = self._add_namespace_filter(
+            self.db.query(MCPActivityLog), MCPActivityLog
+        )
+        if server_type:
+            query = query.filter(MCPActivityLog.server_type == server_type)
+        if workflow_id:
+            query = query.filter(MCPActivityLog.workflow_id == workflow_id)
+        return (
+            query.order_by(MCPActivityLog.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+
+    def get_activity_count(self, server_type: str | None = None) -> int:
+        query = self._add_namespace_filter(
+            self.db.query(MCPActivityLog), MCPActivityLog
+        )
+        if server_type:
+            query = query.filter(MCPActivityLog.server_type == server_type)
+        return query.count()
 
 
 # =============================================================================
 # CTF Repositories
 # =============================================================================
+
+# =============================================================================
+# Chat Message Repository
+# =============================================================================
+
+
+class ChatMessageRepository(NamespacedRepository):
+    """Repository for ChatMessage -- scoped to current user + vendor."""
+
+    def __init__(self, db: Session, session_context: SessionContext):
+        super().__init__(db, session_context)
+        self.user_id = session_context.user_id
+        self.vendor_id = session_context.current_vendor_id
+
+    def add_message(
+        self,
+        role: str,
+        content: str,
+        workflow_id: str | None = None,
+    ) -> "ChatMessage":
+        msg = ChatMessage(
+            namespace=self.namespace,
+            user_id=self.user_id,
+            vendor_id=self.vendor_id,
+            role=role,
+            content=content,
+            workflow_id=workflow_id,
+        )
+        self.db.add(msg)
+        self.db.commit()
+        self.db.refresh(msg)
+        return msg
+
+    def get_history(self, limit: int = 100) -> list["ChatMessage"]:
+        query = (
+            self._add_namespace_filter(self.db.query(ChatMessage), ChatMessage)
+            .filter(ChatMessage.user_id == self.user_id)
+            .filter(ChatMessage.cleared_at.is_(None))
+        )
+        if self.vendor_id:
+            query = query.filter(ChatMessage.vendor_id == self.vendor_id)
+
+        return (
+            query.order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
+            .limit(limit)
+            .all()
+        )[::-1]  # reverse to chronological order
+
+    def clear_history(self) -> int:
+        now = datetime.now(UTC)
+        query = (
+            self._add_namespace_filter(self.db.query(ChatMessage), ChatMessage)
+            .filter(ChatMessage.user_id == self.user_id)
+            .filter(ChatMessage.cleared_at.is_(None))
+        )
+        if self.vendor_id:
+            query = query.filter(ChatMessage.vendor_id == self.vendor_id)
+
+        count = query.update({"cleared_at": now})
+        self.db.commit()
+        return count
+
 
 # =============================================================================
 # Challenge Repository
@@ -575,7 +999,7 @@ class ChallengeRepository:
         return {cat: count for cat, count in result}
 
     def get_total_points(self, challenge_ids: list[str]) -> int:
-        """Get total points for given challenge IDs"""
+        """Get total points for given challenge IDs (ignores modifiers)"""
         if not challenge_ids:
             return 0
         return (
@@ -584,6 +1008,28 @@ class ChallengeRepository:
             .scalar()
             or 0
         )
+
+    def get_effective_points(
+        self, completed_progress: list["UserChallengeProgress"],
+    ) -> int:
+        """Get total effective points applying per-completion modifiers.
+
+        effective = SUM(challenge.points * progress.points_modifier)
+        """
+        if not completed_progress:
+            return 0
+        challenge_ids = [p.challenge_id for p in completed_progress]
+        challenges = (
+            self.db.query(Challenge)
+            .filter(Challenge.id.in_(challenge_ids))
+            .all()
+        )
+        points_map = {c.id: c.points for c in challenges}
+        total = 0.0
+        for p in completed_progress:
+            base = points_map.get(p.challenge_id, 0)
+            total += base * (p.points_modifier if p.points_modifier is not None else 1.0)
+        return int(total)
 
 
 # =============================================================================
@@ -659,17 +1105,6 @@ class UserChallengeProgressRepository(NamespacedRepository):
 
         self.db.commit()
 
-        self.log_activity(
-            "challenge_hint_used",
-            f"Used hint for challenge: {challenge_id}",
-            metadata={
-                "challenge_id": challenge_id,
-                "hint_number": progress.hints_used,
-                "hint_cost": hint_cost,
-                "total_hints_cost": progress.hints_cost,
-            },
-        )
-
         return progress
 
     def record_attempt(self, challenge_id: str) -> UserChallengeProgress:
@@ -706,17 +1141,6 @@ class UserChallengeProgressRepository(NamespacedRepository):
         progress.completion_workflow_id = workflow_id
 
         self.db.commit()
-
-        self.log_activity(
-            "challenge_completed",
-            f"Completed challenge: {challenge_id}",
-            metadata={
-                "challenge_id": challenge_id,
-                "attempts": progress.attempts,
-                "hints_used": progress.hints_used,
-                "completion_time_seconds": progress.completion_time_seconds,
-            },
-        )
 
         return progress
 
@@ -765,7 +1189,12 @@ class BadgeRepository:
         if category:
             query = query.filter(Badge.category == category)
 
-        return query.order_by(Badge.rarity, Badge.id).all()
+        rarity_order = case(
+            {"legendary": 0, "epic": 1, "rare": 2, "common": 3},
+            value=Badge.rarity,
+            else_=4,
+        )
+        return query.order_by(rarity_order, Badge.id).all()
 
     def get_badge(self, badge_id: str) -> Badge | None:
         """Get badge by ID"""
@@ -862,15 +1291,6 @@ class UserBadgeRepository(NamespacedRepository):
         self.db.add(user_badge)
         self.db.commit()
 
-        self.log_activity(
-            "badge_earned",
-            f"Earned badge: {badge_id}",
-            metadata={
-                "badge_id": badge_id,
-                "workflow_id": workflow_id,
-            },
-        )
-
         return user_badge
 
     def count_earned(self) -> int:
@@ -938,20 +1358,6 @@ class CTFEventRepository(NamespacedRepository):
             query = query.filter(CTFEvent.vendor_id == vendor_id)
 
         return query.count()
-
-    def get_recent_completions(self, limit: int = 5) -> list[CTFEvent]:
-        """Get recent challenge completions and badge awards"""
-        return (
-            self.db.query(CTFEvent)
-            .filter(
-                CTFEvent.namespace == self.namespace,
-                CTFEvent.user_id == self.session_context.user_id,
-                (CTFEvent.challenge_id.isnot(None)) | (CTFEvent.badge_id.isnot(None)),
-            )
-            .order_by(CTFEvent.timestamp.desc())
-            .limit(limit)
-            .all()
-        )
 
     def get_workflow_events(self, workflow_id: str) -> list[CTFEvent]:
         """Get all events for a specific workflow"""

@@ -102,6 +102,9 @@ class DefinitionLoader:
             "detector_config": json.dumps(challenge.detector_config)
             if challenge.detector_config
             else None,
+            "scoring": json.dumps(challenge.scoring.model_dump())
+            if challenge.scoring
+            else None,
             "is_active": challenge.is_active,
             "order_index": challenge.order_index,
         }

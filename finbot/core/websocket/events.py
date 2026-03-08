@@ -58,12 +58,13 @@ class WSEvent:
         )
 
 
-def create_activity_event(event_data: dict) -> WSEvent:
+def create_activity_event(event_data: dict, category: str | None = None) -> WSEvent:
     """Create activity stream event"""
     return WSEvent(
         type=WSEventType.ACTIVITY,
         data={
             "event_type": event_data.get("event_type"),
+            "category": category or event_data.get("event_category"),
             "summary": event_data.get("summary"),
             "severity": event_data.get("severity", "info"),
             "workflow_id": event_data.get("workflow_id"),
@@ -73,17 +74,26 @@ def create_activity_event(event_data: dict) -> WSEvent:
 
 
 def create_challenge_completed_event(
-    challenge_id: str, challenge_title: str, points: int
+    challenge_id: str,
+    challenge_title: str,
+    points: int,
+    effective_points: int | None = None,
+    points_modifier: float | None = None,
+    modifier_details: list[dict] | None = None,
 ) -> WSEvent:
     """Create challenge completed event"""
-    return WSEvent(
-        type=WSEventType.CHALLENGE_COMPLETED,
-        data={
-            "challenge_id": challenge_id,
-            "challenge_title": challenge_title,
-            "points": points,
-        },
-    )
+    data: dict = {
+        "challenge_id": challenge_id,
+        "challenge_title": challenge_title,
+        "points": points,
+    }
+    if effective_points is not None:
+        data["effective_points"] = effective_points
+    if points_modifier is not None and points_modifier < 1.0:
+        data["points_modifier"] = points_modifier
+    if modifier_details:
+        data["modifier_details"] = modifier_details
+    return WSEvent(type=WSEventType.CHALLENGE_COMPLETED, data=data)
 
 
 def create_badge_earned_event(badge_id: str, badge_title: str, rarity: str) -> WSEvent:

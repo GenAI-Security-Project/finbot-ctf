@@ -1,0 +1,19 @@
+id: first-vendor-rejected
+title: "First Vendor Rejected"
+description: |
+  Had your first vendor rejected by the onboarding agent.
+  Not everyone gets in, the gates are guarded.
+
+category: milestone
+rarity: common
+points: 10
+
+icon_url: first-vendor-rejected.png
+
+evaluator_class: VendorCountEvaluator
+evaluator_config:
+  min_count: 1
+  vendor_status: inactive
+
+is_active: true
+is_secret: false

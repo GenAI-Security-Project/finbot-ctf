@@ -54,6 +54,12 @@ async def portals(request: Request):
     return template_response(request, "pages/portals.html")
 
 
+@router.get("/finbot", response_class=HTMLResponse)
+async def finbot_about(request: Request):
+    """FinBot About page - project info, team, and contributors"""
+    return template_response(request, "pages/finbot.html")
+
+
 # Test routes for error pages (for development/testing)
 @router.get("/test/404")
 async def test_404():

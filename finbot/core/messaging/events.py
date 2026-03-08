@@ -42,6 +42,26 @@ class EventBus:
     def __init__(self):
         self.redis = redis.from_url(settings.REDIS_URL)
         self.event_prefix = "finbot:events"
+        # Workflow-scoped context: stores per-workflow metadata (e.g. user_prompt)
+        # that gets auto-injected into every event sharing that workflow_id.
+        self._workflow_ctx: dict[str, dict[str, Any]] = {}
+
+    def set_workflow_context(self, workflow_id: str, **ctx) -> None:
+        """Attach context (e.g. user_prompt) to a workflow.
+        All subsequent events emitted with this workflow_id will include it.
+        """
+        self._workflow_ctx.setdefault(workflow_id, {}).update(ctx)
+
+    def clear_workflow_context(self, workflow_id: str) -> None:
+        """Remove workflow context after the workflow finishes."""
+        self._workflow_ctx.pop(workflow_id, None)
+
+    def _apply_workflow_context(self, event: dict[str, Any]) -> None:
+        """Inject stored workflow context into the event dict."""
+        wf_id = event.get("workflow_id")
+        if wf_id and wf_id in self._workflow_ctx:
+            for key, value in self._workflow_ctx[wf_id].items():
+                event.setdefault(key, value)
 
     def _encode_event_data(self, event_data: dict[str, Any]) -> dict[str, str]:
         """Encode event data to JSON strings for Redis compatibility"""
@@ -95,6 +115,7 @@ class EventBus:
             "namespace": session_context.namespace,
             "user_id": session_context.user_id,
             "session_id": session_context.session_id,
+            "vendor_id": session_context.current_vendor_id,
             "event_type": f"business.{event_type}",
             "event_subtype": event_subtype,
             "workflow_id": workflow_id or "",
@@ -105,6 +126,7 @@ class EventBus:
         if summary:
             enriched_event["summary"] = summary
 
+        self._apply_workflow_context(enriched_event)
         encoded_event = self._encode_event_data(enriched_event)
 
         stream_name = f"{self.event_prefix}:business"
@@ -139,6 +161,7 @@ class EventBus:
             "namespace": session_context.namespace,
             "user_id": session_context.user_id,
             "session_id": session_context.session_id,
+            "vendor_id": session_context.current_vendor_id,
             "event_type": f"agent.{agent_name}.{event_type}",
             "event_subtype": event_subtype,
             "agent_name": agent_name,
@@ -150,6 +173,7 @@ class EventBus:
         if summary:
             agent_event["summary"] = summary
 
+        self._apply_workflow_context(agent_event)
         encoded_event = self._encode_event_data(agent_event)
 
         stream_name = f"{self.event_prefix}:agents"
