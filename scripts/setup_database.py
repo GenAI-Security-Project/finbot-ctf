@@ -4,8 +4,22 @@ Setup the database for the FinBot platform
 
 import argparse
 import os
+import subprocess
 import sys
 from pathlib import Path
+
+# Parse args BEFORE importing settings so we can set env vars
+parser = argparse.ArgumentParser(description="Setup the FinBot database")
+parser.add_argument(
+    "--db-type",
+    choices=["sqlite", "postgresql"],
+    help="Database type to use (overrides DATABASE_TYPE env var)",
+)
+args = parser.parse_args()
+
+# Set environment variable BEFORE importing settings
+if args.db_type:
+    os.environ["DATABASE_TYPE"] = args.db_type
 
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
@@ -27,6 +41,24 @@ def setup_postgresql() -> bool:
     """Setup the PostgreSQL database"""
 
     print("Setting up PostgreSQL database...")
+
+    # Start PostgreSQL service if not running
+    print("Ensuring PostgreSQL service is running...")
+    try:
+        result = subprocess.run(
+            ["docker", "compose", "--profile", "postgres", "up", "-d", "postgres"],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        if "done" in result.stdout.lower() or "started" in result.stdout.lower():
+            print("✅ PostgreSQL service started")
+        else:
+            print("ℹ️  PostgreSQL service already running")
+    except subprocess.CalledProcessError as e:
+        print(f"⚠️  Could not start PostgreSQL service: {e.stderr}")
+        print("Assuming it's already running...")
 
     try:
         # pylint: disable=import-outside-toplevel
