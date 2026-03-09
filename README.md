@@ -50,7 +50,10 @@ uv run python scripts/setup_database.py --db-type sqlite
 uv sync
 
 # Install Playwright browsers (required for OG image generation)
+uv run playwright install chromium
+# OR
 playwright install
+
 
 # Setup database (PostgreSQL service will be started automatically)
 uv run python scripts/setup_database.py --db-type postgresql
