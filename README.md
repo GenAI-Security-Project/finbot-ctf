@@ -21,7 +21,11 @@ If using PostgreSQL, ensure Docker is installed and your user can run Docker com
 ```bash
 sudo usermod -aG docker $USER
 ```  
-Log out and log back in (or restart your terminal) for changes to take effect. This allows the setup script to start PostgreSQL containers automatically.
+Log out and log back in (or restart your terminal) for changes to take effect. This allows the setup script to start PostgreSQL containers automatically. You can also use the command
+```bash
+newgrp docker
+```
+to switch to a new shell with the group active. 
 
 ### Setup
 
@@ -29,6 +33,9 @@ Log out and log back in (or restart your terminal) for changes to take effect. T
 ```bash
 # Install dependencies
 uv sync
+
+# Install Playwright browsers (required for OG image generation)
+playwright install
 
 # Setup database (SQLite is default)
 uv run python scripts/setup_database.py
@@ -42,11 +49,16 @@ uv run python scripts/setup_database.py --db-type sqlite
 # Install dependencies
 uv sync
 
+# Install Playwright browsers (required for OG image generation)
+playwright install
+
 # Setup database (PostgreSQL service will be started automatically)
 uv run python scripts/setup_database.py --db-type postgresql
 ```
 
 # Start the platform
+
+```bash
 uv run python run.py
 ```
 
