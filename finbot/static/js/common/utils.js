@@ -527,13 +527,13 @@ function clearAllFieldErrors(form) {
  */
 function showLoading(element, text = 'Loading...') {
     element.classList.add('loading');
-    const originalText = element.textContent;
+    const originalHTML = element.innerHTML;
     element.textContent = text;
     element.disabled = true;
 
     return () => {
         element.classList.remove('loading');
-        element.textContent = originalText;
+        element.innerHTML = originalHTML;
         element.disabled = false;
     };
 }
