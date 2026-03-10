@@ -207,6 +207,12 @@ async function openFile(fileId) {
 function closeViewer() {
     document.getElementById('file-viewer-modal').classList.add('hidden');
     document.body.style.overflow = '';
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('from') === 'copilot') {
+        window.location.href = '/admin/dashboard';
+        return;
+    }
 }
 
 // -- File icons --

@@ -278,7 +278,7 @@ async function loadRecentReports() {
             const typeName = (r.filename || '').split('_')[0].replace(/-/g, ' ');
             const date = r.created_at ? new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
             return `
-                <a href="/admin/findrive#file-${r.id}" class="report-card">
+                <a href="/admin/findrive?from=copilot#file-${r.id}" class="report-card">
                     <div class="flex items-center gap-2 mb-1">
                         <span class="report-type-badge">${escapeHtml(typeName)}</span>
                         <span class="text-xs text-text-secondary">${escapeHtml(date)}</span>
@@ -365,7 +365,7 @@ function createMessageEl(role, content) {
 function renderReportLinks(text) {
     return text.replace(
         /\/admin\/findrive#file-(\d+)/g,
-        '<a href="/admin/findrive#file-$1" class="inline-flex items-center gap-1 px-2 py-1 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 transition-colors text-xs font-medium no-underline" target="_blank">📄 View Report</a>'
+        '<a href="/admin/findrive?from=copilot#file-$1" class="inline-flex items-center gap-1 px-2 py-1 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 transition-colors text-xs font-medium no-underline">📄 View Report</a>'
     );
 }
 
