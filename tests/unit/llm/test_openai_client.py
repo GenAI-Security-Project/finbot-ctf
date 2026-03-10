@@ -58,6 +58,22 @@ mock_openai.AsyncOpenAI = MagicMock()
 sys.modules["openai"] = mock_openai
 # --------------------------------------------------------------
 
+
+@pytest.fixture
+def mock_openai_settings():
+    """Patch openai_client.settings with safe test defaults.
+
+    Uses gpt-4o (not gpt-5-nano) — the no_temperature filter skips adding
+    'temperature' for gpt-5/o1/o3/o4 model families, breaking tests 007-009.
+    """
+    with patch("finbot.core.llm.openai_client.settings") as ms:
+        ms.LLM_DEFAULT_MODEL = "gpt-4o"
+        ms.LLM_DEFAULT_TEMPERATURE = 0.7
+        ms.OPENAI_API_KEY = "test-key"
+        ms.LLM_MAX_TOKENS = 4096
+        ms.LLM_TIMEOUT = 60
+        yield ms
+
 # ============================================================================
 # LLM-OAPI-001: Configuration Loading
 # ============================================================================
@@ -106,7 +122,7 @@ def test_configuration_loading():
 # ============================================================================
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_successful_chat_completion():
+async def test_successful_chat_completion(mock_openai_settings):
     """LLM-OAPI-002: Successful Chat Completion
 
     Verify that OpenAIClient successfully processes chat requests.
@@ -148,34 +164,27 @@ async def test_successful_chat_completion():
     mock_response.output_text = "Hello from OpenAI"
     mock_response.output = [mock_message]
 
-    with patch("finbot.core.llm.openai_client.settings") as mock_settings:
-        mock_settings.LLM_DEFAULT_MODEL = "gpt-5-nano"
-        mock_settings.LLM_DEFAULT_TEMPERATURE = 0.7
-        mock_settings.OPENAI_API_KEY = "test-key"
-        mock_settings.LLM_MAX_TOKENS = 4096
-        mock_settings.LLM_TIMEOUT = 60
+    with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
+        mock_client_instance = AsyncMock()
+        mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
+        mock_async_openai.return_value = mock_client_instance
 
-        with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
-            mock_client_instance = AsyncMock()
-            mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
-            mock_async_openai.return_value = mock_client_instance
+        client = OpenAIClient()
 
-            client = OpenAIClient()
+        request = LLMRequest(
+            messages=[{"role": "user", "content": "Hi"}]
+        )
 
-            request = LLMRequest(
-                messages=[{"role": "user", "content": "Hi"}]
-            )
+        response = await client.chat(request)
 
-            response = await client.chat(request)
-
-            # The call must complete without raising an exception
-            assert response.success is True
-            # The provider field tells the caller which backend produced this response
-            assert response.provider == "openai"
-            # The reply text from OpenAI must be passed through unchanged
-            assert response.content == "Hello from OpenAI"
-            # The response ID is saved so future requests can chain onto this conversation
-            assert response.metadata is not None and response.metadata["response_id"] == "response_123"
+        # The call must complete without raising an exception
+        assert response.success is True
+        # The provider field tells the caller which backend produced this response
+        assert response.provider == "openai"
+        # The reply text from OpenAI must be passed through unchanged
+        assert response.content == "Hello from OpenAI"
+        # The response ID is saved so future requests can chain onto this conversation
+        assert response.metadata is not None and response.metadata["response_id"] == "response_123"
 
 
 # ============================================================================
@@ -183,7 +192,7 @@ async def test_successful_chat_completion():
 # ============================================================================
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_json_schema_formatting():
+async def test_json_schema_formatting(mock_openai_settings):
     """LLM-OAPI-003: JSON Schema Formatting
 
     Verify that output_json_schema is properly formatted for OpenAI Responses API.
@@ -220,53 +229,46 @@ async def test_json_schema_formatting():
     mock_response.output_text = '{"name": "John Doe"}'
     mock_response.output = [mock_message]
 
-    with patch("finbot.core.llm.openai_client.settings") as mock_settings:
-        mock_settings.LLM_DEFAULT_MODEL = "gpt-5-nano"
-        mock_settings.LLM_DEFAULT_TEMPERATURE = 0.7
-        mock_settings.OPENAI_API_KEY = "test-key"
-        mock_settings.LLM_MAX_TOKENS = 4096
-        mock_settings.LLM_TIMEOUT = 60
+    with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
+        mock_client_instance = AsyncMock()
+        mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
+        mock_async_openai.return_value = mock_client_instance
 
-        with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
-            mock_client_instance = AsyncMock()
-            mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
-            mock_async_openai.return_value = mock_client_instance
+        client = OpenAIClient()
 
-            client = OpenAIClient()
-
-            json_schema = {
-                "name": "user_info",
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "name": {"type": "string"}
-                    },
-                    "required": ["name"]
-                }
+        json_schema = {
+            "name": "user_info",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"}
+                },
+                "required": ["name"]
             }
+        }
 
-            request = LLMRequest(
-                messages=[{"role": "user", "content": "Extract user info"}],
-                output_json_schema=json_schema
-            )
+        request = LLMRequest(
+            messages=[{"role": "user", "content": "Extract user info"}],
+            output_json_schema=json_schema
+        )
 
-            response = await client.chat(request)
+        response = await client.chat(request)
 
-            # The call must succeed before we can inspect what was sent to the API
-            assert response.success is True
+        # The call must succeed before we can inspect what was sent to the API
+        assert response.success is True
 
-            # Retrieve the keyword arguments that were passed to responses.create
-            call_kwargs = mock_client_instance.responses.create.call_args.kwargs
-            # The "text" parameter is how the OpenAI Responses API receives format instructions
-            assert "text" in call_kwargs
-            # "json_schema" tells OpenAI to validate and constrain the output to a specific structure
-            assert call_kwargs["text"]["format"]["type"] == "json_schema"
-            # The name identifies the schema so OpenAI can label the output correctly
-            assert call_kwargs["text"]["format"]["name"] == "user_info"
-            # strict=True means OpenAI will reject any response that does not match the schema exactly
-            assert call_kwargs["text"]["format"]["strict"] is True
-            # The schema object itself must be forwarded verbatim — OpenAI uses it to validate output structure
-            assert call_kwargs["text"]["format"]["schema"] == json_schema["schema"]
+        # Retrieve the keyword arguments that were passed to responses.create
+        call_kwargs = mock_client_instance.responses.create.call_args.kwargs
+        # The "text" parameter is how the OpenAI Responses API receives format instructions
+        assert "text" in call_kwargs
+        # "json_schema" tells OpenAI to validate and constrain the output to a specific structure
+        assert call_kwargs["text"]["format"]["type"] == "json_schema"
+        # The name identifies the schema so OpenAI can label the output correctly
+        assert call_kwargs["text"]["format"]["name"] == "user_info"
+        # strict=True means OpenAI will reject any response that does not match the schema exactly
+        assert call_kwargs["text"]["format"]["strict"] is True
+        # The schema object itself must be forwarded verbatim — OpenAI uses it to validate output structure
+        assert call_kwargs["text"]["format"]["schema"] == json_schema["schema"]
 
 
 # ============================================================================
@@ -274,7 +276,7 @@ async def test_json_schema_formatting():
 # ============================================================================
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_tool_calls_handling():
+async def test_tool_calls_handling(mock_openai_settings):
     """LLM-OAPI-004: Tool Calls Handling
 
     Verify that tool calls are properly extracted from OpenAI response.
@@ -309,37 +311,30 @@ async def test_tool_calls_handling():
     mock_response.output_text = ""
     mock_response.output = [mock_function_call]
 
-    with patch("finbot.core.llm.openai_client.settings") as mock_settings:
-        mock_settings.LLM_DEFAULT_MODEL = "gpt-5-nano"
-        mock_settings.LLM_DEFAULT_TEMPERATURE = 0.7
-        mock_settings.OPENAI_API_KEY = "test-key"
-        mock_settings.LLM_MAX_TOKENS = 4096
-        mock_settings.LLM_TIMEOUT = 60
+    with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
+        mock_client_instance = AsyncMock()
+        mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
+        mock_async_openai.return_value = mock_client_instance
 
-        with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
-            mock_client_instance = AsyncMock()
-            mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
-            mock_async_openai.return_value = mock_client_instance
+        client = OpenAIClient()
 
-            client = OpenAIClient()
+        request = LLMRequest(
+            messages=[{"role": "user", "content": "What's the weather in NYC?"}],
+            tools=[{"type": "function", "function": {"name": "get_weather"}}]
+        )
 
-            request = LLMRequest(
-                messages=[{"role": "user", "content": "What's the weather in NYC?"}],
-                tools=[{"type": "function", "function": {"name": "get_weather"}}]
-            )
+        response = await client.chat(request)
 
-            response = await client.chat(request)
-
-            # The call must succeed even when the model returns a function call instead of text
-            assert response.success is True
-            # Exactly one tool call was in the response — the client must not drop or duplicate it
-            assert response.tool_calls is not None and len(response.tool_calls) == 1
-            # The function name tells the caller which tool to invoke
-            assert response.tool_calls[0]["name"] == "get_weather"
-            # call_id is OpenAI's own identifier — it must be sent back when returning the tool result
-            assert response.tool_calls[0]["call_id"] == "call_123"
-            # The arguments arrive as a JSON string from OpenAI and must be parsed into a dict
-            assert response.tool_calls[0]["arguments"] == {"location": "NYC"}
+        # The call must succeed even when the model returns a function call instead of text
+        assert response.success is True
+        # Exactly one tool call was in the response — the client must not drop or duplicate it
+        assert response.tool_calls is not None and len(response.tool_calls) == 1
+        # The function name tells the caller which tool to invoke
+        assert response.tool_calls[0]["name"] == "get_weather"
+        # call_id is OpenAI's own identifier — it must be sent back when returning the tool result
+        assert response.tool_calls[0]["call_id"] == "call_123"
+        # The arguments arrive as a JSON string from OpenAI and must be parsed into a dict
+        assert response.tool_calls[0]["arguments"] == {"location": "NYC"}
 
 
 # ============================================================================
@@ -347,7 +342,7 @@ async def test_tool_calls_handling():
 # ============================================================================
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_previous_response_id_chaining():
+async def test_previous_response_id_chaining(mock_openai_settings):
     """LLM-OAPI-005: Previous Response ID Chaining
 
     Verify that previous_response_id is properly passed for stateful conversations.
@@ -380,35 +375,28 @@ async def test_previous_response_id_chaining():
     mock_response.output_text = "Continuing conversation"
     mock_response.output = [mock_message]
 
-    with patch("finbot.core.llm.openai_client.settings") as mock_settings:
-        mock_settings.LLM_DEFAULT_MODEL = "gpt-5-nano"
-        mock_settings.LLM_DEFAULT_TEMPERATURE = 0.7
-        mock_settings.OPENAI_API_KEY = "test-key"
-        mock_settings.LLM_MAX_TOKENS = 4096
-        mock_settings.LLM_TIMEOUT = 60
+    with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
+        mock_client_instance = AsyncMock()
+        mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
+        mock_async_openai.return_value = mock_client_instance
 
-        with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
-            mock_client_instance = AsyncMock()
-            mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
-            mock_async_openai.return_value = mock_client_instance
+        client = OpenAIClient()
 
-            client = OpenAIClient()
+        request = LLMRequest(
+            messages=[{"role": "user", "content": "Follow up question"}],
+            previous_response_id="prev_123"
+        )
 
-            request = LLMRequest(
-                messages=[{"role": "user", "content": "Follow up question"}],
-                previous_response_id="prev_123"
-            )
+        response = await client.chat(request)
 
-            response = await client.chat(request)
+        # The call must succeed when a previous_response_id is provided
+        assert response.success is True
 
-            # The call must succeed when a previous_response_id is provided
-            assert response.success is True
-
-            # Retrieve what was sent to the API so we can inspect the chaining parameter
-            call_kwargs = mock_client_instance.responses.create.call_args.kwargs
-            # previous_response_id tells OpenAI to continue the conversation from a previous turn
-            # without it, the model treats every request as a fresh conversation
-            assert call_kwargs["previous_response_id"] == "prev_123"
+        # Retrieve what was sent to the API so we can inspect the chaining parameter
+        call_kwargs = mock_client_instance.responses.create.call_args.kwargs
+        # previous_response_id tells OpenAI to continue the conversation from a previous turn
+        # without it, the model treats every request as a fresh conversation
+        assert call_kwargs["previous_response_id"] == "prev_123"
 
 
 # ============================================================================
@@ -416,7 +404,7 @@ async def test_previous_response_id_chaining():
 # ============================================================================
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_message_history_preservation():
+async def test_message_history_preservation(mock_openai_settings):
     """LLM-OAPI-006: Message History Preservation
 
     Verify that message history is properly maintained in response.
@@ -451,46 +439,39 @@ async def test_message_history_preservation():
     mock_response.output_text = "I'm doing well!"
     mock_response.output = [mock_message]
 
-    with patch("finbot.core.llm.openai_client.settings") as mock_settings:
-        mock_settings.LLM_DEFAULT_MODEL = "gpt-5-nano"
-        mock_settings.LLM_DEFAULT_TEMPERATURE = 0.7
-        mock_settings.OPENAI_API_KEY = "test-key"
-        mock_settings.LLM_MAX_TOKENS = 4096
-        mock_settings.LLM_TIMEOUT = 60
+    with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
+        mock_client_instance = AsyncMock()
+        mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
+        mock_async_openai.return_value = mock_client_instance
 
-        with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
-            mock_client_instance = AsyncMock()
-            mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
-            mock_async_openai.return_value = mock_client_instance
+        client = OpenAIClient()
 
-            client = OpenAIClient()
+        request = LLMRequest(
+            messages=[
+                {"role": "user", "content": "Hello"},
+                {"role": "assistant", "content": "Hi!"},
+                {"role": "user", "content": "How are you?"}
+            ]
+        )
 
-            request = LLMRequest(
-                messages=[
-                    {"role": "user", "content": "Hello"},
-                    {"role": "assistant", "content": "Hi!"},
-                    {"role": "user", "content": "How are you?"}
-                ]
-            )
+        response = await client.chat(request)
 
-            response = await client.chat(request)
-
-            # The call must succeed when given an existing multi-turn conversation
-            assert response.success is True
-            # 3 original messages + 1 new assistant reply = 4 total; losing any message breaks context
-            assert response.messages is not None
-            assert len(response.messages) == 4
-            # The first original message must not be lost or moved
-            assert response.messages[0]["content"] == "Hello"
-            # [-1] would also work here, but [3] makes the 4-message count explicit
-            assert response.messages[3]["content"] == "I'm doing well!"
+        # The call must succeed when given an existing multi-turn conversation
+        assert response.success is True
+        # 3 original messages + 1 new assistant reply = 4 total; losing any message breaks context
+        assert response.messages is not None
+        assert len(response.messages) == 4
+        # The first original message must not be lost or moved
+        assert response.messages[0]["content"] == "Hello"
+        # [-1] would also work here, but [3] makes the 4-message count explicit
+        assert response.messages[3]["content"] == "I'm doing well!"
 
 # ============================================================================
 # LLM-OAPI-007: Zero Temperature Not Overridden
 # ============================================================================
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_zero_temperature_not_overridden():
+async def test_zero_temperature_not_overridden(mock_openai_settings):
     """LLM-OAPI-007: Zero Temperature Not Overridden
 
     **Zero Temperature Falsy Bug**
@@ -530,30 +511,23 @@ async def test_zero_temperature_not_overridden():
     mock_response.output_text = "response"
     mock_response.output = [mock_message]
 
-    with patch("finbot.core.llm.openai_client.settings") as mock_settings:
-        mock_settings.LLM_DEFAULT_MODEL = "gpt-5-nano"
-        mock_settings.LLM_DEFAULT_TEMPERATURE = 0.7
-        mock_settings.OPENAI_API_KEY = "test-key"
-        mock_settings.LLM_MAX_TOKENS = 4096
-        mock_settings.LLM_TIMEOUT = 60
+    with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
+        mock_client_instance = AsyncMock()
+        mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
+        mock_async_openai.return_value = mock_client_instance
 
-        with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
-            mock_client_instance = AsyncMock()
-            mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
-            mock_async_openai.return_value = mock_client_instance
+        client = OpenAIClient()
+        request = LLMRequest(
+            messages=[{"role": "user", "content": "test"}],
+            temperature=0.0,
+        )
+        await client.chat(request)
 
-            client = OpenAIClient()
-            request = LLMRequest(
-                messages=[{"role": "user", "content": "test"}],
-                temperature=0.0,
-            )
-            await client.chat(request)
-
-            actual = mock_client_instance.responses.create.call_args.kwargs["temperature"]
-            # 0.0 is falsy in Python — if `or` is used, the default 0.7 is sent instead
-            assert actual == pytest.approx(0.0), (
-                f"temperature=0.0 → expected 0.0 but API received {actual}"
-            )
+        actual = mock_client_instance.responses.create.call_args.kwargs["temperature"]
+        # 0.0 is falsy in Python — if `or` is used, the default 0.7 is sent instead
+        assert actual == pytest.approx(0.0), (
+            f"temperature=0.0 → expected 0.0 but API received {actual}"
+        )
 
 
 # ============================================================================
@@ -561,7 +535,7 @@ async def test_zero_temperature_not_overridden():
 # ============================================================================
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_explicit_temperature_passed_through():
+async def test_explicit_temperature_passed_through(mock_openai_settings):
     """LLM-OAPI-008: Explicit Temperature Passed Through
 
     **Explicit Temperature Forwarding**
@@ -594,30 +568,23 @@ async def test_explicit_temperature_passed_through():
     mock_response.output_text = "response"
     mock_response.output = [mock_message]
 
-    with patch("finbot.core.llm.openai_client.settings") as mock_settings:
-        mock_settings.LLM_DEFAULT_MODEL = "gpt-5-nano"
-        mock_settings.LLM_DEFAULT_TEMPERATURE = 0.7
-        mock_settings.OPENAI_API_KEY = "test-key"
-        mock_settings.LLM_MAX_TOKENS = 4096
-        mock_settings.LLM_TIMEOUT = 60
+    with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
+        mock_client_instance = AsyncMock()
+        mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
+        mock_async_openai.return_value = mock_client_instance
 
-        with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
-            mock_client_instance = AsyncMock()
-            mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
-            mock_async_openai.return_value = mock_client_instance
+        client = OpenAIClient()
+        request = LLMRequest(
+            messages=[{"role": "user", "content": "test"}],
+            temperature=0.5,
+        )
+        await client.chat(request)
 
-            client = OpenAIClient()
-            request = LLMRequest(
-                messages=[{"role": "user", "content": "test"}],
-                temperature=0.5,
-            )
-            await client.chat(request)
-
-            actual = mock_client_instance.responses.create.call_args.kwargs["temperature"]
-            # An explicit value must be forwarded as-is — the client must not alter it
-            assert actual == pytest.approx(0.5), (
-                f"temperature=0.5 → expected 0.5 but API received {actual}"
-            )
+        actual = mock_client_instance.responses.create.call_args.kwargs["temperature"]
+        # An explicit value must be forwarded as-is — the client must not alter it
+        assert actual == pytest.approx(0.5), (
+            f"temperature=0.5 → expected 0.5 but API received {actual}"
+        )
 
 
 # ============================================================================
@@ -625,7 +592,7 @@ async def test_explicit_temperature_passed_through():
 # ============================================================================
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_none_temperature_falls_back_to_default():
+async def test_none_temperature_falls_back_to_default(mock_openai_settings):
     """LLM-OAPI-009: None Temperature Falls Back to Default
 
     **Default Temperature Fallback**
@@ -659,30 +626,23 @@ async def test_none_temperature_falls_back_to_default():
     mock_response.output_text = "response"
     mock_response.output = [mock_message]
 
-    with patch("finbot.core.llm.openai_client.settings") as mock_settings:
-        mock_settings.LLM_DEFAULT_MODEL = "gpt-5-nano"
-        mock_settings.LLM_DEFAULT_TEMPERATURE = 0.7
-        mock_settings.OPENAI_API_KEY = "test-key"
-        mock_settings.LLM_MAX_TOKENS = 4096
-        mock_settings.LLM_TIMEOUT = 60
+    with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
+        mock_client_instance = AsyncMock()
+        mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
+        mock_async_openai.return_value = mock_client_instance
 
-        with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
-            mock_client_instance = AsyncMock()
-            mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
-            mock_async_openai.return_value = mock_client_instance
+        client = OpenAIClient()
+        request = LLMRequest(
+            messages=[{"role": "user", "content": "test"}],
+            temperature=None,
+        )
+        await client.chat(request)
 
-            client = OpenAIClient()
-            request = LLMRequest(
-                messages=[{"role": "user", "content": "test"}],
-                temperature=None,
-            )
-            await client.chat(request)
-
-            actual = mock_client_instance.responses.create.call_args.kwargs["temperature"]
-            # None means "no preference" — the client's default_temperature must be used
-            assert actual == pytest.approx(0.7), (
-                f"temperature=None → expected 0.7 but API received {actual}"
-            )
+        actual = mock_client_instance.responses.create.call_args.kwargs["temperature"]
+        # None means "no preference" — the client's default_temperature must be used
+        assert actual == pytest.approx(0.7), (
+            f"temperature=None → expected 0.7 but API received {actual}"
+        )
 
 
 
@@ -691,7 +651,7 @@ async def test_none_temperature_falls_back_to_default():
 # ============================================================================
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_malformed_json_in_function_arguments():
+async def test_malformed_json_in_function_arguments(mock_openai_settings):
     """LLM-OAPI-ERR-001: Malformed JSON in Function Arguments
 
     Verify that malformed JSON in function call arguments is handled gracefully.
@@ -718,29 +678,22 @@ async def test_malformed_json_in_function_arguments():
     mock_response.output_text = ""
     mock_response.output = [mock_function_call]
 
-    with patch("finbot.core.llm.openai_client.settings") as mock_settings:
-        mock_settings.LLM_DEFAULT_MODEL = "gpt-5-nano"
-        mock_settings.LLM_DEFAULT_TEMPERATURE = 0.7
-        mock_settings.OPENAI_API_KEY = "test-key"
-        mock_settings.LLM_MAX_TOKENS = 4096
-        mock_settings.LLM_TIMEOUT = 60
+    with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
+        mock_client_instance = AsyncMock()
+        mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
+        mock_async_openai.return_value = mock_client_instance
 
-        with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
-            mock_client_instance = AsyncMock()
-            mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
-            mock_async_openai.return_value = mock_client_instance
+        client = OpenAIClient()
 
-            client = OpenAIClient()
+        request = LLMRequest(
+            messages=[{"role": "user", "content": "Test"}],
+            tools=[{"type": "function", "function": {"name": "get_weather"}}]
+        )
 
-            request = LLMRequest(
-                messages=[{"role": "user", "content": "Test"}],
-                tools=[{"type": "function", "function": {"name": "get_weather"}}]
-            )
-
-            # Malformed JSON in function arguments → json.loads raises JSONDecodeError,
-            # which the client catches and re-raises as Exception("OpenAI chat failed: ...")
-            with pytest.raises(Exception, match="OpenAI chat failed"):
-                await client.chat(request)
+        # Malformed JSON in function arguments → json.loads raises JSONDecodeError,
+        # which the client catches and re-raises as Exception("OpenAI chat failed: ...")
+        with pytest.raises(Exception, match="OpenAI chat failed"):
+            await client.chat(request)
 
 
 # ============================================================================
@@ -748,7 +701,7 @@ async def test_malformed_json_in_function_arguments():
 # ============================================================================
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_api_network_error_handling():
+async def test_api_network_error_handling(mock_openai_settings):
     """LLM-OAPI-ERR-002: API Network Error Handling
 
     Verify that network errors from OpenAI API are handled properly.
@@ -764,33 +717,26 @@ async def test_api_network_error_handling():
     3. No data corruption
     4. Clear error message
     """
-    with patch("finbot.core.llm.openai_client.settings") as mock_settings:
-        mock_settings.LLM_DEFAULT_MODEL = "gpt-5-nano"
-        mock_settings.LLM_DEFAULT_TEMPERATURE = 0.7
-        mock_settings.OPENAI_API_KEY = "test-key"
-        mock_settings.LLM_MAX_TOKENS = 4096
-        mock_settings.LLM_TIMEOUT = 60
+    with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
+        mock_client_instance = AsyncMock()
+        mock_client_instance.responses.create = AsyncMock(
+            side_effect=ConnectionError("Network unreachable")
+        )
+        mock_async_openai.return_value = mock_client_instance
 
-        with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
-            mock_client_instance = AsyncMock()
-            mock_client_instance.responses.create = AsyncMock(
-                side_effect=ConnectionError("Network unreachable")
-            )
-            mock_async_openai.return_value = mock_client_instance
+        client = OpenAIClient()
 
-            client = OpenAIClient()
+        request = LLMRequest(
+            messages=[{"role": "user", "content": "Test"}]
+        )
 
-            request = LLMRequest(
-                messages=[{"role": "user", "content": "Test"}]
-            )
+        # OpenAI client wraps ConnectionError in a new Exception("OpenAI chat failed: <original>")
+        # match= narrows the broad Exception catch to the specific wrapper message
+        with pytest.raises(Exception, match="OpenAI chat failed") as exc_info:
+            await client.chat(request)
 
-            # OpenAI client wraps ConnectionError in a new Exception("OpenAI chat failed: <original>")
-            # match= narrows the broad Exception catch to the specific wrapper message
-            with pytest.raises(Exception, match="OpenAI chat failed") as exc_info:
-                await client.chat(request)
-
-            # The original error message must survive inside the wrapper so the caller knows what failed
-            assert "Network unreachable" in str(exc_info.value)
+        # The original error message must survive inside the wrapper so the caller knows what failed
+        assert "Network unreachable" in str(exc_info.value)
 
 
 # ============================================================================
@@ -798,7 +744,7 @@ async def test_api_network_error_handling():
 # ============================================================================
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_empty_tool_calls_list():
+async def test_empty_tool_calls_list(mock_openai_settings):
     """LLM-OAPI-EDGE-001: Empty Tool Calls List
 
     Verify handling of response with empty tool_calls list vs None.
@@ -827,40 +773,33 @@ async def test_empty_tool_calls_list():
     mock_response.output_text = "No tools needed"
     mock_response.output = [mock_message]  # No function_call items
 
-    with patch("finbot.core.llm.openai_client.settings") as mock_settings:
-        mock_settings.LLM_DEFAULT_MODEL = "gpt-5-nano"
-        mock_settings.LLM_DEFAULT_TEMPERATURE = 0.7
-        mock_settings.OPENAI_API_KEY = "test-key"
-        mock_settings.LLM_MAX_TOKENS = 4096
-        mock_settings.LLM_TIMEOUT = 60
+    with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
+        mock_client_instance = AsyncMock()
+        mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
+        mock_async_openai.return_value = mock_client_instance
 
-        with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
-            mock_client_instance = AsyncMock()
-            mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
-            mock_async_openai.return_value = mock_client_instance
+        client = OpenAIClient()
 
-            client = OpenAIClient()
+        request = LLMRequest(
+            messages=[{"role": "user", "content": "Just chat"}],
+            tools=[{"type": "function", "function": {"name": "get_weather"}}]
+        )
 
-            request = LLMRequest(
-                messages=[{"role": "user", "content": "Just chat"}],
-                tools=[{"type": "function", "function": {"name": "get_weather"}}]
-            )
+        response = await client.chat(request)
 
-            response = await client.chat(request)
-
-            # The call must succeed even when the model chose not to use any tools
-            assert response.success is True
-            # No tool calls were in the response — the client must not fabricate any
-            assert (response.tool_calls is None) or (len(response.tool_calls) == 0)
-            # The text reply must still be extracted normally even when there are no tool calls
-            assert response.content == "No tools needed"
+        # The call must succeed even when the model chose not to use any tools
+        assert response.success is True
+        # No tool calls were in the response — the client must not fabricate any
+        assert (response.tool_calls is None) or (len(response.tool_calls) == 0)
+        # The text reply must still be extracted normally even when there are no tool calls
+        assert response.content == "No tools needed"
 
 # ============================================================================
 # LLM-OAPI-EDGE-002: OpenAIClient.chat() handles tool_calls with unexpected type
 # ============================================================================
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_tool_calls_unexpected_type():
+async def test_tool_calls_unexpected_type(mock_openai_settings):
     """LLM-OAPI-EDGE-002: Tool Calls With Unexpected Output Type
 
     Verify that OpenAIClient.chat() handles response.output as a non-list type without crashing.
@@ -879,29 +818,22 @@ async def test_tool_calls_unexpected_type():
     mock_response.output_text = ""
     mock_response.output = mock_function_call  # Not a list
 
-    with patch("finbot.core.llm.openai_client.settings") as mock_settings:
-        mock_settings.LLM_DEFAULT_MODEL = "gpt-5-nano"
-        mock_settings.LLM_DEFAULT_TEMPERATURE = 0.7
-        mock_settings.OPENAI_API_KEY = "test-key"
-        mock_settings.LLM_MAX_TOKENS = 4096
-        mock_settings.LLM_TIMEOUT = 60
+    with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
+        mock_client_instance = AsyncMock()
+        mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
+        mock_async_openai.return_value = mock_client_instance
 
-        with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
-            mock_client_instance = AsyncMock()
-            mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
-            mock_async_openai.return_value = mock_client_instance
-
-            client = OpenAIClient()
-            request = LLMRequest(messages=[{"role": "user", "content": "Hi"}])
-            response = await client.chat(request)
-            assert isinstance(response.tool_calls, list) or response.tool_calls is None
+        client = OpenAIClient()
+        request = LLMRequest(messages=[{"role": "user", "content": "Hi"}])
+        response = await client.chat(request)
+        assert isinstance(response.tool_calls, list) or response.tool_calls is None
 
 # ============================================================================
 # LLM-OAPI-EDGE-003: OpenAIClient.chat() handles tool_call missing required fields
 # ============================================================================
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_tool_call_missing_fields():
+async def test_tool_call_missing_fields(mock_openai_settings):
     """LLM-OAPI-EDGE-003: Tool Call Missing Required Fields
 
     Verify that OpenAIClient.chat() handles function_call items missing name or arguments gracefully.
@@ -927,30 +859,23 @@ async def test_tool_call_missing_fields():
     mock_response.output_text = ""
     mock_response.output = [mock_function_call]
 
-    with patch("finbot.core.llm.openai_client.settings") as mock_settings:
-        mock_settings.LLM_DEFAULT_MODEL = "gpt-5-nano"
-        mock_settings.LLM_DEFAULT_TEMPERATURE = 0.7
-        mock_settings.OPENAI_API_KEY = "test-key"
-        mock_settings.LLM_MAX_TOKENS = 4096
-        mock_settings.LLM_TIMEOUT = 60
+    with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
+        mock_client_instance = AsyncMock()
+        mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
+        mock_async_openai.return_value = mock_client_instance
 
-        with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
-            mock_client_instance = AsyncMock()
-            mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
-            mock_async_openai.return_value = mock_client_instance
-
-            client = OpenAIClient()
-            request = LLMRequest(messages=[{"role": "user", "content": "Test"}])
-            # json.loads(None) raises TypeError — client wraps it as "OpenAI chat failed"
-            with pytest.raises(Exception, match="OpenAI chat failed"):
-                await client.chat(request)
+        client = OpenAIClient()
+        request = LLMRequest(messages=[{"role": "user", "content": "Test"}])
+        # json.loads(None) raises TypeError — client wraps it as "OpenAI chat failed"
+        with pytest.raises(Exception, match="OpenAI chat failed"):
+            await client.chat(request)
 
 # ============================================================================
 # LLM-OAPI-EDGE-004: OpenAIClient.chat() handles request with messages=None
 # ============================================================================
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_request_messages_none():
+async def test_request_messages_none(mock_openai_settings):
     """LLM-OAPI-EDGE-004: Request With Messages Set to None
 
     Verify that OpenAIClient.chat() handles an LLMRequest where messages=None without crashing.
@@ -977,31 +902,24 @@ async def test_request_messages_none():
     mock_response.output_text = "reply"
     mock_response.output = [mock_message]
 
-    with patch("finbot.core.llm.openai_client.settings") as mock_settings:
-        mock_settings.LLM_DEFAULT_MODEL = "gpt-5-nano"
-        mock_settings.LLM_DEFAULT_TEMPERATURE = 0.7
-        mock_settings.OPENAI_API_KEY = "test-key"
-        mock_settings.LLM_MAX_TOKENS = 4096
-        mock_settings.LLM_TIMEOUT = 60
+    with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
+        mock_client_instance = AsyncMock()
+        mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
+        mock_async_openai.return_value = mock_client_instance
 
-        with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
-            mock_client_instance = AsyncMock()
-            mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
-            mock_async_openai.return_value = mock_client_instance
-
-            client = OpenAIClient()
-            request = LLMRequest(messages=None)
-            response = await client.chat(request)
-            assert response.success is True
-            assert response.messages is not None
-            assert len(response.messages) == 1
+        client = OpenAIClient()
+        request = LLMRequest(messages=None)
+        response = await client.chat(request)
+        assert response.success is True
+        assert response.messages is not None
+        assert len(response.messages) == 1
 
 # ============================================================================
 # LLM-OAPI-EDGE-005: OpenAIClient.chat() handles message.content as unexpected type
 # ============================================================================
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_unexpected_content_type():
+async def test_unexpected_content_type(mock_openai_settings):
     """LLM-OAPI-EDGE-005: Message Content With Unexpected Type
 
     Verify that OpenAIClient.chat() handles message.content as a non-standard type gracefully.
@@ -1036,65 +954,58 @@ async def test_unexpected_content_type():
     mock_response.output_text = ""
     mock_response.output = [mock_message]
 
-    with patch("finbot.core.llm.openai_client.settings") as mock_settings:
-        mock_settings.LLM_DEFAULT_MODEL = "gpt-5-nano"
-        mock_settings.LLM_DEFAULT_TEMPERATURE = 0.7
-        mock_settings.OPENAI_API_KEY = "test-key"
-        mock_settings.LLM_MAX_TOKENS = 4096
-        mock_settings.LLM_TIMEOUT = 60
+    with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
+        mock_client_instance = AsyncMock()
+        mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
+        mock_async_openai.return_value = mock_client_instance
 
-        with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
-            mock_client_instance = AsyncMock()
-            mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
-            mock_async_openai.return_value = mock_client_instance
+        client = OpenAIClient()
+        request = LLMRequest(messages=[{"role": "user", "content": "test"}])
 
-            client = OpenAIClient()
-            request = LLMRequest(messages=[{"role": "user", "content": "test"}])
+        dict_content = {"unexpected": "dict"}
 
-            dict_content = {"unexpected": "dict"}
+        print("\n")
+        print("=" * 65)
+        print("  LLM-OAPI-EDGE-005: Does chat() crash on dict content items?")
+        print("=" * 65)
+        print()
+        print("  STEP 1 — What the SDK normally returns (SDK object):")
+        print("           sdk_content.type        → 'output_text'  ✅")
+        print("           sdk_content.text        → 'Hello world'  ✅")
+        print()
+        print("  STEP 2 — Our dict does NOT have a .type attribute:")
+        print(f"           dict_content            = {dict_content}")
+        print(f"           dict_content['unexpected'] → '{dict_content['unexpected']}'  ✅  (key access works)")
+        print("           dict_content.type       → AttributeError ❌  (no such attribute)")
+        print()
+        print("  STEP 3 — This is what gets passed to the client:")
+        print(f"           mock_message.content    = {mock_message.content}")
+        print("           Item [0] is a plain dict — the code tries content.type on it")
+        print()
+        print("  STEP 4 — Calling client.chat(request)...")
 
-            print("\n")
-            print("=" * 65)
-            print("  LLM-OAPI-EDGE-005: Does chat() crash on dict content items?")
-            print("=" * 65)
-            print()
-            print("  STEP 1 — What the SDK normally returns (SDK object):")
-            print("           sdk_content.type        → 'output_text'  ✅")
-            print("           sdk_content.text        → 'Hello world'  ✅")
-            print()
-            print("  STEP 2 — Our dict does NOT have a .type attribute:")
-            print(f"           dict_content            = {dict_content}")
-            print(f"           dict_content['unexpected'] → '{dict_content['unexpected']}'  ✅  (key access works)")
-            print("           dict_content.type       → AttributeError ❌  (no such attribute)")
-            print()
-            print("  STEP 3 — This is what gets passed to the client:")
-            print(f"           mock_message.content    = {mock_message.content}")
-            print("           Item [0] is a plain dict — the code tries content.type on it")
-            print()
-            print("  STEP 4 — Calling client.chat(request)...")
+        response = await client.chat(request)
 
-            response = await client.chat(request)
+        print()
+        print(f"  STEP 5 — response.content = {repr(response.content)}")
+        print(f"           type: {type(response.content).__name__}")
+        print()
+        if isinstance(response.content, str):
+            print("  ✅ PASS — No crash. response.content is a string.")
+            print("           The isinstance guard handled the dict safely.")
+        else:
+            print("  ❌ BUG  — response.content is not a string.")
+            print("           The dict content was not handled gracefully.")
+        print("=" * 65)
 
-            print()
-            print(f"  STEP 5 — response.content = {repr(response.content)}")
-            print(f"           type: {type(response.content).__name__}")
-            print()
-            if isinstance(response.content, str):
-                print("  ✅ PASS — No crash. response.content is a string.")
-                print("           The isinstance guard handled the dict safely.")
-            else:
-                print("  ❌ BUG  — response.content is not a string.")
-                print("           The dict content was not handled gracefully.")
-            print("=" * 65)
-
-            assert isinstance(response.content, str)
+        assert isinstance(response.content, str)
 
 # ============================================================================
 # LLM-OAPI-EDGE-006: OpenAIClient.chat() does not retry on unexpected exceptions
 # ============================================================================
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_unexpected_exception_not_retried():
+async def test_unexpected_exception_not_retried(mock_openai_settings):
     """LLM-OAPI-EDGE-006: Unexpected Exception Not Retried
 
     Verify that OpenAIClient.chat() does not retry when an unexpected RuntimeError occurs.
@@ -1107,34 +1018,27 @@ async def test_unexpected_exception_not_retried():
     1. Exception is propagated to the caller.
     2. responses.create is called exactly once — no retry loop executed.
     """
-    with patch("finbot.core.llm.openai_client.settings") as mock_settings:
-        mock_settings.LLM_DEFAULT_MODEL = "gpt-5-nano"
-        mock_settings.LLM_DEFAULT_TEMPERATURE = 0.7
-        mock_settings.OPENAI_API_KEY = "test-key"
-        mock_settings.LLM_MAX_TOKENS = 4096
-        mock_settings.LLM_TIMEOUT = 60
+    with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
+        mock_client_instance = AsyncMock()
+        mock_client_instance.responses.create = AsyncMock(side_effect=RuntimeError("Unexpected error"))
+        mock_async_openai.return_value = mock_client_instance
 
-        with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
-            mock_client_instance = AsyncMock()
-            mock_client_instance.responses.create = AsyncMock(side_effect=RuntimeError("Unexpected error"))
-            mock_async_openai.return_value = mock_client_instance
+        client = OpenAIClient()
+        request = LLMRequest(messages=[{"role": "user", "content": "test"}])
 
-            client = OpenAIClient()
-            request = LLMRequest(messages=[{"role": "user", "content": "test"}])
-
-            # RuntimeError is caught by the client's broad except and re-raised as
-            # Exception("OpenAI chat failed: ...") — so we match the wrapper, not the original type
-            with pytest.raises(Exception, match="OpenAI chat failed"):
-                await client.chat(request)
-            # No retry logic in this client — responses.create must have been called exactly once
-            assert mock_client_instance.responses.create.call_count == 1
+        # RuntimeError is caught by the client's broad except and re-raised as
+        # Exception("OpenAI chat failed: ...") — so we match the wrapper, not the original type
+        with pytest.raises(Exception, match="OpenAI chat failed"):
+            await client.chat(request)
+        # No retry logic in this client — responses.create must have been called exactly once
+        assert mock_client_instance.responses.create.call_count == 1
 
 # ============================================================================
 # LLM-OAPI-EDGE-007: Messages List Not Mutated on Chat
 # ============================================================================
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_messages_list_not_mutated():
+async def test_messages_list_not_mutated(mock_openai_settings):
     """LLM-OAPI-EDGE-007: Messages List Not Mutated on Chat
 
     Verify that OpenAIClient.chat() does not mutate the caller's original messages list.
@@ -1166,29 +1070,22 @@ async def test_messages_list_not_mutated():
     mock_response.output_text = "reply"
     mock_response.output = [mock_message]
 
-    with patch("finbot.core.llm.openai_client.settings") as mock_settings:
-        mock_settings.LLM_DEFAULT_MODEL = "gpt-5-nano"
-        mock_settings.LLM_DEFAULT_TEMPERATURE = 0.7
-        mock_settings.OPENAI_API_KEY = "test-key"
-        mock_settings.LLM_MAX_TOKENS = 4096
-        mock_settings.LLM_TIMEOUT = 60
+    with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
+        mock_client_instance = AsyncMock()
+        mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
+        mock_async_openai.return_value = mock_client_instance
 
-        with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
-            mock_client_instance = AsyncMock()
-            mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
-            mock_async_openai.return_value = mock_client_instance
+        client = OpenAIClient()
+        original_messages = [{"role": "user", "content": "Hello"}]
+        request = LLMRequest(messages=original_messages)
 
-            client = OpenAIClient()
-            original_messages = [{"role": "user", "content": "Hello"}]
-            request = LLMRequest(messages=original_messages)
+        length_before = len(original_messages)
+        await client.chat(request)
 
-            length_before = len(original_messages)
-            await client.chat(request)
-
-            # If the client appends to request.messages directly (not a copy), this will fail
-            assert len(original_messages) == length_before, (
-                f"original messages list was mutated: length went from {length_before} to {len(original_messages)}"
-            )
+        # If the client appends to request.messages directly (not a copy), this will fail
+        assert len(original_messages) == length_before, (
+            f"original messages list was mutated: length went from {length_before} to {len(original_messages)}"
+        )
 
 
 # ============================================================================
@@ -1196,7 +1093,7 @@ async def test_messages_list_not_mutated():
 # ============================================================================
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_response_messages_independent_of_request():
+async def test_response_messages_independent_of_request(mock_openai_settings):
     """LLM-OAPI-EDGE-008: Response Messages Independent of Request Messages
 
     Verify that mutating response.messages after chat() does not affect the caller's input list.
@@ -1228,33 +1125,26 @@ async def test_response_messages_independent_of_request():
     mock_response.output_text = "reply"
     mock_response.output = [mock_message]
 
-    with patch("finbot.core.llm.openai_client.settings") as mock_settings:
-        mock_settings.LLM_DEFAULT_MODEL = "gpt-5-nano"
-        mock_settings.LLM_DEFAULT_TEMPERATURE = 0.7
-        mock_settings.OPENAI_API_KEY = "test-key"
-        mock_settings.LLM_MAX_TOKENS = 4096
-        mock_settings.LLM_TIMEOUT = 60
+    with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
+        mock_client_instance = AsyncMock()
+        mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
+        mock_async_openai.return_value = mock_client_instance
 
-        with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
-            mock_client_instance = AsyncMock()
-            mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
-            mock_async_openai.return_value = mock_client_instance
+        client = OpenAIClient()
+        original_messages = [{"role": "user", "content": "Hello"}]
+        request = LLMRequest(messages=original_messages)
+        length_before = len(original_messages)
 
-            client = OpenAIClient()
-            original_messages = [{"role": "user", "content": "Hello"}]
-            request = LLMRequest(messages=original_messages)
-            length_before = len(original_messages)
+        llm_response = await client.chat(request)
 
-            llm_response = await client.chat(request)
+        # Mutate the returned list to simulate a caller adding a tool result
+        assert llm_response.messages is not None
+        llm_response.messages.append({"role": "tool", "content": "tool result"})
 
-            # Mutate the returned list to simulate a caller adding a tool result
-            assert llm_response.messages is not None
-            llm_response.messages.append({"role": "tool", "content": "tool result"})
-
-            # If response.messages is the same object as original_messages, this will fail
-            assert len(original_messages) == length_before, (
-                "mutating response.messages affected the caller's original list — they share the same object"
-            )
+        # If response.messages is the same object as original_messages, this will fail
+        assert len(original_messages) == length_before, (
+            "mutating response.messages affected the caller's original list — they share the same object"
+        )
 
 
 # ============================================================================
@@ -1262,7 +1152,7 @@ async def test_response_messages_independent_of_request():
 # ============================================================================
 @pytest.mark.asyncio
 @pytest.mark.unit
-async def test_second_call_does_not_inherit_first_call_history():
+async def test_second_call_does_not_inherit_first_call_history(mock_openai_settings):
     """LLM-OAPI-EDGE-009: Second Call Does Not Inherit First Call History
 
     Reusing the same LLMRequest across two calls must not leak the assistant
@@ -1285,43 +1175,36 @@ async def test_second_call_does_not_inherit_first_call_history():
     mock_response.output_text = "reply"
     mock_response.output = [mock_message]
 
-    with patch("finbot.core.llm.openai_client.settings") as mock_settings:
-        mock_settings.LLM_DEFAULT_MODEL = "gpt-5-nano"
-        mock_settings.LLM_DEFAULT_TEMPERATURE = 0.7
-        mock_settings.OPENAI_API_KEY = "test-key"
-        mock_settings.LLM_MAX_TOKENS = 4096
-        mock_settings.LLM_TIMEOUT = 60
+    with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
+        mock_client_instance = AsyncMock()
+        mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
+        mock_async_openai.return_value = mock_client_instance
 
-        with patch("finbot.core.llm.openai_client.AsyncOpenAI") as mock_async_openai:
-            mock_client_instance = AsyncMock()
-            mock_client_instance.responses.create = AsyncMock(return_value=mock_response)
-            mock_async_openai.return_value = mock_client_instance
+        client = OpenAIClient()
+        request = LLMRequest(messages=[{"role": "user", "content": "hello"}])
+        actual_reply = mock_response.output[0]
 
-            client = OpenAIClient()
-            request = LLMRequest(messages=[{"role": "user", "content": "hello"}])
-            actual_reply = mock_response.output[0]
+        print(f"\n  [before call 1]  request.messages = {request.messages}")
 
-            print(f"\n  [before call 1]  request.messages = {request.messages}")
+        await client.chat(request)
 
-            await client.chat(request)
+        sent_call1 = mock_client_instance.responses.create.call_args_list[0].kwargs["input"]
+        print(f"  [call 1 → API]   sent {len(sent_call1)} message(s): {sent_call1[:1]}")
+        print(f"  [call 1 ← API]   role={actual_reply.role}  content='{actual_reply.content[0].text}'")
+        print(f"  [after call 1]   request.messages mutated → {request.messages}")
 
-            sent_call1 = mock_client_instance.responses.create.call_args_list[0].kwargs["input"]
-            print(f"  [call 1 → API]   sent {len(sent_call1)} message(s): {sent_call1[:1]}")
-            print(f"  [call 1 ← API]   role={actual_reply.role}  content='{actual_reply.content[0].text}'")
-            print(f"  [after call 1]   request.messages mutated → {request.messages}")
+        await client.chat(request)
 
-            await client.chat(request)
+        sent_call2 = mock_client_instance.responses.create.call_args_list[1].kwargs["input"]
+        print(f"  [call 2 → API]   sent {len(sent_call2)} message(s) — expected 1")
+        for i, msg in enumerate(sent_call2):
+            tag = "(original)" if i == 0 else "(injected by call 1)"
+            print(f"                   [{i}] {msg} {tag}")
 
-            sent_call2 = mock_client_instance.responses.create.call_args_list[1].kwargs["input"]
-            print(f"  [call 2 → API]   sent {len(sent_call2)} message(s) — expected 1")
-            for i, msg in enumerate(sent_call2):
-                tag = "(original)" if i == 0 else "(injected by call 1)"
-                print(f"                   [{i}] {msg} {tag}")
-
-            assert len(sent_call2) == 1, (
-                f"Bug: call 2 received {len(sent_call2)} messages — "
-                "assistant reply from call 1 leaked into call 2 via list mutation."
-            )
+        assert len(sent_call2) == 1, (
+            f"Bug: call 2 received {len(sent_call2)} messages — "
+            "assistant reply from call 1 leaked into call 2 via list mutation."
+        )
 
 
 # ============================================================================

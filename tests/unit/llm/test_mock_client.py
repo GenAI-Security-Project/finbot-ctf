@@ -313,14 +313,14 @@ async def test_exception_wrapping_loses_original_type():
         with pytest.raises(Exception) as exc_info:
             await client.chat(LLMRequest(messages=[{"role": "user", "content": "test"}]))
 
-        # The wrapping converts ValueError → generic Exception.
-        # A caller doing `except ValueError` would never catch this.
-        assert type(exc_info.value) is Exception, (
-            f"Expected generic Exception but got {type(exc_info.value).__name__}. "
-            "A fix would re-raise the original type instead of wrapping it."
+        # The original type is preserved — bare `raise` in mock_client.py re-raises
+        # the original ValueError instead of wrapping it in a generic Exception.
+        assert type(exc_info.value) is ValueError, (
+            f"Expected ValueError but got {type(exc_info.value).__name__}. "
+            "mock_client.py should re-raise the original exception type."
         )
         assert "bad input value" in str(exc_info.value), (
-            "The original error message must be preserved in the wrapper."
+            "The original error message must be preserved."
         )
 
 
