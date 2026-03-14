@@ -34,8 +34,9 @@ def _matches_pattern(
             match = re.search(pattern, text, flags)
             if match:
                 return True, match.group(0)
+            return False, None
         except re.error:
-            pass
+            pass  # invalid regex falls through to literal match
 
     search_text = text if case_sensitive else text.lower()
     search_pattern = pattern if case_sensitive else pattern.lower()
