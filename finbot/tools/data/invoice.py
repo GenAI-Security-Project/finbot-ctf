@@ -24,11 +24,14 @@ async def get_invoice_details(
     """
     logger.info("Getting invoice details for invoice_id: %s", invoice_id)
     db = next(get_db())
-    invoice_repo = InvoiceRepository(db, session_context)
-    invoice = invoice_repo.get_invoice(invoice_id)
-    if not invoice:
-        raise ValueError("Invoice not found")
-    return invoice.to_dict()
+    try:
+        invoice_repo = InvoiceRepository(db, session_context)
+        invoice = invoice_repo.get_invoice(invoice_id)
+        if not invoice:
+            raise ValueError("Invoice not found")
+        return invoice.to_dict()
+    finally:
+        db.close()
 
 
 async def update_invoice_status(
@@ -49,27 +52,30 @@ async def update_invoice_status(
         agent_notes,
     )
     db = next(get_db())
-    invoice_repo = InvoiceRepository(db, session_context)
-    # append notes to the existing agent_notes
-    invoice = invoice_repo.get_invoice(invoice_id)
-    if not invoice:
-        raise ValueError("Invoice not found")
+    try:
+        invoice_repo = InvoiceRepository(db, session_context)
+        # append notes to the existing agent_notes
+        invoice = invoice_repo.get_invoice(invoice_id)
+        if not invoice:
+            raise ValueError("Invoice not found")
 
-    previous_state = {
-        "status": invoice.status,
-    }
-    existing_notes = invoice.agent_notes or ""
-    new_notes = f"{existing_notes}\n\n{agent_notes}"
-    invoice = invoice_repo.update_invoice(
-        invoice_id, status=status, agent_notes=new_notes
-    )
-    if not invoice:
-        raise ValueError("Invoice not found")
+        previous_state = {
+            "status": invoice.status,
+        }
+        existing_notes = invoice.agent_notes or ""
+        new_notes = f"{existing_notes}\n\n{agent_notes}"
+        invoice = invoice_repo.update_invoice(
+            invoice_id, status=status, agent_notes=new_notes
+        )
+        if not invoice:
+            raise ValueError("Invoice not found")
 
-    result = invoice.to_dict()
-    result["_previous_state"] = previous_state
+        result = invoice.to_dict()
+        result["_previous_state"] = previous_state
 
-    return result
+        return result
+    finally:
+        db.close()
 
 
 async def update_invoice_agent_notes(
@@ -84,16 +90,19 @@ async def update_invoice_agent_notes(
         agent_notes,
     )
     db = next(get_db())
-    invoice_repo = InvoiceRepository(db, session_context)
-    invoice = invoice_repo.get_invoice(invoice_id)
-    if not invoice:
-        raise ValueError("Invoice not found")
-    existing_notes = invoice.agent_notes or ""
-    new_notes = f"{existing_notes}\n\n{agent_notes}"
-    invoice = invoice_repo.update_invoice(
-        invoice_id,
-        agent_notes=new_notes,
-    )
-    if not invoice:
-        raise ValueError("Invoice not found")
-    return invoice.to_dict()
+    try:
+        invoice_repo = InvoiceRepository(db, session_context)
+        invoice = invoice_repo.get_invoice(invoice_id)
+        if not invoice:
+            raise ValueError("Invoice not found")
+        existing_notes = invoice.agent_notes or ""
+        new_notes = f"{existing_notes}\n\n{agent_notes}"
+        invoice = invoice_repo.update_invoice(
+            invoice_id,
+            agent_notes=new_notes,
+        )
+        if not invoice:
+            raise ValueError("Invoice not found")
+        return invoice.to_dict()
+    finally:
+        db.close()
