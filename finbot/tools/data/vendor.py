@@ -9,6 +9,10 @@ from finbot.core.data.repositories import VendorRepository
 
 logger = logging.getLogger(__name__)
 
+VALID_STATUSES = {"pending", "active", "inactive"}
+VALID_TRUST_LEVELS = {"low", "standard", "high"}
+VALID_RISK_LEVELS = {"low", "medium", "high"}
+
 
 async def get_vendor_details(
     vendor_id: int, session_context: SessionContext
@@ -70,6 +74,19 @@ async def update_vendor_status(
         risk_level,
         agent_notes,
     )
+    if status not in VALID_STATUSES:
+        raise ValueError(
+            f"Invalid status: {status!r}. Must be one of {VALID_STATUSES}"
+        )
+    if trust_level not in VALID_TRUST_LEVELS:
+        raise ValueError(
+            f"Invalid trust_level: {trust_level!r}. Must be one of {VALID_TRUST_LEVELS}"
+        )
+    if risk_level not in VALID_RISK_LEVELS:
+        raise ValueError(
+            f"Invalid risk_level: {risk_level!r}. Must be one of {VALID_RISK_LEVELS}"
+        )
+
     db = next(get_db())
     vendor_repo = VendorRepository(db, session_context)
     # append notes to the existing agent_notes
