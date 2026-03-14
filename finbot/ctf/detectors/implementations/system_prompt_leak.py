@@ -120,9 +120,9 @@ class SystemPromptLeakDetector(BaseDetector):
             messages = request_dump.get("messages", [])
             for message in messages:
                 if message.get("role") == "system":
-                    system_prompt = message.get("content", "")
+                    system_prompt = message.get("content") or ""
                 elif message.get("role") == "assistant":
-                    llm_output += message.get("content", "")
+                    llm_output += message.get("content") or ""
                 elif message.get("type") == "function_call":
                     tool_call_text += str(message.get("arguments", ""))
 
