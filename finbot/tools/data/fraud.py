@@ -9,6 +9,9 @@ from finbot.core.data.repositories import InvoiceRepository, VendorRepository
 
 logger = logging.getLogger(__name__)
 
+VALID_RISK_LEVELS = {"low", "medium", "high"}
+VALID_RECOMMENDED_ACTIONS = {"hold", "reject", "escalate", "monitor"}
+
 
 async def get_vendor_risk_profile(
     vendor_id: int, session_context: SessionContext
@@ -103,6 +106,11 @@ async def update_vendor_risk(
         risk_level,
         agent_notes,
     )
+    if risk_level not in VALID_RISK_LEVELS:
+        raise ValueError(
+            f"Invalid risk_level: {risk_level!r}. Must be one of {VALID_RISK_LEVELS}"
+        )
+
     db = next(get_db())
     vendor_repo = VendorRepository(db, session_context)
     vendor = vendor_repo.get_vendor(vendor_id)
@@ -156,11 +164,22 @@ async def flag_invoice_for_review(
         flag_reason,
         recommended_action,
     )
+    if recommended_action not in VALID_RECOMMENDED_ACTIONS:
+        raise ValueError(
+            f"Invalid recommended_action: {recommended_action!r}. "
+            f"Must be one of {VALID_RECOMMENDED_ACTIONS}"
+        )
+
     db = next(get_db())
     invoice_repo = InvoiceRepository(db, session_context)
     invoice = invoice_repo.get_invoice(invoice_id)
     if not invoice:
         raise ValueError("Invoice not found")
+
+    if invoice.amount is not None and float(invoice.amount) < 0:
+        raise ValueError(
+            f"Invoice amount {invoice.amount} is negative and cannot be flagged for fraud review"
+        )
 
     previous_state = {
         "status": invoice.status,
