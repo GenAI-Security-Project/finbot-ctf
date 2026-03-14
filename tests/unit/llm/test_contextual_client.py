@@ -824,19 +824,19 @@ async def test_full_response_content_emitted_to_event_bus():
 async def test_event_emission_failure_resilience():
     """LLM-CTX-ERR-001: Event Emission Failure Behavior
 
-    Verify how ContextualLLMClient handles event emission failures.
+    Verify that ContextualLLMClient gracefully degrades when event emission fails.
 
     Test Steps:
     1. Create ContextualLLMClient
     2. Mock event_bus.emit_agent_event to raise Exception
     3. Call client.chat(request)
-    4. Verify exception is propagated (current behavior)
+    4. Verify the LLM response is still returned despite event bus failure
 
     Expected Results:
-    1. Event emission failure blocks LLM call (current behavior)
-    2. Exception propagated to caller
-    3. Documents limitation: monitoring failures block operations
-    4. TODO: Consider catching event errors for resilience
+    1. Event emission failure does NOT block the LLM call
+    2. LLM response is returned to the caller
+    3. Event bus errors are logged as warnings (not propagated)
+    4. Fixes issue #84: Redis/event bus outage no longer blocks AI chat
     """
     session_context = SessionContext(
         session_id="session_456",
@@ -862,7 +862,7 @@ async def test_event_emission_failure_resilience():
         mock_get_client.return_value = mock_llm_client
 
         with patch("finbot.core.llm.contextual_client.event_bus") as mock_event_bus:
-            # Event emission fails
+            # Event emission fails (simulates Redis outage)
             mock_event_bus.emit_agent_event = AsyncMock(
                 side_effect=Exception("Event bus error")
             )
@@ -874,13 +874,18 @@ async def test_event_emission_failure_resilience():
 
             request = LLMRequest(messages=[{"role": "user", "content": "test"}])
 
-            # If Redis fails before the LLM call, chat() raises the exception instead of continuing
-            # This means a Redis outage will stop users from getting a response even if the AI is working fine
-            with pytest.raises(Exception) as exc_info:
-                await client.chat(request)
+            # chat() should succeed despite event bus failure
+            response = await client.chat(request)
 
-            # The error message must include the original Redis error so we know what component failed
-            assert "Event bus error" in str(exc_info.value)
+            # The LLM response is returned to the caller
+            assert response.content == "response despite event failure"
+            assert response.success is True
+
+            # The LLM was still called
+            mock_llm_client.chat.assert_called_once()
+
+            # Event emission was attempted (and failed gracefully)
+            assert mock_event_bus.emit_agent_event.call_count >= 1
 
 
 # ============================================================================
