@@ -55,6 +55,22 @@ class ContextualLLMClient:
             self.workflow_id[:8],
         )
 
+    async def _safe_emit(self, **kwargs: Any) -> None:
+        """Emit an agent event, suppressing errors so Redis/event-bus outages
+        never block the LLM response path.
+
+        All keyword arguments are forwarded to ``event_bus.emit_agent_event``.
+        """
+        try:
+            await event_bus.emit_agent_event(**kwargs)
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.warning(
+                "Failed to emit event %s for agent %s (event bus may be unavailable)",
+                kwargs.get("event_type", "unknown"),
+                kwargs.get("agent_name", self.agent_name),
+                exc_info=True,
+            )
+
     def _extract_user_message_info(self, messages: list[dict] | None) -> dict[str, Any]:
         """Extract user message info for event tracking.
         Returns info about the last user message and message role breakdown.
@@ -133,8 +149,8 @@ class ContextualLLMClient:
             "message_roles": user_message_info["message_roles"],
         }
 
-        # Emit start event
-        await event_bus.emit_agent_event(
+        # Emit start event (non-blocking: Redis failure must not prevent LLM call)
+        await self._safe_emit(
             agent_name=self.agent_name,
             event_type="llm_request_start",
             event_subtype="llm",
@@ -152,8 +168,8 @@ class ContextualLLMClient:
 
             duration_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
 
-            # Emit success event
-            await event_bus.emit_agent_event(
+            # Emit success event (non-blocking: Redis failure must not discard LLM result)
+            await self._safe_emit(
                 agent_name=self.agent_name,
                 event_type="llm_request_success",
                 event_subtype="llm",
@@ -184,8 +200,8 @@ class ContextualLLMClient:
         except Exception as e:  # pylint: disable=broad-exception-caught
             duration_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
 
-            # Emit error event
-            await event_bus.emit_agent_event(
+            # Emit error event (non-blocking: still re-raise the LLM error below)
+            await self._safe_emit(
                 agent_name=self.agent_name,
                 event_type="llm_request_error",
                 event_subtype="llm",
