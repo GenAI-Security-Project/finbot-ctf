@@ -156,6 +156,12 @@ async def flag_invoice_for_review(
         flag_reason,
         recommended_action,
     )
+
+    # ----- VALIDATION ADDED -----
+    if flag_reason is None or not flag_reason.strip():
+        raise ValueError("flag_reason must not be empty or whitespace")
+    # ----------------------------
+
     db = next(get_db())
     invoice_repo = InvoiceRepository(db, session_context)
     invoice = invoice_repo.get_invoice(invoice_id)
@@ -192,7 +198,7 @@ async def flag_invoice_for_review(
     result["_previous_state"] = previous_state
     result["flag_reason"] = flag_reason
     result["recommended_action"] = recommended_action
-    return result
+    return result 
 
 
 async def update_fraud_agent_notes(
