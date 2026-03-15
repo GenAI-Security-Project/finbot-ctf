@@ -105,12 +105,24 @@ async def update_vendor_agent_notes(
     agent_notes: str,
     session_context: SessionContext,
 ) -> dict[str, Any]:
-    """Update the agent notes of the vendor"""
+    """Update the agent notes of the vendor
+    
+    Raises:
+        ValueError: If agent_notes exceeds 10,000 characters
+    """
     logger.info(
-        "Updating vendor agent notes for vendor_id: %s. Agent notes: %s",
+        "Updating vendor agent notes for vendor_id: %s. Agent notes length: %d",
         vendor_id,
-        agent_notes,
+        len(agent_notes) if agent_notes else 0,
     )
+    
+    # Validate agent_notes length
+    MAX_NOTES_LENGTH = 10_000
+    if agent_notes and len(agent_notes) > MAX_NOTES_LENGTH:
+        raise ValueError(
+            f"agent_notes exceeds maximum length of {MAX_NOTES_LENGTH} characters"
+        )
+    
     db = next(get_db())
     vendor_repo = VendorRepository(db, session_context)
     vendor = vendor_repo.get_vendor(vendor_id)
