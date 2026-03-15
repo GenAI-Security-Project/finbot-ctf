@@ -124,6 +124,13 @@ async function loadTransactions() {
             tableBody.appendChild(row);
         });
 
+        tableBody.querySelectorAll('.description-preview').forEach(el => {
+            el.addEventListener('click', () => {
+                const full = el.dataset.fullDescription;
+                if (full) showDescriptionModal(full);
+            });
+        });
+
     } catch (error) {
         console.error('Error loading transactions:', error);
         tableBody.innerHTML = `
@@ -145,16 +152,14 @@ function createTransactionRow(txn) {
     const date = formatPaymentDate(txn.created_at);
     const method = formatMethod(txn.payment_method);
     const statusConfig = getTransactionStatusConfig(txn.status);
-    const transferIdShort = txn.transfer_id.length > 20
-        ? txn.transfer_id.substring(0, 20) + '...'
-        : txn.transfer_id;
-    const description = txn.description
-        ? (txn.description.length > 40 ? txn.description.substring(0, 40) + '...' : txn.description)
-        : '-';
+    const transferId = txn.transfer_id;
+    const rawDesc = txn.description || '';
+    const descPreview = rawDesc.length > 40 ? rawDesc.substring(0, 40) + '...' : rawDesc;
+    const isTruncated = rawDesc.length > 40;
 
     row.innerHTML = `
         <td>
-            <span class="transfer-id" title="${escapePaymentHtml(txn.transfer_id)}">${escapePaymentHtml(transferIdShort)}</span>
+            <span class="transfer-id break-all">${escapePaymentHtml(transferId)}</span>
         </td>
         <td>
             <span class="font-semibold text-vendor-accent">${amount}</span>
@@ -167,7 +172,12 @@ function createTransactionRow(txn) {
             <span class="txn-status ${statusConfig.class}">${statusConfig.label}</span>
         </td>
         <td>
-            <span class="text-text-secondary text-sm" title="${escapePaymentHtml(txn.description || '')}">${escapePaymentHtml(description)}</span>
+            ${rawDesc
+                ? `<span class="text-text-secondary text-sm${isTruncated ? ' description-preview cursor-pointer hover:text-text-primary transition-colors' : ''}"
+                         ${isTruncated ? `data-full-description="${escapePaymentHtml(rawDesc)}" title="Click to view full description"` : ''}
+                   >${escapePaymentHtml(descPreview)}</span>`
+                : '<span class="text-text-secondary text-sm">-</span>'
+            }
         </td>
         <td>
             <span class="text-text-primary text-sm">${date}</span>
@@ -225,4 +235,36 @@ function escapePaymentHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+function showDescriptionModal(content) {
+    const existing = document.getElementById('desc-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'desc-modal';
+    modal.className = 'fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4';
+    modal.innerHTML = `
+        <div class="bg-portal-bg-secondary border border-vendor-primary/30 rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+            <div class="px-6 py-4 border-b border-vendor-primary/10 flex items-center justify-between">
+                <h3 class="text-lg font-bold text-text-bright">Transaction Description</h3>
+                <button id="close-desc-modal" class="text-text-secondary hover:text-text-bright transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-6 overflow-auto max-h-[calc(80vh-80px)]">
+                <p class="text-sm text-text-primary whitespace-pre-wrap break-words">${escapePaymentHtml(content)}</p>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+    modal.querySelector('#close-desc-modal').addEventListener('click', () => modal.remove());
+    document.addEventListener('keydown', function handler(e) {
+        if (e.key === 'Escape') { modal.remove(); document.removeEventListener('keydown', handler); }
+    });
 }

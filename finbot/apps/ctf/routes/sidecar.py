@@ -3,6 +3,8 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends
+
+from finbot.core.utils import to_utc_iso
 from sqlalchemy.orm import Session
 
 from finbot.core.auth.middleware import get_session_context
@@ -21,10 +23,7 @@ router = APIRouter(prefix="/api/v1", tags=["sidecar"])
 
 def _format_utc_timestamp(dt: datetime | None) -> str | None:
     """Format datetime as ISO string with Z suffix for UTC."""
-    if dt is None:
-        return None
-    # Append Z to indicate UTC (timestamps are stored as UTC)
-    return dt.isoformat() + "Z"
+    return to_utc_iso(dt)
 
 
 @router.get("/sidecar")

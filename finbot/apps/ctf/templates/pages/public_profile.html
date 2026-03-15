@@ -833,7 +833,9 @@ function renderProfile(profile) {
             list.innerHTML = achievements.map(item => {
                 const icon = item.type === 'badge' ? '🏅' : '🎯';
                 const iconClass = item.type === 'badge' ? 'badge' : 'challenge';
-                const timeAgo = formatTimeAgo(new Date(item.earned_at));
+                const eaStr = String(item.earned_at);
+                const earnedDate = (!eaStr.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(eaStr)) ? new Date(eaStr + 'Z') : new Date(eaStr);
+                const timeAgo = formatTimeAgo(earnedDate);
                 const subtitle = item.type === 'badge' 
                     ? `<span class="capitalize">${item.rarity}</span> badge earned`
                     : item.description || 'Challenge completed';

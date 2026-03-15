@@ -47,11 +47,7 @@ function bindToolbarEvents() {
             document.querySelectorAll('.inbox-filter-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             InboxState.activeFilter = btn.dataset.filter;
-            if (btn.dataset.filter === 'sent' || prev === 'sent') {
-                loadMessages();
-            } else {
-                renderMessageList();
-            }
+            renderMessageList();
         });
     });
 
@@ -70,9 +66,7 @@ async function loadMessages() {
     showLoading(true);
 
     try {
-        const isSent = InboxState.activeFilter === 'sent';
-        const url = isSent ? '/admin/api/v1/messages?sent=true' : '/admin/api/v1/messages';
-        const resp = await api.get(url);
+        const resp = await api.get('/admin/api/v1/messages');
         const data = resp.data || resp;
         InboxState.messages = data.messages || [];
         InboxState.stats = data.stats || {};
@@ -101,7 +95,7 @@ function updateStats() {
 
 function getFilteredMessages() {
     const filter = InboxState.activeFilter;
-    if (filter === 'all' || filter === 'sent') return InboxState.messages;
+    if (filter === 'all') return InboxState.messages;
     if (filter === 'unread') return InboxState.messages.filter(m => !m.is_read);
     return InboxState.messages.filter(m => m.message_type === filter);
 }
@@ -488,7 +482,7 @@ function escapeHtml(str) {
 
 function formatMessageTime(isoStr) {
     if (!isoStr) return '';
-    const date = new Date(isoStr);
+    const date = parseUTCDate(isoStr);
     const now = new Date();
     const diff = now - date;
     const mins = Math.floor(diff / 60000);
@@ -504,7 +498,7 @@ function formatMessageTime(isoStr) {
 
 function formatMessageDate(isoStr) {
     if (!isoStr) return '';
-    const date = new Date(isoStr);
+    const date = parseUTCDate(isoStr);
     return date.toLocaleDateString('en-US', {
         weekday: 'long',
         year: 'numeric',

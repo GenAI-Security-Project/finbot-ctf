@@ -4,10 +4,13 @@ import json
 from datetime import UTC, datetime
 from typing import Literal
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Column, Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import DateTime as _DateTime
 from sqlalchemy.orm import relationship
 
 from finbot.core.data.database import Base
+
+DateTime = _DateTime(timezone=True)
 
 
 class PaymentTransaction(Base):
@@ -36,9 +39,9 @@ class PaymentTransaction(Base):
     description = Column[str](Text, nullable=True)
     metadata_json = Column[str](Text, nullable=True)
 
-    created_at = Column[datetime](DateTime, default=datetime.now(UTC))
+    created_at = Column[datetime](DateTime, default=lambda: datetime.now(UTC))
     updated_at = Column[datetime](
-        DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC)
+        DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
     )
 
     invoice = relationship("Invoice", foreign_keys=[invoice_id])

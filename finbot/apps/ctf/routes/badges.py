@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from finbot.core.auth.middleware import get_session_context
+from finbot.core.utils import to_utc_iso
 from finbot.core.auth.session import SessionContext
 from finbot.core.data.database import get_db
 from finbot.core.data.repositories import BadgeRepository, UserBadgeRepository
@@ -105,7 +106,7 @@ def list_badges(
                 points=badge.points,
                 icon_url=badge.icon_url,
                 earned=earned,
-                earned_at=user_badge.earned_at.isoformat() if user_badge else None,
+                earned_at=to_utc_iso(user_badge.earned_at) if user_badge else None,
                 is_secret=badge.is_secret,
             )
         )
@@ -157,6 +158,6 @@ def get_badge(
         points=badge.points,
         icon_url=badge.icon_url,
         earned=earned,
-        earned_at=user_badge.earned_at.isoformat() if user_badge else None,
+        earned_at=to_utc_iso(user_badge.earned_at) if user_badge else None,
         progress=progress,
     )

@@ -46,14 +46,50 @@ class NamespacedRepository:
 # =============================================================================
 
 # Reserved usernames that cannot be claimed
-RESERVED_USERNAMES = frozenset({
-    "admin", "administrator", "api", "app", "auth", "badge", "badges",
-    "challenge", "challenges", "ctf", "dashboard", "finbot", "h", "hack",
-    "hacker", "help", "home", "login", "logout", "me", "messages", "null",
-    "owasp", "portal", "profile", "root", "settings", "share", "static",
-    "support", "system", "test", "undefined", "user", "users", "vendor",
-    "vendors", "web", "www",
-})
+RESERVED_USERNAMES = frozenset(
+    {
+        "admin",
+        "administrator",
+        "api",
+        "app",
+        "auth",
+        "badge",
+        "badges",
+        "challenge",
+        "challenges",
+        "ctf",
+        "dashboard",
+        "finbot",
+        "h",
+        "hack",
+        "hacker",
+        "help",
+        "home",
+        "login",
+        "logout",
+        "me",
+        "messages",
+        "null",
+        "owasp",
+        "portal",
+        "profile",
+        "root",
+        "settings",
+        "share",
+        "static",
+        "support",
+        "system",
+        "test",
+        "toolkit",
+        "undefined",
+        "user",
+        "users",
+        "vendor",
+        "vendors",
+        "web",
+        "www",
+    }
+)
 
 
 def validate_username(username: str) -> tuple[bool, str | None]:
@@ -73,7 +109,10 @@ def validate_username(username: str) -> tuple[bool, str | None]:
         return False, "Username must be 20 characters or less"
 
     if not re.match(r"^[a-zA-Z][a-zA-Z0-9_]*$", username):
-        return False, "Username must start with a letter and contain only letters, numbers, and underscores"
+        return (
+            False,
+            "Username must start with a letter and contain only letters, numbers, and underscores",
+        )
 
     if username.lower() in RESERVED_USERNAMES:
         return False, "This username is reserved"
@@ -90,11 +129,7 @@ class UserProfileRepository:
 
     def get_by_user_id(self, user_id: str) -> UserProfile | None:
         """Get profile by user_id"""
-        return (
-            self.db.query(UserProfile)
-            .filter(UserProfile.user_id == user_id)
-            .first()
-        )
+        return self.db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
 
     def get_by_username(self, username: str) -> UserProfile | None:
         """Get profile by username (case-insensitive)"""
@@ -127,7 +162,9 @@ class UserProfileRepository:
             self.db.refresh(profile)
         return profile
 
-    def is_username_available(self, username: str, exclude_user_id: str | None = None) -> bool:
+    def is_username_available(
+        self, username: str, exclude_user_id: str | None = None
+    ) -> bool:
         """Check if username is available"""
         is_valid, _ = validate_username(username)
         if not is_valid:
@@ -141,7 +178,9 @@ class UserProfileRepository:
 
         return query.first() is None
 
-    def claim_username(self, user_id: str, username: str) -> tuple[UserProfile | None, str | None]:
+    def claim_username(
+        self, user_id: str, username: str
+    ) -> tuple[UserProfile | None, str | None]:
         """Claim a username for a user.
 
         Returns (profile, error_message). If successful, error_message is None.
@@ -201,7 +240,9 @@ class UserProfileRepository:
 
         return profile
 
-    def set_featured_badges(self, user_id: str, badge_ids: list[str]) -> UserProfile | None:
+    def set_featured_badges(
+        self, user_id: str, badge_ids: list[str]
+    ) -> UserProfile | None:
         """Set featured badge IDs (max 6)"""
         profile = self.get_by_user_id(user_id)
         if not profile:
@@ -214,7 +255,9 @@ class UserProfileRepository:
 
         return profile
 
-    def get_public_profile_with_user(self, username: str) -> tuple[UserProfile | None, User | None]:
+    def get_public_profile_with_user(
+        self, username: str
+    ) -> tuple[UserProfile | None, User | None]:
         """Get public profile with associated user data"""
         profile = self.get_by_username(username)
         if not profile or not profile.is_public:
@@ -546,18 +589,14 @@ class MCPServerConfigRepository(NamespacedRepository):
 
     def get_by_type(self, server_type: str) -> MCPServerConfig | None:
         return (
-            self._add_namespace_filter(
-                self.db.query(MCPServerConfig), MCPServerConfig
-            )
+            self._add_namespace_filter(self.db.query(MCPServerConfig), MCPServerConfig)
             .filter(MCPServerConfig.server_type == server_type)
             .first()
         )
 
     def list_all(self) -> list[MCPServerConfig]:
         return (
-            self._add_namespace_filter(
-                self.db.query(MCPServerConfig), MCPServerConfig
-            )
+            self._add_namespace_filter(self.db.query(MCPServerConfig), MCPServerConfig)
             .order_by(MCPServerConfig.server_type)
             .all()
         )
@@ -835,7 +874,8 @@ class ChallengeRepository:
         )
 
     def get_effective_points(
-        self, completed_progress: list["UserChallengeProgress"],
+        self,
+        completed_progress: list["UserChallengeProgress"],
     ) -> int:
         """Get total effective points applying per-completion modifiers.
 
@@ -845,15 +885,15 @@ class ChallengeRepository:
             return 0
         challenge_ids = [p.challenge_id for p in completed_progress]
         challenges = (
-            self.db.query(Challenge)
-            .filter(Challenge.id.in_(challenge_ids))
-            .all()
+            self.db.query(Challenge).filter(Challenge.id.in_(challenge_ids)).all()
         )
         points_map = {c.id: c.points for c in challenges}
         total = 0.0
         for p in completed_progress:
             base = points_map.get(p.challenge_id, 0)
-            total += base * (p.points_modifier if p.points_modifier is not None else 1.0)
+            total += base * (
+                p.points_modifier if p.points_modifier is not None else 1.0
+            )
         return int(total)
 
 
@@ -1194,4 +1234,39 @@ class CTFEventRepository(NamespacedRepository):
             )
             .order_by(CTFEvent.timestamp)
             .all()
+        )
+
+    # -- Exfil data (tool-based captures for Hacker Toolkit) --
+
+    EXFIL_TOOL_NAMES = {"network_request"}
+
+    def get_exfil_events(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[CTFEvent]:
+        """Get network_request tool call events (exfil captures)."""
+        return (
+            self.db.query(CTFEvent)
+            .filter(
+                CTFEvent.namespace == self.namespace,
+                CTFEvent.user_id == self.session_context.user_id,
+                CTFEvent.tool_name.in_(self.EXFIL_TOOL_NAMES),
+            )
+            .order_by(CTFEvent.timestamp.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+
+    def count_exfil_events(self) -> int:
+        """Count exfil-relevant tool call events."""
+        return (
+            self.db.query(CTFEvent)
+            .filter(
+                CTFEvent.namespace == self.namespace,
+                CTFEvent.user_id == self.session_context.user_id,
+                CTFEvent.tool_name.in_(self.EXFIL_TOOL_NAMES),
+            )
+            .count()
         )

@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from finbot.core.data.models import Badge, UserBadge
+from finbot.core.utils import to_utc_iso
 from finbot.ctf.detectors.result import DetectionResult
 from finbot.ctf.evaluators import create_evaluator
 
@@ -92,7 +93,7 @@ class BadgeService:
                     "result_message": result.message,
                     "evidence": result.evidence,
                     "event_type": event.get("event_type"),
-                    "timestamp": result.timestamp.isoformat(),
+                    "timestamp": to_utc_iso(result.timestamp),
                 }
             ),
             earning_workflow_id=event.get("workflow_id"),

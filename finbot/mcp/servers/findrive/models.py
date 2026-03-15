@@ -2,10 +2,13 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Column, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import DateTime as _DateTime
 from sqlalchemy.orm import relationship
 
 from finbot.core.data.database import Base
+
+DateTime = _DateTime(timezone=True)
 
 
 class FinDriveFile(Base):
@@ -28,9 +31,9 @@ class FinDriveFile(Base):
     file_size = Column[int](Integer, nullable=False, default=0)
     folder_path = Column[str](String(500), nullable=False, default="/")
 
-    created_at = Column[datetime](DateTime, default=datetime.now(UTC))
+    created_at = Column[datetime](DateTime, default=lambda: datetime.now(UTC))
     updated_at = Column[datetime](
-        DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC)
+        DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
     )
 
     vendor = relationship("Vendor", foreign_keys=[vendor_id])

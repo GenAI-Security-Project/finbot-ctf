@@ -67,15 +67,17 @@ class SessionContext:
         """Check if session should be rotated"""
         if not settings.ENABLE_SESSION_ROTATION:
             return False
-        # Permanent sessions (email bound) are rotated more frequently for added security.
         rotation_interval = (
             settings.TEMP_SESSION_ROTATION_INTERVAL
             if self.is_temporary
             else settings.PERM_SESSION_ROTATION_INTERVAL
         )
-        if self.last_rotation.tzinfo is None:
-            self.last_rotation = self.last_rotation.replace(tzinfo=UTC)
-        time_since_rotation = datetime.now(UTC) - self.last_rotation
+        lr = (
+            self.last_rotation
+            if self.last_rotation.tzinfo
+            else self.last_rotation.replace(tzinfo=UTC)
+        )
+        time_since_rotation = datetime.now(UTC) - lr
         return time_since_rotation.total_seconds() > rotation_interval
 
     def is_too_old(self) -> bool:
@@ -85,9 +87,12 @@ class SessionContext:
             if self.is_temporary
             else settings.MAX_PERM_SESSION_AGE
         )
-        if self.created_at.tzinfo is None:
-            self.created_at = self.created_at.replace(tzinfo=UTC)
-        session_age = datetime.now(UTC) - self.created_at
+        ca = (
+            self.created_at
+            if self.created_at.tzinfo
+            else self.created_at.replace(tzinfo=UTC)
+        )
+        session_age = datetime.now(UTC) - ca
         return session_age.total_seconds() > max_age
 
     def detect_suspicious_activity(self) -> bool:
@@ -306,6 +311,7 @@ class SessionManager:
                 current_ip=session_context.current_ip,
                 strict_fingerprint=session_context.strict_fingerprint,
                 loose_fingerprint=session_context.loose_fingerprint,
+                current_vendor_id=session_context.current_vendor_id,
             )
             db.add(session)
             db.commit()
@@ -508,7 +514,8 @@ class SessionManager:
         self, old_context: SessionContext, db: Session
     ) -> SessionContext:
         """Rotate session ID while preserving user context
-        - Preserves namespace and user context
+        - Preserves namespace, user context, and vendor selection
+        - Keeps old session alive briefly so concurrent requests don't lose it
         """
         new_session_id = secrets.token_urlsafe(32)
 
@@ -528,19 +535,25 @@ class SessionManager:
             current_ip=old_context.current_ip,
             user_agent=old_context.user_agent,
             csrf_token=old_context.csrf_token,
+            current_vendor_id=old_context.current_vendor_id,
             needs_cookie_update=True,
             was_rotated=True,
         )
         self._store_session_securely(new_context)
 
-        # delete old session
+        # Keep the old session alive briefly for concurrent in-flight requests.
+        # Without this, a parallel request carrying the old cookie races against
+        # the DELETE and ends up creating a brand-new temp session (losing vendor
+        # context). Setting a short expiry + updating last_rotation prevents
+        # re-rotation while letting those requests complete normally.
         old_session = (
             db.query(UserSession)
             .filter(UserSession.session_id == old_context.session_id)
             .first()
         )
         if old_session:
-            db.delete(old_session)
+            old_session.expires_at = datetime.now(UTC) + timedelta(seconds=60)
+            old_session.last_rotation = datetime.now(UTC)
 
         db.commit()
         return new_context

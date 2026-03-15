@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
+from finbot.core.utils import to_utc_iso
+
 
 class WSEventType(str, Enum):
     """WebSocket event types"""
@@ -33,7 +35,7 @@ class WSEvent:
 
     type: WSEventType
     data: dict[str, Any] = field(default_factory=dict)
-    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    timestamp: str = field(default_factory=lambda: to_utc_iso(datetime.now(UTC)))
 
     def to_json(self) -> str:
         """Serialize to JSON"""
@@ -54,7 +56,7 @@ class WSEvent:
         return cls(
             type=WSEventType(parsed["type"]),
             data=parsed.get("data", {}),
-            timestamp=parsed.get("timestamp", datetime.now(UTC).isoformat()),
+            timestamp=parsed.get("timestamp", to_utc_iso(datetime.now(UTC))),
         )
 
 

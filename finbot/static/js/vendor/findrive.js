@@ -644,7 +644,7 @@ function fileIconSvg(type, size) {
 // =====================================================================
 
 function fmtCurrency(n) { return '$' + (n || 0).toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,'); }
-function fmtDateInput(d) { return d.toISOString().split('T')[0]; }
+function fmtDateInput(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function fmtDisplayDate(s) {
     if (!s) return '';
     try { return new Date(s + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }

@@ -726,7 +726,8 @@ function renderEvidence(ev) {
         summaryItems.push({ label: 'Trigger', value: formatKeyLabel(ev.event_type) });
     }
     if (ev.timestamp) {
-        const d = new Date(ev.timestamp);
+        const tsStr = String(ev.timestamp);
+        const d = (!tsStr.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(tsStr)) ? new Date(tsStr + 'Z') : new Date(tsStr);
         summaryItems.push({ label: 'Detected', value: d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) });
     }
 

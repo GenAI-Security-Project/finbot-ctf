@@ -5,6 +5,17 @@
  */
 
 /**
+ * Parse an ISO timestamp as UTC.  If the string has no timezone indicator,
+ * append 'Z' so the browser doesn't interpret it as local time.
+ */
+function parseUTCDate(ts) {
+    if (!ts) return new Date();
+    const s = String(ts);
+    if (!s.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(s)) return new Date(s + 'Z');
+    return new Date(s);
+}
+
+/**
  * DOM Ready utility
  */
 function ready(fn) {
@@ -79,7 +90,7 @@ function formatDate(date, options = {}) {
     };
 
     const formatOptions = { ...defaultOptions, ...options };
-    return new Intl.DateTimeFormat('en-US', formatOptions).format(new Date(date));
+    return new Intl.DateTimeFormat('en-US', formatOptions).format(parseUTCDate(date));
 }
 
 /**
@@ -87,7 +98,7 @@ function formatDate(date, options = {}) {
  */
 function formatRelativeTime(date) {
     const now = new Date();
-    const diffInSeconds = Math.floor((now - new Date(date)) / 1000);
+    const diffInSeconds = Math.floor((now - parseUTCDate(date)) / 1000);
 
     const intervals = {
         year: 31536000,

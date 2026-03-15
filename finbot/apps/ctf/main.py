@@ -13,6 +13,7 @@ from finbot.apps.ctf.routes import (
     share,
     sidecar,
     stats,
+    toolkit,
     web_router,
 )
 
@@ -34,5 +35,6 @@ ctf_app.include_router(activity.router)
 ctf_app.include_router(stats.router)
 ctf_app.include_router(admin.router)
 ctf_app.include_router(sidecar.router)
+ctf_app.include_router(toolkit.router)
 ctf_app.include_router(profile.router)
 ctf_app.include_router(share.router)

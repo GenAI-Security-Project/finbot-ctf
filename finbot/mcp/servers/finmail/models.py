@@ -11,16 +11,18 @@ from datetime import UTC, datetime
 from sqlalchemy import (
     Boolean,
     Column,
-    DateTime,
     ForeignKey,
     Index,
     Integer,
     String,
     Text,
 )
+from sqlalchemy import DateTime as _DateTime
 from sqlalchemy.orm import relationship
 
 from finbot.core.data.database import Base
+
+DateTime = _DateTime(timezone=True)
 
 
 class Email(Base):
@@ -58,7 +60,7 @@ class Email(Base):
     workflow_id = Column[str](String(64), nullable=True)
     metadata_json = Column[str](Text, nullable=True)
 
-    created_at = Column[datetime](DateTime, default=datetime.now(UTC))
+    created_at = Column[datetime](DateTime, default=lambda: datetime.now(UTC))
 
     vendor = relationship("Vendor", foreign_keys=[vendor_id])
     related_invoice = relationship("Invoice", foreign_keys=[related_invoice_id])

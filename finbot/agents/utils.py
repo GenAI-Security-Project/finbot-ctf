@@ -30,7 +30,7 @@ def _json_safe_value(value: Any) -> Any:
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
     if isinstance(value, (datetime, date)):
-        return value.isoformat()
+        return value.isoformat().replace("+00:00", "Z")
     if isinstance(value, (UUID, Decimal)):
         return str(value)
     if isinstance(value, dict):

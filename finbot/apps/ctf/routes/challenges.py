@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from finbot.core.auth.middleware import get_session_context
+from finbot.core.utils import to_utc_iso
 from finbot.core.auth.session import SessionContext
 from finbot.core.data.database import get_db
 from finbot.core.data.repositories import (
@@ -189,7 +190,7 @@ def get_challenge(
         hints_cost=progress.hints_cost if progress else 0,
         points_modifier=modifier,
         effective_points=int(challenge.points * modifier),
-        completed_at=progress.completed_at.isoformat()
+        completed_at=to_utc_iso(progress.completed_at)
         if progress and progress.completed_at
         else None,
         completion_evidence=completion_evidence,

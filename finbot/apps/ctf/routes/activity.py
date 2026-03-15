@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from finbot.core.auth.middleware import get_session_context
+from finbot.core.utils import to_utc_iso
 from finbot.core.auth.session import SessionContext
 from finbot.core.data.database import get_db
 from finbot.core.data.models import Badge, Challenge, UserBadge, UserChallengeProgress
@@ -162,7 +163,7 @@ def get_activity(
                 workflow_id=e.workflow_id,
                 vendor_id=e.vendor_id,
                 details=details,
-                timestamp=e.timestamp.isoformat(),
+                timestamp=to_utc_iso(e.timestamp),
             )
         )
 

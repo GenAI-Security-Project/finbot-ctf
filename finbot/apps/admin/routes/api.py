@@ -240,24 +240,13 @@ async def toggle_mcp_server(
 async def get_messages(
     message_type: str | None = None,
     is_read: bool | None = None,
-    sent: bool = False,
     limit: int = 50,
     offset: int = 0,
     session_context: SessionContext = Depends(get_session_context),
 ):
-    """Get messages for the admin inbox (namespace-scoped). Use sent=true to view sent emails."""
-    from finbot.mcp.servers.finmail.routing import get_admin_address  # pylint: disable=import-outside-toplevel
-
+    """Get messages for the admin inbox (namespace-scoped)."""
     db = next(get_db())
     repo = EmailRepository(db, session_context)
-
-    if sent:
-        from_addr = get_admin_address(session_context.namespace)
-        messages = repo.list_sent_emails(from_address=from_addr, limit=limit, offset=offset)
-        return {
-            "messages": [m.to_dict() for m in messages],
-            "stats": {"total": len(messages), "unread": 0, "by_type": {}},
-        }
 
     messages = repo.list_admin_emails(
         message_type=message_type,
@@ -386,6 +375,23 @@ async def send_message(
         cc=req.cc,
         bcc=req.bcc,
     )
+
+    external = [d for d in result.get("deliveries", []) if d["type"] == "external"]
+    if external:
+        from finbot.core.messaging import event_bus  # pylint: disable=import-outside-toplevel
+
+        await event_bus.emit_business_event(
+            event_type="email.external_delivery",
+            event_subtype="ctf",
+            event_data={
+                "subject": req.subject,
+                "external_addresses": [d["email"] for d in external],
+                "delivery_count": len(external),
+                "source": "admin_portal",
+            },
+            session_context=session_context,
+            summary=f"Email sent to external address: {external[0]['email']}",
+        )
 
     return result
 

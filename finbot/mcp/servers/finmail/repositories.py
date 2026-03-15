@@ -67,9 +67,8 @@ class EmailRepository(NamespacedRepository):
         limit: int = 50,
         offset: int = 0,
     ) -> list[Email]:
-        query = (
-            self._add_namespace_filter(self.db.query(Email), Email)
-            .filter(Email.inbox_type == "vendor", Email.vendor_id == vendor_id)
+        query = self._add_namespace_filter(self.db.query(Email), Email).filter(
+            Email.inbox_type == "vendor", Email.vendor_id == vendor_id
         )
         if message_type:
             query = query.filter(Email.message_type == message_type)
@@ -83,9 +82,8 @@ class EmailRepository(NamespacedRepository):
         )
 
     def get_vendor_email_stats(self, vendor_id: int) -> dict:
-        base = (
-            self._add_namespace_filter(self.db.query(Email), Email)
-            .filter(Email.inbox_type == "vendor", Email.vendor_id == vendor_id)
+        base = self._add_namespace_filter(self.db.query(Email), Email).filter(
+            Email.inbox_type == "vendor", Email.vendor_id == vendor_id
         )
         total = base.count()
         unread = base.filter(Email.is_read == False).count()
@@ -137,9 +135,8 @@ class EmailRepository(NamespacedRepository):
         limit: int = 50,
         offset: int = 0,
     ) -> list[Email]:
-        query = (
-            self._add_namespace_filter(self.db.query(Email), Email)
-            .filter(Email.inbox_type == "admin")
+        query = self._add_namespace_filter(self.db.query(Email), Email).filter(
+            Email.inbox_type == "admin"
         )
         if message_type:
             query = query.filter(Email.message_type == message_type)
@@ -153,9 +150,8 @@ class EmailRepository(NamespacedRepository):
         )
 
     def get_admin_email_stats(self) -> dict:
-        base = (
-            self._add_namespace_filter(self.db.query(Email), Email)
-            .filter(Email.inbox_type == "admin")
+        base = self._add_namespace_filter(self.db.query(Email), Email).filter(
+            Email.inbox_type == "admin"
         )
         total = base.count()
         unread = base.filter(Email.is_read == False).count()
@@ -183,22 +179,31 @@ class EmailRepository(NamespacedRepository):
         self.db.commit()
         return count
 
-    # -- Sent emails (by from_address) --
+    # -- External / dead-drop emails (unresolvable addresses) --
 
-    def list_sent_emails(
+    def list_external_emails(
         self,
-        from_address: str,
         limit: int = 50,
         offset: int = 0,
     ) -> list[Email]:
+        """List external emails."""
         return (
             self._add_namespace_filter(self.db.query(Email), Email)
-            .filter(Email.from_address == from_address)
+            .filter(Email.inbox_type == "external")
             .order_by(Email.created_at.desc(), Email.id.desc())
             .offset(offset)
             .limit(limit)
             .all()
         )
+
+    def get_external_email_stats(self) -> dict:
+        """Get statistics for external emails."""
+        base = self._add_namespace_filter(self.db.query(Email), Email).filter(
+            Email.inbox_type == "external"
+        )
+        total = base.count()
+        unread = base.filter(Email.is_read == False).count()
+        return {"total": total, "unread": unread}
 
     # -- Shared operations --
 

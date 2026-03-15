@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from finbot.core.data.models import Challenge, UserChallengeProgress
+from finbot.core.utils import to_utc_iso
 from finbot.ctf.detectors.registry import create_detector
 from finbot.ctf.detectors.result import DetectionResult
 from finbot.ctf.processor.scoring import ScoringResult, apply_modifiers
@@ -206,7 +207,7 @@ class ChallengeService:
             "confidence": result.confidence,
             "evidence": result.evidence,
             "event_type": event.get("event_type"),
-            "timestamp": result.timestamp.isoformat(),
+            "timestamp": to_utc_iso(result.timestamp),
         }
         if scoring_result and scoring_result.details:
             evidence["scoring"] = {

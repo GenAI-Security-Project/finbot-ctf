@@ -8,7 +8,6 @@ from pydantic import BaseModel
 from sqlalchemy import (
     Boolean,
     Column,
-    DateTime,
     Float,
     ForeignKey,
     Index,
@@ -17,9 +16,15 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+from sqlalchemy import DateTime as _DateTime
 from sqlalchemy.orm import relationship
 
 from finbot.core.data.database import Base
+
+# Always use TIMESTAMP WITH TIME ZONE so PostgreSQL round-trips
+# timezone-aware datetimes without implicit conversion to session TZ.
+# SQLite is unaffected (stores ISO-8601 text either way).
+DateTime = _DateTime(timezone=True)
 
 
 # General Models
@@ -34,7 +39,9 @@ class User(Base):
     display_name = Column[str](String(100), nullable=True)
     namespace = Column[str](String(64), nullable=False, index=True)
 
-    created_at = Column[datetime](DateTime, default=datetime.now(UTC), nullable=False)
+    created_at = Column[datetime](
+        DateTime, default=lambda: datetime.now(UTC), nullable=False
+    )
     last_login = Column[datetime](DateTime, nullable=True)
     is_active = Column[bool](Boolean, default=True)
 
@@ -86,9 +93,9 @@ class UserProfile(Base):
     # Featured badges (user picks up to 6 badge IDs to showcase)
     featured_badge_ids = Column[str](Text, nullable=True)  # JSON array of badge IDs
 
-    created_at = Column[datetime](DateTime, default=datetime.now(UTC))
+    created_at = Column[datetime](DateTime, default=lambda: datetime.now(UTC))
     updated_at = Column[datetime](
-        DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC)
+        DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
     )
 
     # Relationships
@@ -152,7 +159,7 @@ class UserSession(Base):
     session_data = Column[str](Text, nullable=False)  # JSON
     signature = Column[str](String(64), nullable=False)  # HMAC signature
     user_agent = Column[str](String(500), nullable=True)
-    last_rotation = Column[datetime](DateTime, default=datetime.now(UTC))
+    last_rotation = Column[datetime](DateTime, default=lambda: datetime.now(UTC))
     rotation_count = Column[int](Integer, default=0)
     strict_fingerprint = Column[str](String(32), nullable=True)
     loose_fingerprint = Column[str](String(32), nullable=True)
@@ -162,9 +169,11 @@ class UserSession(Base):
         Integer, ForeignKey("vendors.id"), nullable=True, index=True
     )
 
-    created_at = Column[datetime](DateTime, default=datetime.now(UTC), nullable=False)
+    created_at = Column[datetime](
+        DateTime, default=lambda: datetime.now(UTC), nullable=False
+    )
     last_accessed = Column[datetime](
-        DateTime, default=datetime.now(UTC), nullable=False
+        DateTime, default=lambda: datetime.now(UTC), nullable=False
     )
     expires_at = Column[datetime](DateTime, nullable=False)
 
@@ -219,7 +228,7 @@ class MagicLinkToken(Base):
     email = Column[str](String(255), nullable=False, index=True)
     session_id = Column[str](String(64), nullable=True)  # Temp session to upgrade
 
-    created_at = Column[datetime](DateTime, default=datetime.now(UTC))
+    created_at = Column[datetime](DateTime, default=lambda: datetime.now(UTC))
     expires_at = Column[datetime](DateTime, nullable=False)
     used_at = Column[datetime](DateTime, nullable=True)
     ip_address = Column[str](String(45), nullable=True)
@@ -287,9 +296,9 @@ class Vendor(Base):
     # agent_notes are notes from the agent that processed the vendor
     # Notes are contributed by both AI agents and Human agents
     agent_notes = Column[str](Text, nullable=True)
-    created_at = Column[datetime](DateTime, default=datetime.now(UTC))
+    created_at = Column[datetime](DateTime, default=lambda: datetime.now(UTC))
     updated_at = Column[datetime](
-        DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC)
+        DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
     )
 
     # relationships
@@ -362,9 +371,9 @@ class Invoice(Base):
     # JSON list of FinDrive file attachments: [{"file_id": 5, "filename": "...", "file_type": "pdf"}]
     attachments = Column[str](Text, nullable=True)
 
-    created_at = Column[datetime](DateTime, default=datetime.now(UTC))
+    created_at = Column[datetime](DateTime, default=lambda: datetime.now(UTC))
     updated_at = Column[datetime](
-        DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC)
+        DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
     )
 
     vendor = relationship("Vendor", back_populates="invoices")
@@ -420,7 +429,7 @@ class ChatMessage(Base):
     role = Column[str](String(20), nullable=False)  # "user", "assistant", "system"
     content = Column[str](Text, nullable=False)
     workflow_id = Column[str](String(64), nullable=True)
-    created_at = Column[datetime](DateTime, default=datetime.now(UTC))
+    created_at = Column[datetime](DateTime, default=lambda: datetime.now(UTC))
     cleared_at = Column[datetime](DateTime, nullable=True)
 
     __table_args__ = (
@@ -474,9 +483,9 @@ class MCPServerConfig(Base):
     # User-modified tool definitions -- the supply chain attack surface
     tool_overrides_json = Column[str](Text, nullable=True)
 
-    created_at = Column[datetime](DateTime, default=datetime.now(UTC))
+    created_at = Column[datetime](DateTime, default=lambda: datetime.now(UTC))
     updated_at = Column[datetime](
-        DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC)
+        DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
     )
 
     __table_args__ = (
@@ -532,7 +541,9 @@ class MCPActivityLog(Base):
     workflow_id = Column[str](String(64), nullable=True, index=True)
     duration_ms = Column[float](Float, nullable=True)
 
-    created_at = Column[datetime](DateTime, default=datetime.now(UTC), index=True)
+    created_at = Column[datetime](
+        DateTime, default=lambda: datetime.now(UTC), index=True
+    )
 
     __table_args__ = (
         Index("idx_mcp_activity_namespace", "namespace"),
@@ -605,9 +616,9 @@ class Challenge(Base):
     # Status
     is_active = Column[bool](Boolean, default=True)
     order_index = Column[int](Integer, default=0)
-    created_at = Column[datetime](DateTime, default=datetime.now(UTC))
+    created_at = Column[datetime](DateTime, default=lambda: datetime.now(UTC))
     updated_at = Column[datetime](
-        DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC)
+        DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
     )
 
     # Relationships
@@ -684,9 +695,9 @@ class UserChallengeProgress(Base):
     )  # JSON: events that triggered completion
     completion_workflow_id = Column[str](String(64), nullable=True)
 
-    created_at = Column[datetime](DateTime, default=datetime.now(UTC))
+    created_at = Column[datetime](DateTime, default=lambda: datetime.now(UTC))
     updated_at = Column[datetime](
-        DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC)
+        DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
     )
 
     # Relationships
@@ -762,7 +773,7 @@ class Badge(Base):
 
     is_active = Column[bool](Boolean, default=True)
     is_secret = Column[bool](Boolean, default=False)  # Hidden until earned
-    created_at = Column[datetime](DateTime, default=datetime.now(UTC))
+    created_at = Column[datetime](DateTime, default=lambda: datetime.now(UTC))
 
     # Relationships
     user_badges = relationship("UserBadge", back_populates="badge")
@@ -874,7 +885,9 @@ class CTFEvent(Base):
     llm_model = Column[str](String(100), nullable=True)
     duration_ms = Column[int](Integer, nullable=True)
 
-    timestamp = Column[datetime](DateTime, default=datetime.now(UTC), index=True)
+    timestamp = Column[datetime](
+        DateTime, default=lambda: datetime.now(UTC), index=True
+    )
 
     __table_args__ = (
         Index("idx_ctf_event_ns_user_ts", "namespace", "user_id", "timestamp"),

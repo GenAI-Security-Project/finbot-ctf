@@ -9,6 +9,7 @@ import json
 import logging
 from typing import Any
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from finbot.core.data.models import User, Vendor
@@ -22,8 +23,9 @@ def get_admin_address(namespace: str) -> str:
     return f"admin@{namespace}.finbot"
 
 
-def _is_admin_address(email_addr: str, namespace: str) -> bool:
-    return email_addr == get_admin_address(namespace)
+def _is_internal_address(email_addr: str, namespace: str) -> bool:
+    """Match any address on the official @{namespace}.finbot domain."""
+    return email_addr.lower().endswith(f"@{namespace.lower()}.finbot")
 
 
 def route_and_deliver(
@@ -57,7 +59,7 @@ def route_and_deliver(
 
             vendor = (
                 db.query(Vendor)
-                .filter(Vendor.namespace == namespace, Vendor.email == email_addr)
+                .filter(Vendor.namespace == namespace, func.lower(Vendor.email) == email_addr.lower())
                 .first()
             )
             if vendor:
@@ -80,7 +82,7 @@ def route_and_deliver(
                 deliveries.append({"type": "vendor", "vendor_id": vendor.id, "email": email_addr, "role": role})
                 continue
 
-            if _is_admin_address(email_addr, namespace):
+            if email_addr.lower() == get_admin_address(namespace).lower():
                 repo.create_email(
                     inbox_type="admin",
                     subject=subject,
@@ -99,9 +101,28 @@ def route_and_deliver(
                 deliveries.append({"type": "admin", "email": email_addr, "role": role})
                 continue
 
+            if _is_internal_address(email_addr, namespace):
+                repo.create_email(
+                    inbox_type="admin",
+                    subject=subject,
+                    body=body,
+                    message_type=message_type,
+                    sender_name=sender_name,
+                    sender_type=sender_type,
+                    from_address=from_address,
+                    channel="email",
+                    related_invoice_id=related_invoice_id,
+                    to_addresses=to_json,
+                    cc_addresses=cc_json,
+                    bcc_addresses=visible_bcc,
+                    recipient_role=role,
+                )
+                deliveries.append({"type": "internal", "email": email_addr, "role": role})
+                continue
+
             user = (
                 db.query(User)
-                .filter(User.namespace == namespace, User.email == email_addr)
+                .filter(User.namespace == namespace, func.lower(User.email) == email_addr.lower())
                 .first()
             )
             if user:
@@ -123,12 +144,27 @@ def route_and_deliver(
                 deliveries.append({"type": "admin", "email": email_addr, "role": role})
                 continue
 
-            logger.warning("Unresolvable address: %s in namespace %s", email_addr, namespace)
-            deliveries.append({"type": "undeliverable", "email": email_addr, "role": role})
+            logger.warning("External address: %s in namespace %s — storing in dead drop", email_addr, namespace)
+            repo.create_email(
+                inbox_type="external",
+                subject=subject,
+                body=body,
+                message_type=message_type,
+                sender_name=sender_name,
+                sender_type=sender_type,
+                from_address=from_address,
+                channel="email",
+                related_invoice_id=related_invoice_id,
+                to_addresses=to_json,
+                cc_addresses=cc_json,
+                bcc_addresses=visible_bcc,
+                recipient_role=role,
+            )
+            deliveries.append({"type": "external", "email": email_addr, "role": role})
 
     return {
         "sent": True,
         "subject": subject,
         "deliveries": deliveries,
-        "delivery_count": len([d for d in deliveries if d["type"] != "undeliverable"]),
+        "delivery_count": len([d for d in deliveries if d["type"] not in ("undeliverable", "external")]),
     }
