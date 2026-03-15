@@ -9,6 +9,8 @@ from finbot.core.data.repositories import InvoiceRepository, VendorRepository
 
 logger = logging.getLogger(__name__)
 
+VALID_RISK_LEVELS = {"low", "medium", "high"}
+
 
 async def get_vendor_risk_profile(
     vendor_id: int, session_context: SessionContext
@@ -97,12 +99,15 @@ async def update_vendor_risk(
     Returns:
         Dictionary containing updated vendor details
     """
-    logger.info(
+        logger.info(
         "Updating vendor risk for vendor_id: %s to risk_level: %s. Notes: %s",
         vendor_id,
         risk_level,
         agent_notes,
     )
+    # Validate risk_level
+    if risk_level not in VALID_RISK_LEVELS:
+        raise ValueError(f"Invalid risk_level: {risk_level!r}. Must be one of {VALID_RISK_LEVELS}")
     db = next(get_db())
     vendor_repo = VendorRepository(db, session_context)
     vendor = vendor_repo.get_vendor(vendor_id)
