@@ -147,10 +147,13 @@ async def not_found_handler(request: Request, exc: HTTPException):
     return render_error_page(request, 404)
 
 
-async def internal_server_error_handler(request: Request, exc: HTTPException):
+async def internal_server_error_handler(request: Request, exc: Exception):
     """Handle 500 errors with custom error page or JSON response."""
     if is_api_request(request):
-        error_data = get_json_error_response(500, exc.detail)
+        # exc may be any exception type (not just HTTPException), so use
+        # getattr to safely retrieve .detail; fall back to str(exc) otherwise.
+        detail = getattr(exc, "detail", None) or str(exc) or "Internal Server Error"
+        error_data = get_json_error_response(500, detail)
         return JSONResponse(content=error_data, status_code=500)
 
     return render_error_page(request, 500)
