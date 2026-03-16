@@ -215,6 +215,9 @@ async def update_fraud_agent_notes(
         vendor_id,
         agent_notes,
     )
+    # Validate agent_notes does not contain reserved agent prefixes
+    if "[Fraud Agent]" in (agent_notes or ""):
+        raise ValueError("agent_notes must not contain reserved agent prefixes")
     db = next(get_db())
     vendor_repo = VendorRepository(db, session_context)
     vendor = vendor_repo.get_vendor(vendor_id)
