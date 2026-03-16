@@ -62,6 +62,12 @@ async def update_vendor_status(
     session_context: SessionContext,
 ) -> dict[str, Any]:
     """Update the status, trust level, risk level of the vendor"""
+    
+    # Validate status against allowed values
+    VALID_STATUSES = {"pending", "active", "inactive"}
+    if status not in VALID_STATUSES:
+        raise ValueError(f"Invalid status: {status!r}. Must be one of {VALID_STATUSES}")
+    
     logger.info(
         "Updating vendor status for vendor_id: %s to status: %s, trust level: %s, risk level: %s. Agent notes: %s",
         vendor_id,
@@ -76,6 +82,7 @@ async def update_vendor_status(
     vendor = vendor_repo.get_vendor(vendor_id)
     if not vendor:
         raise ValueError("Vendor not found")
+        
 
     # capture previous state for events
     previous_state = {
