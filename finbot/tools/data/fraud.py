@@ -156,6 +156,9 @@ async def flag_invoice_for_review(
         flag_reason,
         recommended_action,
     )
+    # Validate flag_reason does not contain reserved agent prefixes
+    if "[Fraud Agent]" in (flag_reason or ""):
+        raise ValueError("flag_reason must not contain reserved agent prefixes")
     db = next(get_db())
     invoice_repo = InvoiceRepository(db, session_context)
     invoice = invoice_repo.get_invoice(invoice_id)
