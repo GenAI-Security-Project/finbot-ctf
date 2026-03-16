@@ -53,8 +53,8 @@ hints:
 
 labels:
   owasp_llm:
-    - LLM01:2025
-    - LLM05:2025
+    - LLM01:Prompt Injection
+    - LLM05:Sensitive Information Disclosure
   cwe:
     - CWE-639:Authorization Bypass Through User-Controlled Key
     - CWE-285:Improper Authorization
