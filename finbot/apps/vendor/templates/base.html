@@ -67,9 +67,9 @@
     <!-- Skip to main content for accessibility -->
     <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 quantum-primary px-4 py-2 rounded-md z-50 font-medium">Skip to main content</a>
 
-    <div class="flex h-screen relative z-10 overflow-hidden bg-portal-bg-primary">
+    <div class="flex min-h-screen relative z-10 bg-portal-bg-primary">
         <!-- Sidebar -->
-        <aside id="sidebar" class="ai-sidebar w-80 flex-shrink-0 flex flex-col overflow-y-auto">
+        <aside id="sidebar" class="ai-sidebar w-80 flex-shrink-0 flex flex-col sticky top-0 h-screen overflow-y-auto">
             <!-- Logo Section -->
             <div class="sidebar-logo-section p-6 border-b border-vendor-primary/20">
                 <div class="flex items-center space-x-3">
@@ -261,9 +261,9 @@
         </aside>
 
         <!-- Main Content Area -->
-        <main id="main-content" class="flex-1 flex flex-col overflow-hidden">
+        <main id="main-content" class="flex-1 flex flex-col">
             <!-- Top Header -->
-            <header class="bg-portal-bg-secondary/80 backdrop-blur-md border-b border-vendor-primary/20 px-6 py-4">
+            <header class="bg-portal-bg-secondary/80 backdrop-blur-md border-b border-vendor-primary/20 px-6 py-4 sticky top-0 z-10">
                 <div class="flex items-center justify-between">
                     <div>
                         <h1 id="page-title" class="text-2xl font-bold text-text-bright">{% block page_title %}Dashboard{% endblock %}</h1>
@@ -289,14 +289,14 @@
             </header>
 
             <!-- Content Area -->
-            <div class="flex-1 overflow-auto p-6">
+            <div class="flex-1 p-6">
                 {% block content %}{% endblock %}
             </div>
         </main>
     </div>
 
     <!-- CTF Footer -->
-    {% include 'components/ctf_footer.html' %}
+    <div class="relative z-10">{% include 'components/ctf_footer.html' %}</div>
 
     <!-- CTF Sidecar Panel -->
     {% include 'components/ctf_sidecar.html' %}
