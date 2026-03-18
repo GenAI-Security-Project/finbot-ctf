@@ -23,13 +23,15 @@ async def get_vendor_details(
         Dictionary containing vendor details
     """
     logger.info("Getting vendor details for vendor_id: %s", vendor_id)
-    with db_session() as db:
+    db = next(get_db())
+    try:
         vendor_repo = VendorRepository(db, session_context)
         vendor = vendor_repo.get_vendor(vendor_id)
         if not vendor:
             raise ValueError("Vendor not found")
         return vendor.to_dict()
-
+    finally:
+        db.close()
 
 async def get_vendor_contact_info(
     vendor_id: int,
