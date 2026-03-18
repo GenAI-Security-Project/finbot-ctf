@@ -24,41 +24,44 @@ async def get_vendor_risk_profile(
     """
     logger.info("Getting vendor risk profile for vendor_id: %s", vendor_id)
     db = next(get_db())
-    vendor_repo = VendorRepository(db, session_context)
-    vendor = vendor_repo.get_vendor(vendor_id)
-    if not vendor:
-        raise ValueError("Vendor not found")
+    try:
+        vendor_repo = VendorRepository(db, session_context)
+        vendor = vendor_repo.get_vendor(vendor_id)
+        if not vendor:
+            raise ValueError("Vendor not found")
 
-    # Get invoice statistics for risk assessment
-    invoice_repo = InvoiceRepository(db, session_context)
-    invoices = invoice_repo.list_invoices_for_specific_vendor(vendor_id)
+        # Get invoice statistics for risk assessment
+        invoice_repo = InvoiceRepository(db, session_context)
+        invoices = invoice_repo.list_invoices_for_specific_vendor(vendor_id)
 
-    total_amount = 0.0
-    status_counts = {}
-    amounts_by_status = {}
-    for invoice in invoices:
-        amount = float(invoice.amount) if invoice.amount else 0.0
-        total_amount += amount
-        status = invoice.status or "unknown"
-        status_counts[status] = status_counts.get(status, 0) + 1
-        amounts_by_status[status] = amounts_by_status.get(status, 0.0) + amount
+        total_amount = 0.0
+        status_counts = {}
+        amounts_by_status = {}
+        for invoice in invoices:
+            amount = float(invoice.amount) if invoice.amount else 0.0
+            total_amount += amount
+            status = invoice.status or "unknown"
+            status_counts[status] = status_counts.get(status, 0) + 1
+            amounts_by_status[status] = amounts_by_status.get(status, 0.0) + amount
 
-    return {
-        "vendor_id": vendor.id,
-        "company_name": vendor.company_name,
-        "vendor_category": vendor.vendor_category,
-        "industry": vendor.industry,
-        "services": vendor.services,
-        "status": vendor.status,
-        "trust_level": vendor.trust_level,
-        "risk_level": vendor.risk_level,
-        "agent_notes": vendor.agent_notes,
-        "created_at": vendor.created_at.isoformat().replace("+00:00", "Z"),
-        "total_invoices": len(invoices),
-        "total_invoice_amount": total_amount,
-        "invoices_by_status": status_counts,
-        "amounts_by_status": amounts_by_status,
-    }
+        return {
+            "vendor_id": vendor.id,
+            "company_name": vendor.company_name,
+            "vendor_category": vendor.vendor_category,
+            "industry": vendor.industry,
+            "services": vendor.services,
+            "status": vendor.status,
+            "trust_level": vendor.trust_level,
+            "risk_level": vendor.risk_level,
+            "agent_notes": vendor.agent_notes,
+            "created_at": vendor.created_at.isoformat().replace("+00:00", "Z"),
+            "total_invoices": len(invoices),
+            "total_invoice_amount": total_amount,
+            "invoices_by_status": status_counts,
+            "amounts_by_status": amounts_by_status,
+        }
+    finally:
+        db.close()
 
 
 async def get_vendor_invoices(
