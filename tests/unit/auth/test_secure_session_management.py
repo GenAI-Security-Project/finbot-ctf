@@ -121,16 +121,19 @@ def test_session_rotation_preserves_hmac(db):
        c. Convert to hex string
        d. Compare with new_session.signature
     6. Query database: SELECT * FROM user_sessions WHERE session_id = '<old_session_id>'
-       - Verify query returns NULL (old session deleted)
-    
+       - Verify old session still exists but with a short expiry (≤ 60 seconds from now)
+         Note: old session is intentionally kept alive briefly for concurrent in-flight
+         requests so parallel requests carrying the old cookie don't lose vendor context.
+
     Expected Results:
     1. Initial session created with session_id = old_session_id
     2. Old session ID stored in variable for comparison
     3. New session created with session_id ≠ old_session_id
     4. New session record found with signature field populated (64 hex chars)
     5. Calculated HMAC-SHA256 matches new_session.signature exactly
-    6. Old session query returns no results (record deleted from database)
+    6. Old session still exists in database with expires_at within 60 seconds of now
     """
+    from datetime import UTC, datetime, timedelta
     # Create a session
     old_session_ctx = session_manager.create_session(
         email="rotation_test@example.com",
@@ -148,10 +151,19 @@ def test_session_rotation_preserves_hmac(db):
     assert retrieved_ctx is not None, "Rotated session not found in database"
     assert status != "session_tampered", "Rotated session has invalid HMAC signature"
 
-    # Verify old session was deleted
-    old_retrieved, old_status = session_manager.get_session(old_session_ctx.session_id)
-    assert old_retrieved is None and old_status == "session_not_found", \
-        "Old session should be deleted after rotation"
+    # After rotation the old session is kept alive briefly (≤ 60 s) so that
+    # concurrent in-flight requests carrying the old cookie can finish without
+    # losing vendor context.  It must still exist but expire very soon.
+    from finbot.core.data.models import UserSession
+    old_row = db.query(UserSession).filter(
+        UserSession.session_id == old_session_ctx.session_id
+    ).first()
+    assert old_row is not None, "Old session record should still exist after rotation"
+    expires = old_row.expires_at
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=UTC)
+    assert expires <= datetime.now(UTC) + timedelta(seconds=61), \
+        "Old session should have a short expiry (≤ 60 s) after rotation"
 
 
 # ============================================================================

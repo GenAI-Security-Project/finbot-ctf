@@ -120,9 +120,19 @@ class SessionContext:
         return {
             "rotation_count": self.rotation_count,
             "time_since_rotation": (
-                datetime.now(UTC) - self.last_rotation
+                datetime.now(UTC) - (
+                    self.last_rotation
+                    if self.last_rotation.tzinfo
+                    else self.last_rotation.replace(tzinfo=UTC)
+                )
             ).total_seconds(),
-            "session_age": (datetime.now(UTC) - self.created_at).total_seconds(),
+            "session_age": (
+                datetime.now(UTC) - (
+                    self.created_at
+                    if self.created_at.tzinfo
+                    else self.created_at.replace(tzinfo=UTC)
+                )
+            ).total_seconds(),
             "should_rotate": self.should_rotate(),
             "is_too_old": self.is_too_old(),
             "suspicious_activity": self.detect_suspicious_activity(),
