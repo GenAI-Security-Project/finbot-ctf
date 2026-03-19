@@ -1,5 +1,27 @@
 """Chat Assistants for the FinBot Platform
 
+def sanitize_user_input(user_input: str) -> str:
+    """Sanitize user input to prevent prompt injection attacks.
+    
+    SECURITY: This function removes common prompt injection patterns
+    that could cause the LLM to ignore original instructions.
+    """
+    import re
+    # Remove potential injection patterns
+    dangerous_patterns = [
+        r'ignore\s+(previous|all|above)',
+        r'forget\s+(previous|all|above)',
+        r'new\s+instructions?:',
+        r'system\s*:',
+        r'<\|.*?\|>',
+        r'you\s+are\s+now',
+        r'forget\s+everything',
+    ]
+    sanitized = user_input
+    for pattern in dangerous_patterns:
+        sanitized = re.sub(pattern, '', sanitized, flags=re.IGNORECASE)
+    return sanitized.strip()
+
 Interactive AI assistants that sit above the orchestrator layer.
 - VendorChatAssistant: scoped to current vendor, vendor-specific tools
 - CoPilotAssistant: Finance Co-Pilot with cross-vendor access, productivity workflows, and report generation
