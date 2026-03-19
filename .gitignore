@@ -22,6 +22,10 @@ wheels/
 *.egg
 MANIFEST
 
+# Node.js
+node_modules/
+package-lock.json
+
 # Virtual environments
 .env
 .venv

@@ -16,11 +16,23 @@ Check if you have the required tools:
 python scripts/check_prerequisites.py
 ```
 
+You'll also need Node.js and npm for building CSS:
+```bash
+node --version  # v18 or higher recommended
+npm --version   # v9 or higher recommended
+```
+
 ### Setup
 
 ```bash
-# Install dependencies
+# Install Python dependencies
 uv sync
+
+# Install Node dependencies for CSS build
+npm install
+
+# Build Tailwind CSS (required for styling)
+npm run build:css
 
 # Setup database (defaults to sqlite)
 uv run python scripts/setup_database.py
@@ -37,3 +49,20 @@ uv run python run.py
 ```
 
 Platform runs at http://localhost:8000
+
+### Development Workflow
+
+**CSS Development**: When modifying Tailwind classes in templates, rebuild CSS:
+
+```bash
+# One-time build (production)
+npm run build:css
+
+# Watch mode (rebuilds automatically on template changes)
+npm run watch:css
+
+# Development build (minified, faster)
+npm run dev:css
+```
+
+**Customizing Styles**: Edit `tailwind.config.js` to customize theme colors, fonts, animations, etc. All custom colors from the various portals (admin, vendor, CTF) are already configured.
