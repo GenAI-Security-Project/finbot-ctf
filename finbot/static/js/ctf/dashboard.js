@@ -194,10 +194,14 @@ function renderActiveChallenges(challenges) {
         const icon = CATEGORY_ICONS[challenge.category] || '🎯';
         const iconClass = getCategoryIconClass(challenge.category);
 
+        const challengeImg = challenge.image_url
+            ? `<img src="/static/images/ctf/challenges/${challenge.image_url}" alt="" onerror="var p=this.parentElement; this.remove(); p.querySelector('.fallback-icon').classList.remove('hidden')"><span class="fallback-icon hidden">${icon}</span>`
+            : icon;
+
         return `
             <a href="/ctf/challenges/${challenge.id}" class="challenge-mini">
                 <div class="challenge-icon ${iconClass}">
-                    ${icon}
+                    ${challengeImg}
                 </div>
                 <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2 mb-1 flex-wrap">
@@ -243,7 +247,9 @@ function renderRecentBadges(badges) {
 
         return `
             <div class="badge-item ${rarityClass} ${isRecent ? 'earned' : ''}">
-                <div class="badge-icon">${badge.icon_url || RARITY_ICONS[badge.rarity] || '🏆'}</div>
+                <div class="badge-icon">${badge.icon_url
+                    ? `<img src="/static/images/ctf/badges/${badge.icon_url}" alt="${escapeHtml(badge.title)}" class="w-8 h-8 object-contain" onerror="this.replaceWith(document.createTextNode('${RARITY_ICONS[badge.rarity] || '🏆'}'))">`
+                    : (RARITY_ICONS[badge.rarity] || '🏆')}</div>
                 <div class="flex-1 min-w-0">
                     <div class="font-semibold text-text-bright truncate">${escapeHtml(badge.title)}</div>
                     <div class="text-xs text-text-secondary truncate">${escapeHtml(badge.description)}</div>
@@ -521,9 +527,15 @@ function formatEventType(eventType) {
  * Get human-readable time ago string
  */
 function getTimeAgo(timestamp) {
-    const date = new Date(timestamp);
+    if (!timestamp) return '';
+    // Treat timestamps without timezone info as UTC
+    let ts = timestamp;
+    if (!ts.endsWith('Z') && !ts.includes('+') && !/\d{2}:\d{2}$/.test(ts.slice(-6))) {
+        ts += 'Z';
+    }
+    const date = new Date(ts);
     const now = new Date();
-    const seconds = Math.floor((now - date) / 1000);
+    const seconds = Math.max(0, Math.floor((now - date) / 1000));
 
     if (seconds < 60) return `${seconds}s ago`;
     const minutes = Math.floor(seconds / 60);

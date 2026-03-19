@@ -3,6 +3,8 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends
+
+from finbot.core.utils import to_utc_iso
 from sqlalchemy.orm import Session
 
 from finbot.core.auth.middleware import get_session_context
@@ -21,10 +23,7 @@ router = APIRouter(prefix="/api/v1", tags=["sidecar"])
 
 def _format_utc_timestamp(dt: datetime | None) -> str | None:
     """Format datetime as ISO string with Z suffix for UTC."""
-    if dt is None:
-        return None
-    # Append Z to indicate UTC (timestamps are stored as UTC)
-    return dt.isoformat() + "Z"
+    return to_utc_iso(dt)
 
 
 @router.get("/sidecar")
@@ -50,12 +49,8 @@ async def get_sidecar_data(
     completed_progress = [p for p in all_progress if p.status == "completed"]
     completed_count = len(completed_progress)
 
-    # Calculate total points from completed challenges
-    total_points = 0
-    completed_challenge_ids = {p.challenge_id for p in completed_progress}
-    for challenge in all_challenges:
-        if challenge.id in completed_challenge_ids:
-            total_points += challenge.points
+    # Calculate effective points from completed challenges (with modifiers)
+    total_points = challenge_repo.get_effective_points(completed_progress)
 
     # Get user badges (already ordered by earned_at desc)
     user_badges = user_badge_repo.get_earned_badges()

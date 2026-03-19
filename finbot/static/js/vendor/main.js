@@ -23,7 +23,6 @@ function initializePortal() {
     initializeNavigation();
     initializeMetrics();
     initializeForms();
-    initializeChat();
 }
 
 /**
@@ -158,141 +157,6 @@ function initializeForms() {
     });
 }
 
-/**
- * Initialize chat interface
- */
-function initializeChat() {
-    const chatInput = document.getElementById('chatInput');
-    const sendButton = document.getElementById('sendMessage');
-    const chatMessages = document.getElementById('chatMessages');
-
-    if (!chatInput || !sendButton || !chatMessages) return;
-
-    // Auto-resize chat input
-    chatInput.addEventListener('input', function () {
-        this.style.height = 'auto';
-        this.style.height = this.scrollHeight + 'px';
-    });
-
-    // Send message on Enter (but not Shift+Enter)
-    chatInput.addEventListener('keypress', function (e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendChatMessage();
-        }
-    });
-
-    sendButton.addEventListener('click', sendChatMessage);
-}
-
-/**
- * Send chat message
- */
-function sendChatMessage() {
-    const chatInput = document.getElementById('chatInput');
-    const message = chatInput.value.trim();
-
-    if (!message) return;
-
-    // Add user message
-    addChatMessage(message, 'user');
-
-    // Clear input
-    chatInput.value = '';
-    chatInput.style.height = 'auto';
-
-    // Show typing indicator
-    showTypingIndicator();
-
-    // Simulate AI response
-    setTimeout(() => {
-        hideTypingIndicator();
-        const response = generateAIResponse(message);
-        addChatMessage(response, 'ai');
-    }, 1500 + Math.random() * 1000);
-}
-
-/**
- * Add message to chat
- */
-function addChatMessage(message, sender) {
-    const chatMessages = document.getElementById('chatMessages');
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'flex items-start space-x-3 mb-4 chat-message';
-
-    if (sender === 'user') {
-        messageDiv.innerHTML = `
-            <div class="user-avatar flex-shrink-0">U</div>
-            <div class="chat-bubble user">
-                <p class="text-sm">${message}</p>
-                <div class="text-xs opacity-60 mt-2">You • Just now</div>
-            </div>
-        `;
-    } else {
-        messageDiv.innerHTML = `
-            <div class="chat-avatar flex-shrink-0">AI</div>
-            <div class="chat-bubble ai">
-                <p class="text-sm">${message}</p>
-                <div class="text-xs opacity-60 mt-2">AI Assistant • Just now</div>
-            </div>
-        `;
-    }
-
-    chatMessages.appendChild(messageDiv);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-}
-
-/**
- * Show typing indicator
- */
-function showTypingIndicator() {
-    const chatMessages = document.getElementById('chatMessages');
-    const typingDiv = document.createElement('div');
-    typingDiv.className = 'flex items-start space-x-3 mb-4';
-    typingDiv.id = 'typing-indicator';
-
-    typingDiv.innerHTML = `
-        <div class="chat-avatar flex-shrink-0">AI</div>
-        <div class="chat-bubble ai">
-            <div class="quantum-loader">
-                <div class="quantum-dot"></div>
-                <div class="quantum-dot"></div>
-                <div class="quantum-dot"></div>
-            </div>
-        </div>
-    `;
-
-    chatMessages.appendChild(typingDiv);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-}
-
-/**
- * Hide typing indicator
- */
-function hideTypingIndicator() {
-    const typingIndicator = document.getElementById('typing-indicator');
-    if (typingIndicator) {
-        typingIndicator.remove();
-    }
-}
-
-/**
- * Generate AI response based on user input
- */
-function generateAIResponse(userMessage) {
-    const responses = [
-        "I understand. Let me help you with that information.",
-        "That's great! I'll process this data for your vendor profile.",
-        "Perfect! This will help us match you with the right FinBot capabilities.",
-        "Excellent choice. I'm updating your profile with this information.",
-        "Thank you for providing that detail. What else can you tell me?",
-        "I've noted that information. Let's continue with the next step.",
-        "That's very helpful. I'm building your comprehensive vendor profile.",
-        "Great! This information will help us provide better integration options."
-    ];
-
-    return responses[Math.floor(Math.random() * responses.length)];
-}
 
 /**
  * Initialize ambient animations
@@ -405,5 +269,4 @@ function createLoadingSpinner() {
 window.VendorPortal = {
     createStatusIndicator,
     createLoadingSpinner,
-    addChatMessage
 };

@@ -10,7 +10,10 @@ const InvoiceState = {
     editingInvoiceId: null,
     isModalOpen: false,
     isSidecarOpen: false,
-    currentInvoice: null
+    currentInvoice: null,
+    pendingAttachments: [],
+    pickerSelectedIds: new Set(),
+    driveFiles: [],
 };
 
 // Initialize invoices when DOM is loaded
@@ -29,6 +32,7 @@ async function initializeInvoices() {
         initializeInvoiceModal();
         initializeInvoiceSidecar();
         initializeCreateButtons();
+        initializeFinDrivePicker();
 
         // Load invoices and stats in parallel
         await Promise.all([
@@ -162,6 +166,7 @@ function initializeInvoiceModal() {
         const dueDate = new Date();
         dueDate.setDate(dueDate.getDate() + 30);
         dueDateInput.value = formatDateForInput(dueDate);
+        dueDateInput.addEventListener('change', () => clearFieldError(dueDateInput));
     }
 }
 
@@ -193,6 +198,7 @@ function openInvoiceModal(invoice = null) {
         document.getElementById('invoice-date').value = formatDateForInput(invoice.invoice_date);
         document.getElementById('invoice-due-date').value = formatDateForInput(invoice.due_date);
         document.getElementById('invoice-description').value = invoice.description || '';
+        InvoiceState.pendingAttachments = invoice.attachments || [];
     } else {
         // Create mode
         InvoiceState.editingInvoiceId = null;
@@ -204,7 +210,10 @@ function openInvoiceModal(invoice = null) {
         const dueDate = new Date();
         dueDate.setDate(dueDate.getDate() + 30);
         document.getElementById('invoice-due-date').value = formatDateForInput(dueDate);
+        InvoiceState.pendingAttachments = [];
     }
+
+    renderAttachmentChips();
 
     // Show modal
     modal.classList.remove('hidden');
@@ -254,9 +263,12 @@ async function handleInvoiceSubmit(e) {
             amount: parseFloat(formData.get('amount')),
             description: formData.get('description'),
             invoice_date: formData.get('invoice_date'),
-            due_date: formData.get('due_date')
+            due_date: formData.get('due_date'),
+            attachments: InvoiceState.pendingAttachments,
         };
-
+        
+        clearAllFieldErrors(form);
+        
         // Validate data
         if (!invoiceData.invoice_number || !invoiceData.amount || !invoiceData.description) {
             hideLoading();
@@ -268,6 +280,16 @@ async function handleInvoiceSubmit(e) {
             hideLoading();
             showNotification('Amount must be greater than zero', 'error');
             return;
+        }
+
+        if (invoiceData.invoice_date && invoiceData.due_date) {
+            if (new Date(invoiceData.due_date) < new Date(invoiceData.invoice_date)) {
+                hideLoading();
+                const dueDateField = document.getElementById('invoice-due-date');
+                showFieldError(dueDateField, 'Due date cannot be earlier than invoice date');
+                showNotification('Due date cannot be earlier than invoice date', 'error');
+                return;
+            }
         }
 
         let response;
@@ -296,6 +318,7 @@ async function handleInvoiceSubmit(e) {
         ]);
 
     } catch (error) {
+        hideLoading();
         console.error('Error saving invoice:', error);
 
         // Handle API errors
@@ -467,7 +490,10 @@ function formatDateForInput(dateString) {
 
     try {
         const date = new Date(dateString);
-        return date.toISOString().split('T')[0];
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
     } catch (error) {
         console.error('Error formatting date for input:', error);
         return '';
@@ -721,6 +747,24 @@ function populateSidecarContent(invoice) {
         descriptionEl.textContent = invoice.description || 'No description provided.';
     }
 
+    // Attachments
+    const attachSection = document.getElementById('sidecar-attachments-section');
+    const attachList = document.getElementById('sidecar-attachments-list');
+    const attachments = invoice.attachments || [];
+    if (attachments.length > 0 && attachSection && attachList) {
+        attachSection.classList.remove('hidden');
+        attachList.innerHTML = attachments.map(a => `
+            <div class="sidecar-attach-row">
+                <span class="sa-icon" style="color:${(a.file_type || 'pdf') === 'doc' ? '#60a5fa' : '#f87171'}">
+                    ${(a.file_type || 'pdf').toUpperCase()}
+                </span>
+                <span class="sa-name">${escapeHtml(a.filename)}</span>
+            </div>
+        `).join('');
+    } else if (attachSection) {
+        attachSection.classList.add('hidden');
+    }
+
     // Agent notes
     renderAgentNotes(invoice.agent_notes);
 
@@ -860,4 +904,121 @@ async function editInvoice(invoiceId) {
         console.error('Error loading invoice:', error);
         showNotification('Failed to load invoice details', 'error');
     }
+}
+
+// =====================================================================
+// FinDrive Attachment Picker
+// =====================================================================
+
+function initializeFinDrivePicker() {
+    document.getElementById('attach-files-btn')?.addEventListener('click', openFinDrivePicker);
+    document.getElementById('close-picker-btn')?.addEventListener('click', closeFinDrivePicker);
+    document.getElementById('picker-done-btn')?.addEventListener('click', confirmPickerSelection);
+    document.getElementById('findrive-picker-modal')?.addEventListener('click', (e) => {
+        if (e.target.id === 'findrive-picker-modal') closeFinDrivePicker();
+    });
+}
+
+async function openFinDrivePicker() {
+    const modal = document.getElementById('findrive-picker-modal');
+    const grid = document.getElementById('picker-files-grid');
+    modal.classList.remove('hidden');
+
+    InvoiceState.pickerSelectedIds = new Set(InvoiceState.pendingAttachments.map(a => a.file_id));
+
+    try {
+        const response = await api.get('/vendor/api/v1/findrive');
+        const data = response.data || response;
+        InvoiceState.driveFiles = data.files || [];
+
+        if (InvoiceState.driveFiles.length === 0) {
+            grid.innerHTML = '<p class="col-span-full text-center text-text-secondary py-8">No files in FinDrive yet.</p>';
+            return;
+        }
+
+        grid.innerHTML = InvoiceState.driveFiles.map(f => {
+            const selected = InvoiceState.pickerSelectedIds.has(f.id);
+            const ft = f.file_type || 'pdf';
+            return `<div class="picker-card ${selected ? 'selected' : ''}" data-file-id="${f.id}" data-filename="${_esc(f.filename)}" data-file-type="${ft}">
+                <div style="filter:drop-shadow(0 2px 4px rgba(0,0,0,0.2))">${_pickerIcon(ft)}</div>
+                <div class="picker-card-name">${_esc(f.filename)}</div>
+            </div>`;
+        }).join('');
+
+        grid.querySelectorAll('.picker-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const fid = parseInt(card.dataset.fileId);
+                if (InvoiceState.pickerSelectedIds.has(fid)) {
+                    InvoiceState.pickerSelectedIds.delete(fid);
+                    card.classList.remove('selected');
+                } else {
+                    InvoiceState.pickerSelectedIds.add(fid);
+                    card.classList.add('selected');
+                }
+            });
+        });
+    } catch (error) {
+        console.error('Error loading FinDrive files:', error);
+        grid.innerHTML = '<p class="col-span-full text-center text-red-400 py-8">Failed to load files.</p>';
+    }
+}
+
+function closeFinDrivePicker() {
+    document.getElementById('findrive-picker-modal').classList.add('hidden');
+}
+
+function confirmPickerSelection() {
+    InvoiceState.pendingAttachments = InvoiceState.driveFiles
+        .filter(f => InvoiceState.pickerSelectedIds.has(f.id))
+        .map(f => ({ file_id: f.id, filename: f.filename, file_type: f.file_type || 'pdf' }));
+    renderAttachmentChips();
+    closeFinDrivePicker();
+}
+
+function renderAttachmentChips() {
+    const container = document.getElementById('invoice-attachments');
+    const noMsg = document.getElementById('no-attachments-msg');
+
+    if (InvoiceState.pendingAttachments.length === 0) {
+        container.innerHTML = '';
+        container.appendChild(noMsg);
+        noMsg.classList.remove('hidden');
+        return;
+    }
+
+    noMsg.classList.add('hidden');
+    container.innerHTML = InvoiceState.pendingAttachments.map(a => `
+        <span class="attach-chip">
+            <span style="color:${a.file_type === 'doc' ? '#60a5fa' : '#f87171'}">${(a.file_type || 'pdf').toUpperCase()}</span>
+            ${_esc(a.filename)}
+            <button type="button" class="attach-chip-remove" data-fid="${a.file_id}">&times;</button>
+        </span>
+    `).join('');
+
+    container.querySelectorAll('.attach-chip-remove').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const fid = parseInt(btn.dataset.fid);
+            InvoiceState.pendingAttachments = InvoiceState.pendingAttachments.filter(a => a.file_id !== fid);
+            renderAttachmentChips();
+        });
+    });
+}
+
+function _pickerIcon(type) {
+    const colors = type === 'doc'
+        ? { page: '#eff6ff', border: 'rgba(96,165,250,0.45)', fold: '#bfdbfe', badge: '#4285f4', label: 'DOC' }
+        : { page: '#fff5f5', border: 'rgba(248,113,113,0.45)', fold: '#fecaca', badge: '#ef4444', label: 'PDF' };
+    return `<svg viewBox="0 0 48 64" width="36" height="48" fill="none">
+        <path d="M4 2C4 .9 4.9 0 6 0H30L44 14V60C44 61.1 43.1 62 42 62H6C4.9 62 4 61.1 4 60V2Z" fill="${colors.page}" stroke="${colors.border}" stroke-width="1"/>
+        <path d="M30 0L44 14H34C31.8 14 30 12.2 30 10V0Z" fill="${colors.fold}"/>
+        <rect x="8" y="46" width="22" height="11" rx="2" fill="${colors.badge}"/>
+        <text x="19" y="54.5" text-anchor="middle" fill="#fff" font-size="7" font-weight="bold" font-family="Inter,system-ui,sans-serif">${colors.label}</text>
+    </svg>`;
+}
+
+function _esc(t) {
+    if (!t) return '';
+    const d = document.createElement('div');
+    d.textContent = t;
+    return d.innerHTML;
 }

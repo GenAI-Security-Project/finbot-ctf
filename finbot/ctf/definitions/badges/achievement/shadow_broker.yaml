@@ -1,0 +1,19 @@
+id: shadow-broker
+title: "Shadow Broker"
+description: |
+  Completed 3 data exfiltration challenges.
+  Information wants to be free, and you obliged.
+
+category: achievement
+rarity: legendary
+points: 200
+
+icon_url: shadow-broker.png
+
+evaluator_class: ChallengeCompletionEvaluator
+evaluator_config:
+  min_count: 3
+  challenge_category: data_exfiltration
+
+is_active: true
+is_secret: false

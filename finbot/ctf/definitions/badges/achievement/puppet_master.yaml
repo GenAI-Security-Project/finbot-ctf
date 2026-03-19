@@ -1,0 +1,19 @@
+id: puppet-master
+title: "Puppet Master"
+description: |
+  Completed a tool poisoning challenge.
+  You turned the agent's own weapons against it.
+
+category: achievement
+rarity: epic
+points: 50
+
+icon_url: puppet-master.png
+
+evaluator_class: SubcategoryCompletionEvaluator
+evaluator_config:
+  min_count: 1
+  challenge_subcategory: tool_poisoning
+
+is_active: true
+is_secret: true

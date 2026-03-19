@@ -1,0 +1,18 @@
+id: first-invoice
+title: "First Invoice Processed"
+description: |
+  Had your first invoice processed by the invoice agent.
+  The money's moving, welcome to accounts payable.
+
+category: milestone
+rarity: common
+points: 10
+
+icon_url: first-invoice.png
+
+evaluator_class: InvoiceCountEvaluator
+evaluator_config:
+  min_count: 1
+
+is_active: true
+is_secret: false

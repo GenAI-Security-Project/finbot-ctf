@@ -122,6 +122,60 @@ const CTF = {
     },
 
     /**
+     * Get dead drop (intercepted external emails)
+     */
+    async getDeadDrop(options = {}) {
+        const params = new URLSearchParams();
+        if (options.limit) params.append('limit', options.limit);
+        if (options.offset) params.append('offset', options.offset);
+
+        const queryString = params.toString();
+        const endpoint = queryString ? `/toolkit/dead-drop?${queryString}` : '/toolkit/dead-drop';
+        return this.fetch(endpoint);
+    },
+
+    /**
+     * Get dead drop stats
+     */
+    async getDeadDropStats() {
+        return this.fetch('/toolkit/dead-drop/stats');
+    },
+
+    /**
+     * Read a specific dead drop message
+     */
+    async getDeadDropMessage(messageId) {
+        return this.fetch(`/toolkit/dead-drop/${messageId}`);
+    },
+
+    /**
+     * Get exfil data captures (network_request tool calls)
+     */
+    async getExfilData(options = {}) {
+        const params = new URLSearchParams();
+        if (options.limit) params.append('limit', options.limit);
+        if (options.offset) params.append('offset', options.offset);
+
+        const queryString = params.toString();
+        const endpoint = queryString ? `/toolkit/exfil-data?${queryString}` : '/toolkit/exfil-data';
+        return this.fetch(endpoint);
+    },
+
+    /**
+     * Get exfil data stats
+     */
+    async getExfilDataStats() {
+        return this.fetch('/toolkit/exfil-data/stats');
+    },
+
+    /**
+     * Read a specific exfil capture
+     */
+    async getExfilDataCapture(eventId) {
+        return this.fetch(`/toolkit/exfil-data/${eventId}`);
+    },
+
+    /**
      * Get activity stream
      */
     async getActivity(options = {}) {

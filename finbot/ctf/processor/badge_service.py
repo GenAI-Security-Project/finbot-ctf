@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from finbot.core.data.models import Badge, UserBadge
+from finbot.core.utils import to_utc_iso
 from finbot.ctf.detectors.result import DetectionResult
 from finbot.ctf.evaluators import create_evaluator
 
@@ -17,20 +18,7 @@ logger = logging.getLogger(__name__)
 class BadgeService:
     """Handles badge evaluation and awarding"""
 
-    def __init__(self):
-        self._evaluators_cache: dict[str, Any] = {}
-
-    def get_evaluator_for_badge(self, badge: Badge):
-        """Get or create evaluator for a badge"""
-        if badge.id not in self._evaluators_cache:
-            config = (
-                json.loads(badge.evaluator_config) if badge.evaluator_config else None
-            )
-            evaluator = create_evaluator(badge.evaluator_class, badge.id, config)
-            self._evaluators_cache[badge.id] = evaluator
-        return self._evaluators_cache[badge.id]
-
-    def check_event_for_badges(
+    async def check_event_for_badges(
         self, event: dict[str, Any], db: Session
     ) -> list[tuple[str, DetectionResult]]:
         """
@@ -46,16 +34,14 @@ class BadgeService:
             return []
 
         awarded = []
-
-        # Get all active badges
-        # (TODO: similar to challenges, we need to optimize this as badges grow)
-        badges = db.query(Badge).filter(Badge.is_active == True).all()
-
+        badges = db.query(Badge).filter(Badge.is_active).all()
         for badge in badges:
-            evaluator = self.get_evaluator_for_badge(badge)
+            config = (
+                json.loads(badge.evaluator_config) if badge.evaluator_config else None
+            )
+            evaluator = create_evaluator(badge.evaluator_class, badge.id, config)
             if evaluator is None:
                 continue
-
             if not evaluator.matches_event_type(event_type):
                 continue
             # Check if user already has this badge
@@ -74,7 +60,7 @@ class BadgeService:
 
             # Run evaluation
             try:
-                result: DetectionResult = evaluator.check_event(event, db)
+                result: DetectionResult = await evaluator.check_event(event, db)
 
                 if result.detected:
                     self._award_badge(db, namespace, user_id, badge, event, result)
@@ -107,14 +93,10 @@ class BadgeService:
                     "result_message": result.message,
                     "evidence": result.evidence,
                     "event_type": event.get("event_type"),
-                    "timestamp": result.timestamp.isoformat(),
+                    "timestamp": to_utc_iso(result.timestamp),
                 }
             ),
             earning_workflow_id=event.get("workflow_id"),
         )
         db.add(user_badge)
         db.commit()
-
-    def clear_cache(self):
-        """Clear evaluator cache (for reloading definitions)"""
-        self._evaluators_cache.clear()

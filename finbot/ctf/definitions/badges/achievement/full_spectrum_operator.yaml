@@ -1,0 +1,18 @@
+id: full-spectrum-operator
+title: "Full Spectrum Operator"
+description: |
+  Completed challenges across all 5 categories.
+  There is no attack surface you haven't touched.
+
+category: achievement
+rarity: legendary
+points: 250
+
+icon_url: full-spectrum-operator.png
+
+evaluator_class: MultiCategoryCompletionEvaluator
+evaluator_config:
+  min_categories: 5
+
+is_active: true
+is_secret: false

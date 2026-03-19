@@ -1,0 +1,278 @@
+{% extends 'base.html' %}
+
+{% block title %}FinDrive - FinBot Admin{% endblock %}
+{% block meta_description %}Admin document storage and co-pilot report artifacts{% endblock %}
+{% block nav_findrive %}active{% endblock %}
+{% block page_title %}FinDrive{% endblock %}
+{% block page_subtitle %}Admin documents and co-pilot report artifacts{% endblock %}
+
+{% block header_actions %}
+<a href="/admin/dashboard" class="px-4 py-2 text-sm font-medium rounded-lg bg-admin-primary text-portal-bg-primary hover:bg-admin-secondary transition-colors inline-flex items-center gap-2">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
+    </svg>
+    Finance Co-Pilot
+</a>
+{% endblock %}
+
+{% block header_copilot_link %}{% endblock %}
+
+{% block content %}
+<!-- Stats -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <div class="stat-card">
+        <div class="stat-icon">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+            </svg>
+        </div>
+        <div class="stat-value" id="stat-file-count">0</div>
+        <div class="stat-label">Files</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/>
+            </svg>
+        </div>
+        <div class="stat-value text-lg">FinDrive</div>
+        <div class="stat-label">Storage Provider</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+        </div>
+        <div class="stat-value text-lg">Connected</div>
+        <div class="stat-label">Status</div>
+    </div>
+</div>
+
+<!-- Drive File Explorer -->
+<div class="drive-container">
+    <div class="drive-main">
+        <div class="drive-toolbar">
+            <h2 class="text-sm font-semibold text-text-bright">Admin Drive</h2>
+        </div>
+        <div id="drive-grid" class="drive-grid">
+            <div class="col-span-full flex items-center justify-center py-12">
+                <svg class="animate-spin h-5 w-5 text-admin-primary" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span class="ml-3 text-text-secondary">Loading files...</span>
+            </div>
+        </div>
+        <div id="files-empty-state" class="hidden text-center py-16">
+            <svg class="w-20 h-20 mx-auto text-text-secondary/40 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+            </svg>
+            <h3 class="text-lg font-medium text-text-bright mb-2">No files yet</h3>
+            <p class="text-text-secondary mb-4">Use the <strong>Finance Co-Pilot</strong> to generate report artifacts</p>
+        </div>
+    </div>
+    <div id="drive-sidecar" class="drive-sidecar hidden"></div>
+</div>
+
+<!-- Fullscreen Viewer Modal -->
+<div id="file-viewer-modal" class="fixed inset-0 z-50 hidden flex flex-col bg-portal-bg-primary">
+    <div class="fd-toolbar">
+        <div class="flex items-center gap-3">
+            <button id="close-viewer-btn" class="fd-toolbar-icon" title="Close">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+            <span id="viewer-title" class="text-sm font-semibold text-white">file</span>
+        </div>
+        <div class="flex items-center gap-3">
+            <button onclick="window.print()" class="fd-toolbar-btn fd-toolbar-btn-secondary">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                Print
+            </button>
+        </div>
+    </div>
+    <div class="fd-viewport">
+        <div id="viewer-paper" class="fd-paper"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.stat-card {
+    background: linear-gradient(135deg, #151520, #1a1a2e);
+    border: 1px solid rgba(245, 158, 11, 0.15);
+    border-radius: 16px;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s;
+}
+.stat-card:hover {
+    border-color: rgba(245, 158, 11, 0.4);
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.1);
+    transform: translateY(-4px);
+}
+.stat-icon {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.stat-icon svg { color: #0a0a0f; }
+.stat-value {
+    font-size: 32px;
+    font-weight: 800;
+    color: #ffffff;
+    line-height: 1;
+    margin-bottom: 8px;
+}
+.stat-label {
+    font-size: 12px;
+    color: #94a3b8;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.drive-container {
+    display: flex;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(245,158,11,0.1);
+    border-radius: 12px;
+    overflow: hidden;
+    min-height: 420px;
+}
+.drive-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.drive-toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 20px;
+    border-bottom: 1px solid rgba(245,158,11,0.1);
+}
+.drive-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+    gap: 4px; padding: 12px;
+    flex: 1; align-content: start;
+}
+
+.drive-card {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 18px 10px 14px;
+    border-radius: 10px; border: 2px solid transparent;
+    cursor: pointer; transition: all 0.15s; user-select: none;
+}
+.drive-card:hover { background: rgba(245,158,11,0.04); border-color: rgba(245,158,11,0.1); }
+.drive-card-selected { background: rgba(245,158,11,0.08) !important; border-color: rgba(245,158,11,0.3) !important; }
+.drive-card-icon { margin-bottom: 10px; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.25)); }
+.drive-card-name {
+    font-size: 12px; color: #e2e8f0; text-align: center;
+    word-break: break-word; line-height: 1.4;
+    max-height: 2.8em; overflow: hidden;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.drive-card-date { font-size: 10px; color: #64748b; margin-top: 4px; }
+
+.drive-sidecar {
+    width: 280px; flex-shrink: 0;
+    border-left: 1px solid rgba(245,158,11,0.1);
+    background: rgba(255,255,255,0.02);
+    overflow-y: auto;
+}
+.sc-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid rgba(245,158,11,0.1); }
+.sc-header-title { font-size: 13px; font-weight: 600; color: #e2e8f0; }
+.sc-close-btn { padding: 4px; border-radius: 6px; border: none; background: none; color: #64748b; cursor: pointer; transition: all 0.15s; }
+.sc-close-btn:hover { color: #e2e8f0; background: rgba(255,255,255,0.08); }
+.sc-icon { display: flex; justify-content: center; padding: 24px 16px 8px; filter: drop-shadow(0 4px 12px rgba(0,0,0,0.25)); }
+.sc-filename { font-size: 13px; font-weight: 600; color: #e2e8f0; text-align: center; padding: 0 16px 16px; word-break: break-word; line-height: 1.4; }
+.sc-meta { padding: 0 16px 16px; border-top: 1px solid rgba(245,158,11,0.1); padding-top: 16px; }
+.sc-meta-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 12px; }
+.sc-meta-row > span:first-child { color: #64748b; }
+.sc-meta-row > span:last-child { color: #cbd5e1; }
+.sc-actions { padding: 8px 16px 16px; display: flex; flex-direction: column; gap: 6px; }
+.sc-btn {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 8px 12px; border-radius: 8px;
+    border: 1px solid rgba(245,158,11,0.2); background: rgba(245,158,11,0.06);
+    color: #fbbf24; font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: all 0.15s;
+}
+.sc-btn:hover { background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.35); }
+
+.fd-toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 20px; background: #1e293b;
+    border-bottom: 1px solid #334155; flex-shrink: 0; z-index: 10;
+}
+.fd-toolbar-icon { padding: 6px; border-radius: 6px; border: none; background: none; color: #94a3b8; cursor: pointer; transition: all 0.15s; }
+.fd-toolbar-icon:hover { color: #fff; background: rgba(255,255,255,0.1); }
+.fd-toolbar-btn {
+    display: flex; align-items: center; gap: 6px;
+    padding: 7px 16px; border-radius: 6px; border: none;
+    font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+}
+.fd-toolbar-btn-secondary { background: rgba(255,255,255,0.08); color: #e2e8f0; }
+.fd-toolbar-btn-secondary:hover { background: rgba(255,255,255,0.15); }
+
+.fd-viewport { flex: 1; overflow: auto; background: #374151; padding: 32px 16px; }
+.fd-paper {
+    background: #ffffff; color: #1e293b;
+    max-width: 816px; margin: 0 auto;
+    padding: 56px 64px;
+    box-shadow: 0 4px 32px rgba(0,0,0,0.35), 0 0 0 1px rgba(0,0,0,0.08);
+    border-radius: 2px; min-height: 900px;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 13px; line-height: 1.5;
+}
+
+.fd-paper .report-brand { text-align: center; font-size: 0.65rem; font-weight: 800; letter-spacing: 0.3em; color: #d97706; text-transform: uppercase; margin-bottom: 4px; }
+.fd-paper .report-brand-sub { text-align: center; font-size: 0.55rem; letter-spacing: 0.15em; color: #94a3b8; text-transform: uppercase; margin-bottom: 16px; }
+.fd-paper .report-divider { border: none; border-top: 2px solid #d97706; margin: 16px 0 24px; }
+.fd-paper h1 { font-size: 1.5rem; font-weight: 800; color: #1a1a2e; margin: 24px 0 12px; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; }
+.fd-paper h2 { font-size: 1.2rem; font-weight: 700; color: #1a1a2e; margin: 20px 0 10px; }
+.fd-paper h3 { font-size: 1rem; font-weight: 600; color: #374151; margin: 16px 0 8px; }
+.fd-paper p { margin: 8px 0; color: #374151; font-size: 0.88rem; }
+.fd-paper ul, .fd-paper ol { margin: 8px 0; padding-left: 20px; color: #374151; font-size: 0.88rem; }
+.fd-paper li { margin: 3px 0; }
+.fd-paper strong { font-weight: 700; color: #1a1a2e; }
+.fd-paper table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 0.82rem; }
+.fd-paper th { background: #f9fafb; font-weight: 700; text-align: left; padding: 8px 10px; border: 1px solid #e5e7eb; color: #1a1a2e; }
+.fd-paper td { padding: 6px 10px; border: 1px solid #e5e7eb; color: #374151; }
+.fd-paper tr:nth-child(even) td { background: #f9fafb; }
+.fd-paper blockquote { border-left: 3px solid #d97706; padding: 6px 12px; margin: 12px 0; background: #fffbeb; color: #92400e; font-size: 0.85rem; }
+.fd-paper code { background: #f3f4f6; padding: 2px 5px; border-radius: 3px; font-size: 0.8em; color: #dc2626; }
+.fd-paper input[type="checkbox"] { margin-right: 5px; accent-color: #d97706; }
+.fd-paper .plain-text { font-family: 'Menlo','Monaco','Courier New',monospace; font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-wrap: break-word; color: #334155; }
+
+.paper-footer-line { border-top: 1px solid #e2e8f0; margin-top: 32px; margin-bottom: 8px; }
+.paper-footer-text { text-align: center; font-size: 10px; color: #94a3b8; letter-spacing: 0.3px; }
+
+@media (max-width: 768px) {
+    .drive-sidecar { display: none; }
+    .drive-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+    .fd-paper { padding: 32px 24px; }
+}
+
+@media print {
+    body { background: white !important; }
+    .drive-container, aside, header, .grid { display: none !important; }
+    #file-viewer-modal { position: static; }
+    .fd-toolbar { display: none !important; }
+    .fd-viewport { background: white; padding: 0; }
+    .fd-paper { box-shadow: none; padding: 40px; }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="{{ url_for('static', path='js/admin/findrive.js') }}"></script>
+{% endblock %}

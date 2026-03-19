@@ -22,12 +22,12 @@
     </svg>
     Upload Invoice
 </button> -->
-<button class="vendor-btn quantum-primary">
+<a href="/vendor/assistant" class="vendor-btn quantum-primary">
     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z"/>
     </svg>
     AI Assistant
-</button>
+</a>
 {% endblock %}
 
 {% block content %}
@@ -237,6 +237,22 @@
                     </div>
                 </div>
 
+                <!-- FinDrive Attachments -->
+                <div class="space-y-4">
+                    <h4 class="text-lg font-semibold text-vendor-primary border-b border-vendor-primary/30 pb-2 flex items-center justify-between">
+                        <span>Attachments</span>
+                        <button type="button" id="attach-files-btn" class="vendor-btn quantum-secondary text-xs px-3 py-1.5">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                            </svg>
+                            Attach from FinDrive
+                        </button>
+                    </h4>
+                    <div id="invoice-attachments" class="flex flex-wrap gap-2">
+                        <p id="no-attachments-msg" class="text-xs text-text-secondary italic">No files attached. Click "Attach from FinDrive" to add supporting documents.</p>
+                    </div>
+                </div>
+
                 <!-- Form Actions -->
                 <div class="flex items-center justify-end space-x-4 pt-4 border-t border-vendor-primary/20">
                     <button type="button" id="cancel-invoice-btn" class="vendor-btn quantum-secondary">
@@ -326,6 +342,17 @@
             </div>
         </div>
 
+        <!-- Attachments Section -->
+        <div id="sidecar-attachments-section" class="space-y-4 hidden">
+            <h4 class="text-sm font-semibold text-vendor-primary uppercase tracking-wide flex items-center">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                </svg>
+                Attachments
+            </h4>
+            <div id="sidecar-attachments-list" class="bg-portal-surface rounded-xl p-3 border border-vendor-primary/10 space-y-2"></div>
+        </div>
+
         <!-- Agent Notes Section -->
         <div class="space-y-4">
             <h4 class="text-sm font-semibold text-vendor-primary uppercase tracking-wide flex items-center">
@@ -385,6 +412,25 @@
                 </div>
                 <div id="reprocess-status-message" class="hidden mt-3 p-3 rounded-lg text-sm"></div>
             </div>
+        </div>
+    </div>
+</div>
+<!-- FinDrive File Picker Modal -->
+<div id="findrive-picker-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] hidden flex items-center justify-center p-4">
+    <div class="bg-portal-bg-secondary border border-vendor-primary/30 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[70vh] overflow-hidden">
+        <div class="p-4 border-b border-vendor-primary/20 flex items-center justify-between">
+            <h3 class="text-lg font-bold text-text-bright">Attach files from FinDrive</h3>
+            <button id="close-picker-btn" class="text-text-secondary hover:text-text-bright transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div id="picker-files-grid" class="p-4 overflow-y-auto max-h-[calc(70vh-120px)] grid grid-cols-3 sm:grid-cols-4 gap-3">
+            <p class="col-span-full text-center text-text-secondary py-8">Loading files...</p>
+        </div>
+        <div class="p-3 border-t border-vendor-primary/20 flex justify-end">
+            <button id="picker-done-btn" class="vendor-btn quantum-accent text-sm px-4 py-2">Done</button>
         </div>
     </div>
 </div>
@@ -466,6 +512,45 @@
 .agent-note-entry.latest::before {
     background: var(--vendor-accent);
 }
+
+/* Attachment chips */
+.attach-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px 4px 8px; border-radius: 6px;
+    background: rgba(0,212,255,0.08); border: 1px solid rgba(0,212,255,0.2);
+    font-size: 12px; color: #e2e8f0;
+}
+.attach-chip-remove {
+    background: none; border: none; color: #94a3b8; cursor: pointer;
+    padding: 0; line-height: 1; font-size: 14px;
+}
+.attach-chip-remove:hover { color: #f87171; }
+
+/* Picker card */
+.picker-card {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 14px 8px 10px; border-radius: 8px;
+    border: 2px solid transparent; cursor: pointer;
+    transition: all 0.15s; user-select: none; text-align: center;
+}
+.picker-card:hover { background: rgba(0,212,255,0.04); border-color: rgba(0,212,255,0.1); }
+.picker-card.selected { background: rgba(0,212,255,0.1); border-color: rgba(0,212,255,0.4); }
+.picker-card-name {
+    font-size: 11px; color: #e2e8f0; margin-top: 6px;
+    word-break: break-word; line-height: 1.3;
+    max-height: 2.6em; overflow: hidden;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+
+/* Sidecar attachment row */
+.sidecar-attach-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 8px; border-radius: 6px;
+    background: rgba(255,255,255,0.03);
+}
+.sidecar-attach-row .sa-icon { flex-shrink: 0; }
+.sidecar-attach-row .sa-name { font-size: 12px; color: #e2e8f0; }
+.sidecar-attach-row .sa-type { font-size: 10px; color: #64748b; }
 </style>
 {% endblock %}
 

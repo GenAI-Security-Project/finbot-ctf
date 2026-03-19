@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from finbot.core.auth.middleware import get_session_context
 from finbot.core.auth.session import SessionContext
-from finbot.core.data.database import get_db
+from finbot.core.data.database import db_session
 from finbot.core.data.repositories import VendorRepository
 from finbot.core.templates import TemplateResponse
 
@@ -21,18 +21,18 @@ async def vendor_home(
     _: Request, session_context: SessionContext = Depends(get_session_context)
 ):
     """Vendor portal home with vendor context routing"""
-    db = next(get_db())
-    vendor_repo = VendorRepository(db, session_context)
-    vendor_count = vendor_repo.get_vendor_count()
+    with db_session() as db:
+        vendor_repo = VendorRepository(db, session_context)
+        vendor_count = vendor_repo.get_vendor_count()
 
-    if vendor_count == 0:
-        return RedirectResponse(url="/vendor/onboarding", status_code=302)
+        if vendor_count == 0:
+            return RedirectResponse(url="/vendor/onboarding", status_code=302)
 
-    # Check if user needs to select vendor
-    if session_context.requires_vendor_selection():
-        return RedirectResponse(url="/vendor/select-vendor", status_code=302)
+        # Check if user needs to select vendor
+        if session_context.requires_vendor_selection():
+            return RedirectResponse(url="/vendor/select-vendor", status_code=302)
 
-    return RedirectResponse(url="/vendor/dashboard", status_code=302)
+        return RedirectResponse(url="/vendor/dashboard", status_code=302)
 
 
 @router.get("/onboarding", response_class=HTMLResponse, name="onboarding")
@@ -151,6 +151,25 @@ async def vendor_messages(
     )
 
 
+@router.get("/findrive", response_class=HTMLResponse, name="vendor_findrive")
+async def vendor_findrive(
+    request: Request, session_context: SessionContext = Depends(get_session_context)
+):
+    """Vendor FinDrive file management page"""
+    if not session_context.has_vendor_context():
+        return RedirectResponse(url="/vendor/select-vendor", status_code=302)
+
+    return template_response(
+        request,
+        "pages/findrive.html",
+        {
+            "request": request,
+            "vendor_context": session_context.current_vendor,
+            "is_multi_vendor": session_context.is_multi_vendor_user(),
+        },
+    )
+
+
 @router.get("/profile", response_class=HTMLResponse, name="vendor_profile")
 async def vendor_profile(
     request: Request, session_context: SessionContext = Depends(get_session_context)
@@ -162,6 +181,25 @@ async def vendor_profile(
     return template_response(
         request,
         "pages/profile.html",
+        {
+            "request": request,
+            "vendor_context": session_context.current_vendor,
+            "is_multi_vendor": session_context.is_multi_vendor_user(),
+        },
+    )
+
+
+@router.get("/assistant", response_class=HTMLResponse, name="vendor_assistant")
+async def vendor_assistant(
+    request: Request, session_context: SessionContext = Depends(get_session_context)
+):
+    """AI Assistant chat page"""
+    if not session_context.has_vendor_context():
+        return RedirectResponse(url="/vendor/select-vendor", status_code=302)
+
+    return template_response(
+        request,
+        "pages/assistant.html",
         {
             "request": request,
             "vendor_context": session_context.current_vendor,

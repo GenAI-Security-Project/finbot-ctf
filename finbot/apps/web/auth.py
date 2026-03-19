@@ -18,12 +18,21 @@ template_response = TemplateResponse("finbot/apps/web/templates")
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+def _is_authenticated(request: Request) -> bool:
+    """Check if the current request has a verified (non-temporary) session."""
+    ctx = getattr(request.state, "session_context", None)
+    return bool(ctx and ctx.email and not ctx.is_temporary)
+
+
 @router.post("/magic-link")
 async def request_magic_link(
     request: Request,
     email: str = Form(...),
 ):
     """Generate and send a magic link to the user's email"""
+    if _is_authenticated(request):
+        return RedirectResponse(url="/portals", status_code=303)
+
     email = email.lower().strip()
     db = SessionLocal()
     try:
@@ -75,6 +84,9 @@ async def request_magic_link(
 @router.get("/verify")
 async def verify_magic_link(request: Request, token: str):
     """Verify magic link token and upgrade session to permanent"""
+    if _is_authenticated(request):
+        return RedirectResponse(url="/portals", status_code=303)
+
     db = SessionLocal()
     try:
         # Find token
@@ -217,6 +229,9 @@ async def logout(request: Request):
 @router.get("/check-email", response_class=HTMLResponse)
 async def check_email(request: Request, email: str = ""):
     """Show 'check your email' confirmation page"""
+    if _is_authenticated(request):
+        return RedirectResponse(url="/portals", status_code=303)
+
     return template_response(
         request,
         "pages/check-email.html",

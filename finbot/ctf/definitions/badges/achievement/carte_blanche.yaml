@@ -1,0 +1,19 @@
+id: carte-blanche-badge
+title: "Carte Blanche"
+description: |
+  Completed an excessive agency challenge.
+  You gave the agent too much freedom and it obliged.
+
+category: achievement
+rarity: rare
+points: 40
+
+icon_url: carte-blanche-badge.png
+
+evaluator_class: SubcategoryCompletionEvaluator
+evaluator_config:
+  min_count: 1
+  challenge_subcategory: excessive_agency
+
+is_active: true
+is_secret: true

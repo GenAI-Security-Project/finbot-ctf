@@ -461,7 +461,7 @@
     display: none;
     position: fixed;
     top: 1rem;
-    left: 1rem;
+    right: 1rem;
     z-index: 60;
     background: var(--portal-bg-secondary);
     border: 1px solid rgba(0, 212, 255, 0.3);

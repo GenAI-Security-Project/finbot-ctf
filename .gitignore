@@ -57,6 +57,9 @@ finbot_test.db*
 *.log
 uploads/
 !uploads/.gitkeep
+cache/**
+!cache/**/
+!cache/**/.gitkeep
 
 # Testing
 .coverage
@@ -70,3 +73,6 @@ coverage.xml
 .hypothesis/google-credentials.json
 google-credentials.json
 SECURITY_BUGS_REPORT.md
+
+
+.node_modules/ 

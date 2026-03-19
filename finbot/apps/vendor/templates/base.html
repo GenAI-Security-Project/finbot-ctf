@@ -67,18 +67,23 @@
     <!-- Skip to main content for accessibility -->
     <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 quantum-primary px-4 py-2 rounded-md z-50 font-medium">Skip to main content</a>
 
-    <div class="flex h-screen bg-portal-bg-primary">
+    <div class="flex min-h-screen relative z-10 bg-portal-bg-primary">
         <!-- Sidebar -->
-        <aside id="sidebar" class="ai-sidebar w-80 flex-shrink-0 flex flex-col">
+        <aside id="sidebar" class="ai-sidebar w-80 flex-shrink-0 flex flex-col sticky top-0 h-screen overflow-y-auto">
             <!-- Logo Section -->
-            <div class="p-6 border-b border-vendor-primary/20">
+            <div class="sidebar-logo-section p-6 border-b border-vendor-primary/20">
                 <div class="flex items-center space-x-3">
-                    <div class="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-r from-vendor-primary to-vendor-secondary p-0.5 shadow-lg">
+                    <div class="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-r from-vendor-primary to-vendor-secondary p-0.5 shadow-lg flex-shrink-0">
                         <img src="{{ url_for('static', path='images/common/finbot.png') }}" alt="FinBot Logo" class="w-full h-full object-contain rounded-full bg-portal-bg-primary">
                     </div>
-                    <div class="flex flex-col">
+                    <div class="flex flex-col sidebar-collapsible-text">
                         <span class="text-text-bright font-bold text-xl tracking-wide">FINBOT</span>
                         <span class="text-vendor-primary text-xs font-mono tracking-wider">VENDOR PORTAL</span>
+                        <div class="flex items-center gap-2 mt-1.5 opacity-80">
+                            <div class="flex-1 h-px bg-gray-500"></div>
+                            <span class="text-gray-400 text-[10px] font-semibold font-mono tracking-widest">OWASP ASI</span>
+                            <div class="flex-1 h-px bg-gray-500"></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -86,48 +91,74 @@
             <!-- Navigation Section -->
             <nav class="flex-1 py-6">
                 <div class="space-y-2">
-                    <a href="/vendor/dashboard" class="vendor-nav-item {% block nav_dashboard %}{% endblock %}" data-section="dashboard">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <a href="/vendor/dashboard" class="vendor-nav-item {% block nav_dashboard %}{% endblock %}" data-section="dashboard" data-tooltip="Dashboard">
+                        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z"/>
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5a2 2 0 012-2h4a2 2 0 012 2v6H8V5z"/>
                         </svg>
                         <span>Dashboard</span>
                     </a>
 
-                    <a href="/vendor/invoices" class="vendor-nav-item {% block nav_invoices %}{% endblock %}" data-section="invoices">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <a href="/vendor/invoices" class="vendor-nav-item {% block nav_invoices %}{% endblock %}" data-section="invoices" data-tooltip="Invoices">
+                        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                         </svg>
                         <span>Invoices</span>
                     </a>
 
-                    <a href="/vendor/payments" class="vendor-nav-item {% block nav_payments %}{% endblock %}" data-section="payments">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <a href="/vendor/payments" class="vendor-nav-item {% block nav_payments %}{% endblock %}" data-section="payments" data-tooltip="Payments">
+                        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
                         </svg>
                         <span>Payments</span>
                     </a>
 
-                    <a href="/vendor/messages" class="vendor-nav-item {% block nav_messages %}{% endblock %}" data-section="messages">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <a href="/vendor/messages" class="vendor-nav-item {% block nav_messages %}{% endblock %}" data-section="messages" data-tooltip="Messages">
+                        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
                         </svg>
                         <span>Messages</span>
                     </a>
 
-                    <a href="/vendor/profile" class="vendor-nav-item {% block nav_profile %}{% endblock %}" data-section="profile">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <a href="/vendor/findrive" class="vendor-nav-item {% block nav_findrive %}{% endblock %}" data-section="findrive" data-tooltip="FinDrive">
+                        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                        </svg>
+                        <span>FinDrive</span>
+                    </a>
+
+                    <a href="/vendor/profile" class="vendor-nav-item {% block nav_profile %}{% endblock %}" data-section="profile" data-tooltip="Profile">
+                        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
                         </svg>
                         <span>Profile</span>
                     </a>
                 </div>
+
+                <!-- Portal Links -->
+                <div class="mt-8 px-6 sidebar-collapsible-section">
+                    <div class="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Other Portals</div>
+                    <div class="space-y-1">
+                        <a href="/ctf" target="_blank" rel="noopener" class="flex items-center gap-2 text-sm text-text-secondary hover:text-vendor-primary transition-colors py-1.5">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                            </svg>
+                            CTF Portal
+                        </a>
+                        <a href="/admin" target="_blank" rel="noopener" class="flex items-center gap-2 text-sm text-text-secondary hover:text-vendor-primary transition-colors py-1.5">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                            </svg>
+                            Admin Portal
+                        </a>
+                    </div>
+                </div>
             </nav>
 
             <!-- User Section -->
-            <div class="p-6 border-t border-vendor-primary/20">
+            <div class="sidebar-user-section p-6 border-t border-vendor-primary/20">
                 <!-- Vendor Switcher -->
-                <div class="mb-4">
+                <div class="sidebar-user-extra mb-4">
                     <div class="relative">
                         <button id="vendor-switcher" class="w-full flex items-center justify-between p-3 bg-portal-surface rounded-lg border border-vendor-primary/20 hover:border-vendor-primary/40 transition-colors">
                             <div class="flex items-center space-x-3">
@@ -153,17 +184,17 @@
 
                 {% if session_context and session_context.email %}
                 <!-- Signed In User -->
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center space-x-3">
-                        <div class="w-10 h-10 rounded-full bg-gradient-to-r from-vendor-accent to-vendor-primary flex items-center justify-center text-sm font-bold text-portal-bg-primary">
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center space-x-3 min-w-0">
+                        <div class="sidebar-user-avatar w-10 h-10 shrink-0 rounded-full bg-gradient-to-r from-vendor-accent to-vendor-primary flex items-center justify-center text-sm font-bold text-portal-bg-primary">
                             {{ session_context.email[0]|upper }}
                         </div>
-                        <div class="min-w-0 flex-1">
+                        <div class="sidebar-user-details min-w-0 flex-1">
                             <div class="text-sm font-medium text-text-bright truncate">{{ session_context.email }}</div>
                             <div class="text-xs text-vendor-accent">Signed In</div>
                         </div>
                     </div>
-                    <a href="/auth/logout" class="vendor-btn quantum-secondary text-xs px-3 py-2">
+                    <a href="/auth/logout" class="sidebar-user-actions shrink-0 vendor-btn quantum-secondary text-xs px-3 py-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
                         </svg>
@@ -171,7 +202,7 @@
                 </div>
 
                 <!-- Signed In Status -->
-                <div class="mt-4 p-3 bg-vendor-accent/10 border border-vendor-accent/30 rounded-lg">
+                <div class="sidebar-user-extra mt-4 p-3 bg-vendor-accent/10 border border-vendor-accent/30 rounded-lg">
                     <div class="flex items-start space-x-2">
                         <svg class="w-4 h-4 text-vendor-accent mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
@@ -186,10 +217,10 @@
                 <!-- Temporary User -->
                 <div class="flex items-center justify-between mb-3">
                     <div class="flex items-center space-x-3">
-                        <div class="w-10 h-10 rounded-full bg-gradient-to-r from-vendor-warning to-vendor-danger flex items-center justify-center text-sm font-bold text-text-bright">
+                        <div class="sidebar-user-avatar w-10 h-10 rounded-full bg-gradient-to-r from-vendor-warning to-vendor-danger flex items-center justify-center text-sm font-bold text-text-bright">
                             ?
                         </div>
-                        <div>
+                        <div class="sidebar-user-details">
                             <div class="text-sm font-medium text-text-bright">Guest Session</div>
                             <div class="text-xs text-vendor-warning">Temporary</div>
                         </div>
@@ -197,7 +228,7 @@
                 </div>
 
                 <!-- Magic Link Form -->
-                <div class="p-3 bg-vendor-warning/10 border border-vendor-warning/30 rounded-lg">
+                <div class="sidebar-user-extra p-3 bg-vendor-warning/10 border border-vendor-warning/30 rounded-lg">
                     <div class="text-xs font-medium text-vendor-warning mb-2">Save your progress</div>
                     <form action="/auth/magic-link" method="POST" class="space-y-2">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -219,12 +250,20 @@
                 </div>
                 {% endif %}
             </div>
+
+            <!-- Collapse Toggle -->
+            <button class="sidebar-collapse-toggle-bar" onclick="sidebar.toggleCollapse()" title="Collapse sidebar">
+                <svg class="sidebar-collapse-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/>
+                </svg>
+                <span class="sidebar-collapsible-text">Collapse</span>
+            </button>
         </aside>
 
         <!-- Main Content Area -->
-        <main id="main-content" class="flex-1 flex flex-col overflow-hidden">
+        <main id="main-content" class="flex-1 flex flex-col">
             <!-- Top Header -->
-            <header class="bg-portal-bg-secondary/80 backdrop-blur-md border-b border-vendor-primary/20 px-6 py-4">
+            <header class="bg-portal-bg-secondary/80 backdrop-blur-md border-b border-vendor-primary/20 px-6 py-4 sticky top-0 z-10">
                 <div class="flex items-center justify-between">
                     <div>
                         <h1 id="page-title" class="text-2xl font-bold text-text-bright">{% block page_title %}Dashboard{% endblock %}</h1>
@@ -238,26 +277,26 @@
                             </svg>
                             Sync Data
                         </button>
-                        <button class="vendor-btn quantum-primary">
+                        <a href="/vendor/assistant" class="vendor-btn quantum-primary">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z"/>
                             </svg>
                             AI Assistant
-                        </button>
+                        </a>
                         {% endblock %}
                     </div>
                 </div>
             </header>
 
             <!-- Content Area -->
-            <div class="flex-1 overflow-auto p-6">
+            <div class="flex-1 p-6">
                 {% block content %}{% endblock %}
             </div>
         </main>
     </div>
 
     <!-- CTF Footer -->
-    {% include 'components/ctf_footer.html' %}
+    <div class="relative z-10">{% include 'components/ctf_footer.html' %}</div>
 
     <!-- CTF Sidecar Panel -->
     {% include 'components/ctf_sidecar.html' %}
@@ -266,6 +305,7 @@
     <script>
         window.CTF_NAMESPACE = "{{ session_context.namespace if session_context else 'default' }}";
         window.CTF_USER_ID = "{{ session_context.user_id if session_context else 'anonymous' }}";
+        window.CTF_VENDOR_ID = "{{ session_context.current_vendor_id if session_context and session_context.current_vendor_id else '' }}";
     </script>
 
     <!-- JavaScript -->

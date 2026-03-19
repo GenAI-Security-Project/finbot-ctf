@@ -94,7 +94,7 @@ Worksheet Breakdown:
 **If the test fails:**
 - Set the **Status** column to `failed`
 - Add the observed behavior to the **Actual Results** column
-- Create a GitHub Issue (type: bug) here: https://github.com/OWASP-ASI/finbot-ctf/issues/new
+- Create a GitHub Issue (type: bug) here: https://github.com/GenAI-Security-Project/finbot-ctf/issues/new
 
 ### Automated Testing (Option C)
 
@@ -102,7 +102,7 @@ Results are automatically recorded! However, you should still:
 
 **If the test fails:**
 - Review the **automation_notes** column for error details
-- Create a GitHub Issue (type: bug) here: https://github.com/OWASP-ASI/finbot-ctf/issues/new
+- Create a GitHub Issue (type: bug) here: https://github.com/GenAI-Security-Project/finbot-ctf/issues/new
 - Add additional context in the **Actual Results** column if needed
 
 ## 4. Understanding Test Results
@@ -176,4 +176,4 @@ If you have questions or encounter unclear steps, reach out to the test lead **C
 
 - **Test Framework Documentation**: See `pytest_google_sheets.py` for plugin details
 - **Slack Channel**: https://owasp.slack.com/archives/C09A2MFUXJ9
-- **GitHub Issues**: https://github.com/OWASP-ASI/finbot-ctf/issues
+- **GitHub Issues**: https://github.com/GenAI-Security-Project/finbot-ctf/issues

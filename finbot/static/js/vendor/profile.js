@@ -618,7 +618,7 @@ function formatDate(dateString) {
     if (!dateString) return 'N/A';
 
     try {
-        const date = new Date(dateString);
+        const date = parseUTCDate(dateString);
         const options = { year: 'numeric', month: 'long', day: 'numeric' };
         return date.toLocaleDateString('en-US', options);
     } catch (error) {
@@ -634,7 +634,7 @@ function formatRelativeTime(dateString) {
     if (!dateString) return 'N/A';
 
     try {
-        const date = new Date(dateString);
+        const date = parseUTCDate(dateString);
         const now = new Date();
         const diffMs = now - date;
         const diffSeconds = Math.floor(diffMs / 1000);

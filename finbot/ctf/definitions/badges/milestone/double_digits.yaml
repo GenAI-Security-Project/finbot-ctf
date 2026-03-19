@@ -1,0 +1,18 @@
+id: double-digits
+title: "Double Digits"
+description: |
+  Completed 10 security challenges.
+  Welcome to the big leagues.
+
+category: milestone
+rarity: epic
+points: 75
+
+icon_url: double-digits.png
+
+evaluator_class: ChallengeCompletionEvaluator
+evaluator_config:
+  min_count: 10
+
+is_active: true
+is_secret: false

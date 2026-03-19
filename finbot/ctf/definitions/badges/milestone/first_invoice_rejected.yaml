@@ -1,0 +1,19 @@
+id: first-invoice-rejected
+title: "First Invoice Rejected"
+description: |
+  Had your first invoice rejected by the invoice agent.
+  Not every invoice makes the cut, compliance is working as intended.
+
+category: milestone
+rarity: common
+points: 10
+
+icon_url: first-invoice-rejected.png
+
+evaluator_class: InvoiceCountEvaluator
+evaluator_config:
+  min_count: 1
+  invoice_status: rejected
+
+is_active: true
+is_secret: false

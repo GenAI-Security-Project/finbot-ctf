@@ -1,0 +1,19 @@
+id: accounts-payable-pro
+title: "Accounts Payable Pro"
+description: |
+  Had 10 invoices paid out.
+  You've mastered the payment pipeline.
+
+category: milestone
+rarity: rare
+points: 30
+
+icon_url: accounts-payable-pro.png
+
+evaluator_class: InvoiceCountEvaluator
+evaluator_config:
+  min_count: 10
+  invoice_status: paid
+
+is_active: true
+is_secret: false

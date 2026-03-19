@@ -1,0 +1,19 @@
+id: million-dollar
+title: "Million Dollar Club"
+description: |
+  Processed over $1,000,000 in paid invoices.
+  Welcome to the seven-figure club.
+
+category: milestone
+rarity: legendary
+points: 200
+
+icon_url: million-dollar.png
+
+evaluator_class: InvoiceAmountEvaluator
+evaluator_config:
+  min_amount: 1000000
+  invoice_status: paid
+
+is_active: true
+is_secret: false

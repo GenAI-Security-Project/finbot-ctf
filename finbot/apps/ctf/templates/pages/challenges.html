@@ -10,9 +10,9 @@
     </h1>
     <p class="text-text-secondary">Test your AI security skills. Exploit vulnerabilities. Learn defense techniques.</p>
 </div>
-<div class="flex gap-8">
+<div class="flex flex-col md:flex-row gap-8">
     <!-- Filters Sidebar -->
-    <div class="w-72 flex-shrink-0 space-y-6">
+    <div class="w-full md:w-72 flex-shrink-0 space-y-6">
         <!-- Your Progress Widget -->
         <div class="filter-section">
             <h3 class="font-semibold text-text-bright mb-4">Your Progress</h3>
@@ -257,6 +257,16 @@
         position: absolute;
         inset: 0;
         background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.1) 0%, transparent 60%);
+        z-index: 1;
+        pointer-events: none;
+    }
+
+    .challenge-image img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
     }
 
     .challenge-image.injection { background: linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(249, 115, 22, 0.3)); }
@@ -287,6 +297,15 @@
         background: rgba(124, 58, 237, 0.2);
         border: 1px solid rgba(124, 58, 237, 0.3);
         color: #a78bfa;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+    }
+
+    .mitre-tag {
+        background: rgba(6, 255, 165, 0.2);
+        border: 1px solid rgba(6, 255, 165, 0.3);
+        color: #06ffa5;
         padding: 2px 8px;
         border-radius: 4px;
         font-size: 11px;
@@ -354,6 +373,7 @@ const CATEGORY_ICONS = {
     'privilege-escalation': { icon: '🔓', class: 'escalation' },
     'denial_of_service': { icon: '💥', class: 'dos' },
     'denial-of-service': { icon: '💥', class: 'dos' },
+    'destructive': { icon: '🗑️', class: 'destructive' },
 };
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -514,16 +534,23 @@ function renderChallenges(challenges) {
         const isInProgress = ch.status === 'in_progress';
 
         // Build labels HTML
+        const TAG_CONFIG = {
+            owasp_llm:     { css: 'owasp-tag', prefix: 'OWASP ' },
+            owasp_agentic: { css: 'owasp-tag', prefix: 'OWASP ' },
+            cwe:           { css: 'cwe-tag',   prefix: '' },
+            mitre_atlas:   { css: 'mitre-tag', prefix: 'MITRE ' },
+        };
         let labelsHtml = '';
         if (ch.labels) {
             const labels = typeof ch.labels === 'string' ? JSON.parse(ch.labels) : ch.labels;
-            if (labels.owasp) {
-                const owaspList = Array.isArray(labels.owasp) ? labels.owasp : [labels.owasp];
-                labelsHtml += owaspList.map(l => `<span class="owasp-tag">${l}</span>`).join('');
-            }
-            if (labels.cwe) {
-                const cweList = Array.isArray(labels.cwe) ? labels.cwe : [labels.cwe];
-                labelsHtml += cweList.map(l => `<span class="cwe-tag">${l}</span>`).join('');
+            for (const [group, items] of Object.entries(labels)) {
+                const list = Array.isArray(items) ? items : [items];
+                if (list.length === 0) continue;
+                const config = TAG_CONFIG[group] || { css: 'owasp-tag', prefix: '' };
+                labelsHtml += list.map(l => {
+                    const label = typeof l === 'object' ? Object.entries(l).map(([k, v]) => `${k}: ${v}`).join(', ') : l;
+                    return `<span class="${config.css}">${config.prefix}${label}</span>`;
+                }).join('');
             }
         }
 
@@ -532,7 +559,9 @@ function renderChallenges(challenges) {
                 ${isCompleted ? '<div class="completed-badge">✓</div>' : ''}
                 ${isInProgress ? '<div class="in-progress-badge"><svg class="w-4 h-4 text-portal-bg-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>' : ''}
                 <div class="challenge-image ${categoryConfig.class}">
-                    ${categoryConfig.icon}
+                    ${ch.image_url
+                        ? `<img src="/static/images/ctf/challenges/${ch.image_url}" alt="" onerror="var p=this.parentElement; this.remove(); p.querySelector('.fallback-icon').classList.remove('hidden')"><span class="fallback-icon hidden">${categoryConfig.icon}</span>`
+                        : categoryConfig.icon}
                 </div>
                 <div class="p-5">
                     <div class="flex items-center gap-2 mb-3">
@@ -540,7 +569,7 @@ function renderChallenges(challenges) {
                         <span class="points-badge text-xs text-ctf-primary font-mono">${ch.points} pts</span>
                     </div>
                     <h3 class="font-semibold text-text-bright mb-2">${escapeHtml(ch.title)}</h3>
-                    <p class="text-sm text-text-secondary mb-4 line-clamp-2">${escapeHtml(ch.subcategory || formatCategoryName(ch.category))}</p>
+                    <p class="text-sm text-text-secondary mb-4 line-clamp-2">${escapeHtml(formatCategoryName(ch.subcategory || ch.category))}</p>
                     ${labelsHtml ? `<div class="flex flex-wrap gap-2">${labelsHtml}</div>` : ''}
                 </div>
             </a>

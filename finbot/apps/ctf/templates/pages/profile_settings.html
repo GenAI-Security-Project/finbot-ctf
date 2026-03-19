@@ -1,0 +1,823 @@
+{% extends "base.html" %}
+
+{% block title %}Profile Settings - FinBot CTF{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="mb-8">
+    <h1 class="text-3xl font-bold text-text-bright mb-2">
+        <span class="glow-cyan text-ctf-primary">Profile</span> Settings
+    </h1>
+    <p class="text-text-secondary">Customize your public hacker profile for sharing</p>
+</div>
+
+<!-- Loading State -->
+<div id="loading-state" class="space-y-6">
+    <div class="glass-card p-6">
+        <div class="ctf-skeleton h-6 w-48 mb-4"></div>
+        <div class="ctf-skeleton h-10 w-full mb-4"></div>
+        <div class="ctf-skeleton h-4 w-64"></div>
+    </div>
+</div>
+
+<!-- Main Content -->
+<div id="profile-content" class="hidden space-y-6">
+    <!-- Profile Preview Card -->
+    <div class="glass-card p-6">
+        <div class="flex items-center justify-between mb-6">
+            <h2 class="text-lg font-semibold text-text-bright">Preview</h2>
+            <a id="view-public-profile" href="#" target="_blank" class="hidden text-sm text-ctf-primary hover:underline">
+                View public profile →
+            </a>
+        </div>
+        <div class="flex items-center gap-6 p-4 bg-portal-bg-primary rounded-xl border border-ctf-primary/20">
+            <div id="preview-avatar" class="w-20 h-20 rounded-full bg-gradient-to-r from-ctf-primary to-ctf-secondary flex items-center justify-center text-4xl">
+                🦊
+            </div>
+            <div>
+                <div class="flex items-center gap-3 mb-1">
+                    <span id="preview-username" class="text-xl font-bold text-text-bright">@username</span>
+                    <span id="preview-no-username" class="text-sm text-ctf-warning hidden">No username set</span>
+                </div>
+                <p id="preview-bio" class="text-text-secondary text-sm">Your bio will appear here</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Username Section -->
+    <div class="glass-card p-6">
+        <h2 class="text-lg font-semibold text-text-bright mb-4">Username</h2>
+        <p class="text-text-secondary text-sm mb-4">
+            Choose a unique username for your public profile URL: <code class="text-ctf-primary">/h/your-username</code>
+        </p>
+        <div class="flex gap-4">
+            <div class="flex-1 relative">
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">@</span>
+                <input 
+                    type="text" 
+                    id="username-input" 
+                    placeholder="cyberwarrior42"
+                    maxlength="20"
+                    class="w-full bg-portal-bg-primary border border-ctf-primary/30 rounded-lg pl-8 pr-4 py-3 text-text-bright placeholder-text-secondary focus:outline-none focus:border-ctf-primary transition-colors"
+                >
+            </div>
+            <button id="check-username-btn" class="px-6 py-3 bg-portal-bg-tertiary border border-ctf-primary/30 rounded-lg text-text-primary hover:border-ctf-primary/50 transition-colors">
+                Check
+            </button>
+        </div>
+        <div id="username-status" class="mt-3 text-sm hidden">
+            <span id="username-available" class="text-ctf-accent hidden">✓ Username is available</span>
+            <span id="username-taken" class="text-ctf-danger hidden">✗ Username is taken</span>
+            <span id="username-invalid" class="text-ctf-warning hidden">⚠ Invalid username</span>
+        </div>
+        <p class="text-text-secondary text-xs mt-3">
+            3-20 characters. Letters, numbers, and underscores only. Must start with a letter.
+        </p>
+    </div>
+
+    <!-- Bio Section -->
+    <div class="glass-card p-6">
+        <h2 class="text-lg font-semibold text-text-bright mb-4">Bio</h2>
+        <textarea 
+            id="bio-input" 
+            placeholder="AI security enthusiast exploring the boundaries of LLM safety..."
+            maxlength="300"
+            rows="3"
+            class="w-full bg-portal-bg-primary border border-ctf-primary/30 rounded-lg px-4 py-3 text-text-bright placeholder-text-secondary focus:outline-none focus:border-ctf-primary transition-colors resize-none"
+        ></textarea>
+        <div class="flex justify-between mt-2">
+            <span class="text-text-secondary text-xs">Short description for your profile</span>
+            <span id="bio-count" class="text-text-secondary text-xs">0/300</span>
+        </div>
+    </div>
+
+    <!-- Avatar Section -->
+    <div class="glass-card p-6">
+        <h2 class="text-lg font-semibold text-text-bright mb-4">Avatar</h2>
+
+        <!-- Avatar type tabs -->
+        <div class="flex gap-2 mb-5">
+            <button type="button" class="avatar-tab selected" data-tab="emoji">Emoji</button>
+            <button type="button" class="avatar-tab" data-tab="gravatar">Gravatar</button>
+            <button type="button" class="avatar-tab" data-tab="url">Image URL</button>
+        </div>
+
+        <!-- Emoji panel -->
+        <div id="avatar-panel-emoji" class="avatar-panel">
+            <p class="text-text-secondary text-sm mb-4">Choose an emoji avatar for your profile</p>
+            <div id="emoji-grid" class="grid grid-cols-10 gap-2">
+                <!-- Emoji buttons will be added by JS -->
+            </div>
+        </div>
+
+        <!-- Gravatar panel -->
+        <div id="avatar-panel-gravatar" class="avatar-panel hidden">
+            <div class="flex items-center gap-6 p-4 bg-portal-bg-primary rounded-xl border border-ctf-primary/10">
+                <div id="gravatar-preview" class="w-20 h-20 rounded-full bg-portal-bg-tertiary flex items-center justify-center overflow-hidden flex-shrink-0">
+                    <span class="text-text-secondary/50 text-2xl">👤</span>
+                </div>
+                <div>
+                    <p class="text-text-secondary text-sm mb-2">Uses your account email to fetch your avatar from <a href="https://gravatar.com" target="_blank" class="text-ctf-primary hover:underline">gravatar.com</a></p>
+                    <p class="text-text-secondary/60 text-xs">If you don't have a Gravatar account, a unique geometric pattern will be generated for you.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- URL panel -->
+        <div id="avatar-panel-url" class="avatar-panel hidden">
+            <p class="text-text-secondary text-sm mb-3">Paste any HTTPS image URL — works with DiceBear, RoboHash, GitHub avatars, or any hosted image.</p>
+            <div class="flex gap-3 mb-4">
+                <input
+                    type="url"
+                    id="avatar-url-input"
+                    placeholder="https://api.dicebear.com/9.x/bottts/svg?seed=yourname"
+                    class="flex-1 bg-portal-bg-primary border border-ctf-primary/30 rounded-lg px-4 py-3 text-text-bright placeholder-text-secondary/40 text-sm font-mono focus:outline-none focus:border-ctf-primary transition-colors"
+                >
+            </div>
+            <div id="url-preview-container" class="hidden flex items-center gap-4 p-4 bg-portal-bg-primary rounded-xl border border-ctf-primary/10">
+                <img id="url-preview-img" src="" alt="Preview" class="w-20 h-20 rounded-full object-cover bg-portal-bg-tertiary flex-shrink-0">
+                <span class="text-ctf-accent text-sm font-medium">Preview looks good!</span>
+            </div>
+            <div id="url-error" class="hidden text-ctf-danger text-sm mt-2">URL must start with https://</div>
+        </div>
+    </div>
+
+     <!-- Social Links Section -->
+    <div class="glass-card p-6">
+        <h2 class="text-lg font-semibold text-text-bright mb-4">Social Links</h2>
+        <p class="text-text-secondary text-sm mb-5">Link your security profiles and socials. These appear on your public profile.</p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="flex flex-col gap-1.5">
+                <label for="social-github" class="flex items-center gap-2 text-sm font-semibold text-text-secondary">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+                    GitHub
+                </label>
+                <input type="url" id="social-github" placeholder="https://github.com/username" maxlength="200"
+                    class="w-full bg-portal-bg-primary border border-ctf-primary/30 rounded-lg px-4 py-3 text-text-bright text-sm font-mono placeholder-text-secondary/40 focus:outline-none focus:border-ctf-primary transition-colors" />
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+                <label for="social-hackerone" class="flex items-center gap-2 text-sm font-semibold text-text-secondary">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M7.207 0c-.4836 0-.8774.1018-1.1823.3053-.3044.2041-.4582.4778-.4582.8247v21.7348c0 .3463.1538.6206.4582.8247.3049.2035.6987.3053 1.1823.3053.4842 0 .878-.1018 1.1824-.3053.3043-.2041.4581-.4784.4581-.8247V1.13c0-.347-.1538-.6206-.4581-.8247C8.085.1018 7.6912 0 7.207 0zm9.5862 9.2498c-.4837 0-.8775.1023-1.1824.3058-.3043.2036-.4581.4773-.4581.8242v5.4854c0 .347.1538.6207.4581.8248.3049.2035.6987.3052 1.1824.3052.4836 0 .8774-.1017 1.1823-.3052.3044-.2041.4582-.4778.4582-.8248v-5.4854c0-.3469-.1538-.6206-.4582-.8242-.3049-.2035-.6987-.3058-1.1823-.3058z"/></svg>
+                    HackerOne
+                </label>
+                <input type="url" id="social-hackerone" placeholder="https://hackerone.com/username" maxlength="200"
+                    class="w-full bg-portal-bg-primary border border-ctf-primary/30 rounded-lg px-4 py-3 text-text-bright text-sm font-mono placeholder-text-secondary/40 focus:outline-none focus:border-ctf-primary transition-colors" />
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+                <label for="social-bugcrowd" class="flex items-center gap-2 text-sm font-semibold text-text-secondary">
+                    <svg class="w-4 H-4" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12L18 1.387H6L0 12l6 10.613h12zm-5.782 1.658c-.003.825-.122 1.569-.354 2.231a5.05 5.05 0 0 1-.99 1.708 4.316 4.316 0 0 1-1.503 1.093 4.69 4.69 0 0 1-1.896.385 4.158 4.158 0 0 1-1.145-.152 3.754 3.754 0 0 1-.868-.36 3.792 3.792 0 0 1-.601-.435 3.023 3.023 0 0 1-.466-.514h-.04l.02.193c.011.166.018.331.02.497v.528H7.961V7.062c0-.151-.04-.263-.114-.337-.077-.074-.19-.109-.33-.109h-.811V4.425h2.452c.473-.003.824.108 1.048.331.222.223.333.576.33 1.049v3.003c-.003.258-.01.467-.02.626l-.02.247h.04a2.898 2.898 0 0 1 .463-.507c.156-.143.354-.284.6-.426.245-.142.538-.261.876-.36.38-.1.77-.15 1.162-.148.702.003 1.334.135 1.894.395a4.118 4.118 0 0 1 1.446 1.11c.4.48.707 1.052.92 1.715.212.658.317 1.392.32 2.198m-2.803 1.406c.138-.399.206-.852.209-1.366-.003-.659-.112-1.231-.328-1.718-.216-.484-.517-.859-.902-1.125a2.347 2.347 0 0 0-1.344-.404 2.57 2.57 0 0 0-.969.186 2.372 2.372 0 0 0-.83.589 2.839 2.839 0 0 0-.579 1.015c-.141.413-.212.906-.216 1.477 0 .397.053.792.159 1.174.101.366.265.712.483 1.02.211.3.486.548.805.722.32.176.698.267 1.127.27.343.002.683-.07.997-.213a2.43 2.43 0 0 0 .824-.623c.24-.273.428-.607.564-1.004Z"/></svg>
+                    Bugcrowd
+                </label>
+                <input type="url" id="social-bugcrowd" placeholder="https://bugcrowd.com/username" maxlength="200"
+                    class="w-full bg-portal-bg-primary border border-ctf-primary/30 rounded-lg px-4 py-3 text-text-bright text-sm font-mono placeholder-text-secondary/40 focus:outline-none focus:border-ctf-primary transition-colors" />
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+                <label for="social-twitter" class="flex items-center gap-2 text-sm font-semibold text-text-secondary">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                    X (Twitter)
+                </label>
+                <input type="url" id="social-twitter" placeholder="https://x.com/username" maxlength="200"
+                    class="w-full bg-portal-bg-primary border border-ctf-primary/30 rounded-lg px-4 py-3 text-text-bright text-sm font-mono placeholder-text-secondary/40 focus:outline-none focus:border-ctf-primary transition-colors" />
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+                <label for="social-linkedin" class="flex items-center gap-2 text-sm font-semibold text-text-secondary">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                    LinkedIn
+                </label>
+                <input type="url" id="social-linkedin" placeholder="https://linkedin.com/in/username" maxlength="200"
+                    class="w-full bg-portal-bg-primary border border-ctf-primary/30 rounded-lg px-4 py-3 text-text-bright text-sm font-mono placeholder-text-secondary/40 focus:outline-none focus:border-ctf-primary transition-colors" />
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+                <label for="social-website" class="flex items-center gap-2 text-sm font-semibold text-text-secondary">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+                    Website
+                </label>
+                <input type="url" id="social-website" placeholder="https://yoursite.dev" maxlength="200"
+                    class="w-full bg-portal-bg-primary border border-ctf-primary/30 rounded-lg px-4 py-3 text-text-bright text-sm font-mono placeholder-text-secondary/40 focus:outline-none focus:border-ctf-primary transition-colors" />
+            </div>
+        </div>
+    </div>
+
+    <!-- Privacy Section -->
+    <div class="glass-card p-6">
+        <h2 class="text-lg font-semibold text-text-bright mb-4">Privacy</h2>
+        <div class="space-y-4">
+            <label class="flex items-center justify-between cursor-pointer">
+                <div>
+                    <span class="text-text-bright font-medium">Public Profile</span>
+                    <p class="text-text-secondary text-sm">Allow others to view your profile at /h/username</p>
+                </div>
+                <div class="relative">
+                    <input type="checkbox" id="is-public" class="sr-only peer">
+                    <div class="w-11 h-6 bg-portal-bg-tertiary rounded-full peer peer-checked:bg-ctf-primary transition-colors"></div>
+                    <div class="absolute left-0.5 top-0.5 bg-white w-5 h-5 rounded-full transition-transform peer-checked:translate-x-5"></div>
+                </div>
+            </label>
+            <label class="flex items-center justify-between cursor-pointer">
+                <div>
+                    <span class="text-text-bright font-medium">Show Activity</span>
+                    <p class="text-text-secondary text-sm">Display recent achievements on your public profile</p>
+                </div>
+                <div class="relative">
+                    <input type="checkbox" id="show-activity" class="sr-only peer">
+                    <div class="w-11 h-6 bg-portal-bg-tertiary rounded-full peer peer-checked:bg-ctf-primary transition-colors"></div>
+                    <div class="absolute left-0.5 top-0.5 bg-white w-5 h-5 rounded-full transition-transform peer-checked:translate-x-5"></div>
+                </div>
+            </label>
+        </div>
+    </div>
+
+    <!-- Featured Badges Section -->
+    <div class="glass-card p-6">
+        <h2 class="text-lg font-semibold text-text-bright mb-4">Featured Badges</h2>
+        <p class="text-text-secondary text-sm mb-4">Select up to 6 badges to showcase on your profile</p>
+        
+        <div id="earned-badges-list" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <!-- Badges will be loaded by JS -->
+        </div>
+        
+        <div id="no-badges-message" class="hidden text-center py-8">
+            <div class="text-4xl mb-2">🏅</div>
+            <p class="text-text-secondary">No badges earned yet. Complete challenges to earn badges!</p>
+            <a href="/ctf/challenges" class="inline-block mt-4 text-ctf-primary hover:underline">Browse Challenges →</a>
+        </div>
+    </div>
+
+    <!-- Save Button -->
+    <div class="flex justify-end gap-4">
+        <button id="save-btn" class="px-8 py-3 bg-gradient-to-r from-ctf-primary to-ctf-secondary text-white font-semibold rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            Save Changes
+        </button>
+    </div>
+
+    <!-- Save Status -->
+    <div id="save-status" class="hidden fixed bottom-6 right-6 px-6 py-3 rounded-lg shadow-lg">
+        <span id="save-success" class="hidden text-ctf-accent">✓ Changes saved</span>
+        <span id="save-error" class="hidden text-ctf-danger">✗ Failed to save</span>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .glow-cyan {
+        text-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+    }
+
+    .glass-card {
+        background: linear-gradient(135deg, var(--portal-bg-secondary, #151520), var(--portal-bg-tertiary, #1a1a2e));
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 16px;
+    }
+
+    .avatar-tab {
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-secondary, #94a3b8);
+        background: rgba(0, 0, 0, 0.2);
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .avatar-tab:hover {
+        color: var(--text-primary, #e2e8f0);
+        background: rgba(0, 212, 255, 0.05);
+    }
+
+    .avatar-tab.selected {
+        color: var(--ctf-primary, #00d4ff);
+        background: rgba(0, 212, 255, 0.1);
+        border-color: rgba(0, 212, 255, 0.3);
+    }
+
+    .emoji-btn {
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        border-radius: 8px;
+        border: 2px solid transparent;
+        background: rgba(0, 0, 0, 0.2);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .emoji-btn:hover {
+        background: rgba(0, 212, 255, 0.1);
+        border-color: rgba(0, 212, 255, 0.3);
+    }
+
+    .emoji-btn.selected {
+        background: rgba(0, 212, 255, 0.2);
+        border-color: var(--ctf-primary);
+        box-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+    }
+
+    .badge-select-card {
+        position: relative;
+        padding: 12px;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 12px;
+        border: 2px solid transparent;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .badge-select-card:hover {
+        background: rgba(0, 212, 255, 0.05);
+        border-color: rgba(0, 212, 255, 0.2);
+    }
+
+    .badge-select-card.selected {
+        background: rgba(0, 212, 255, 0.1);
+        border-color: var(--ctf-primary);
+    }
+
+    .badge-select-card .check-mark {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--ctf-primary);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 12px;
+    }
+
+    .badge-select-card.selected .check-mark {
+        display: flex;
+    }
+
+    .badge-icon-small {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        margin: 0 auto 8px;
+    }
+
+    .rarity-common .badge-icon-small { background: linear-gradient(135deg, #374151, #1f2937); }
+    .rarity-rare .badge-icon-small { background: linear-gradient(135deg, #1e3a5f, #1e40af); box-shadow: 0 0 15px rgba(59, 130, 246, 0.3); }
+    .rarity-epic .badge-icon-small { background: linear-gradient(135deg, #4c1d95, #7c3aed); box-shadow: 0 0 15px rgba(168, 85, 247, 0.3); }
+    .rarity-legendary .badge-icon-small { background: linear-gradient(135deg, #78350f, #d97706); box-shadow: 0 0 20px rgba(245, 158, 11, 0.4); }
+
+    #save-status {
+        background: var(--portal-bg-secondary);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    // State
+    let profile = null;
+    let badges = [];
+    let selectedBadges = new Set();
+    let selectedEmoji = '🦊';
+    let selectedAvatarType = 'emoji';
+    let selectedAvatarUrl = '';
+    let usernameValid = false;
+    
+    // Emoji options
+    const emojis = [
+        '🦊', '🐺', '🦁', '🐯', '🐻', '🐼', '🐨', '🐸', '🐵', '🦄',
+        '🐲', '🦅', '🦇', '🦉', '🐙', '🦑', '🦀', '🐬', '🦈', '🐊',
+        '🤖', '👾', '👻', '💀', '🎭', '🎪', '🎯', '🎮', '🕹️', '💎',
+        '🔮', '🌙', '⭐', '🌟', '💫', '✨', '🔥', '⚡', '💥', '🌈'
+    ];
+    
+    // DOM elements
+    const loadingState = document.getElementById('loading-state');
+    const profileContent = document.getElementById('profile-content');
+    const usernameInput = document.getElementById('username-input');
+    const checkUsernameBtn = document.getElementById('check-username-btn');
+    const bioInput = document.getElementById('bio-input');
+    const bioCount = document.getElementById('bio-count');
+    const emojiGrid = document.getElementById('emoji-grid');
+    const isPublicCheckbox = document.getElementById('is-public');
+    const showActivityCheckbox = document.getElementById('show-activity');
+    const earnedBadgesList = document.getElementById('earned-badges-list');
+    const noBadgesMessage = document.getElementById('no-badges-message');
+    const saveBtn = document.getElementById('save-btn');
+    const viewPublicProfile = document.getElementById('view-public-profile');
+    
+    // Preview elements
+    const previewAvatar = document.getElementById('preview-avatar');
+    const previewUsername = document.getElementById('preview-username');
+    const previewNoUsername = document.getElementById('preview-no-username');
+    const previewBio = document.getElementById('preview-bio');
+    
+    // Status elements
+    const usernameStatus = document.getElementById('username-status');
+    const usernameAvailable = document.getElementById('username-available');
+    const usernameTaken = document.getElementById('username-taken');
+    const usernameInvalid = document.getElementById('username-invalid');
+    
+    // Initialize
+    await loadProfile();
+    await loadBadges();
+    renderEmojiGrid();
+    setupAvatarTabs();
+    showContent();
+    
+    // Load profile data
+    async function loadProfile() {
+        try {
+            profile = await CTF.fetch('/profile');
+            populateForm();
+        } catch (error) {
+            console.error('Failed to load profile:', error);
+        }
+    }
+    
+    // Load badges
+    async function loadBadges() {
+        try {
+            badges = await CTF.fetch('/badges?earned_only=true');
+            renderBadges();
+        } catch (error) {
+            console.error('Failed to load badges:', error);
+        }
+    }
+    
+    // Populate form with existing data
+    function populateForm() {
+        if (!profile) return;
+        
+        usernameInput.value = profile.username || '';
+        bioInput.value = profile.bio || '';
+        bioCount.textContent = `${(profile.bio || '').length}/300`;
+        selectedEmoji = profile.avatar_emoji || '🦊';
+        selectedAvatarType = profile.avatar_type || 'emoji';
+        selectedAvatarUrl = profile.avatar_url || '';
+        isPublicCheckbox.checked = profile.is_public;
+        showActivityCheckbox.checked = profile.show_activity;
+        selectedBadges = new Set(profile.featured_badge_ids || []);
+        
+        switchAvatarTab(selectedAvatarType);
+        if (selectedAvatarType === 'url' && selectedAvatarUrl) {
+            document.getElementById('avatar-url-input').value = selectedAvatarUrl;
+            showUrlPreview(selectedAvatarUrl);
+        }
+        showGravatarPreview(profile.gravatar_preview_url || null);
+
+        const socialLinks = profile.social_links || {};
+        document.getElementById('social-github').value = socialLinks.github || '';
+        document.getElementById('social-hackerone').value = socialLinks.hackerone || '';
+        document.getElementById('social-bugcrowd').value = socialLinks.bugcrowd || '';
+        document.getElementById('social-twitter').value = socialLinks.twitter || '';
+        document.getElementById('social-linkedin').value = socialLinks.linkedin || '';
+        document.getElementById('social-website').value = socialLinks.website || '';
+        
+        updatePreview();
+        updatePublicProfileLink();
+    }
+    
+    // Render emoji grid
+    function renderEmojiGrid() {
+        emojiGrid.innerHTML = emojis.map(emoji => `
+            <button type="button" class="emoji-btn ${emoji === selectedEmoji ? 'selected' : ''}" data-emoji="${emoji}">
+                ${emoji}
+            </button>
+        `).join('');
+        
+        emojiGrid.addEventListener('click', (e) => {
+            const btn = e.target.closest('.emoji-btn');
+            if (!btn) return;
+            
+            document.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            selectedEmoji = btn.dataset.emoji;
+            updatePreview();
+        });
+    }
+    
+    // Render badges
+    function renderBadges() {
+        if (badges.length === 0) {
+            earnedBadgesList.classList.add('hidden');
+            noBadgesMessage.classList.remove('hidden');
+            return;
+        }
+        
+        earnedBadgesList.innerHTML = badges.map(badge => `
+            <div class="badge-select-card rarity-${badge.rarity} ${selectedBadges.has(badge.id) ? 'selected' : ''}" data-badge-id="${badge.id}">
+                <div class="check-mark">✓</div>
+                <div class="badge-icon-small">${getIconEmoji(badge.icon_url)}</div>
+                <div class="text-center">
+                    <div class="text-sm font-medium text-text-bright truncate">${escapeHtml(badge.title)}</div>
+                    <div class="text-xs text-text-secondary capitalize">${badge.rarity}</div>
+                </div>
+            </div>
+        `).join('');
+        
+        earnedBadgesList.addEventListener('click', (e) => {
+            const card = e.target.closest('.badge-select-card');
+            if (!card) return;
+            
+            const badgeId = card.dataset.badgeId;
+            
+            if (selectedBadges.has(badgeId)) {
+                selectedBadges.delete(badgeId);
+                card.classList.remove('selected');
+            } else if (selectedBadges.size < 6) {
+                selectedBadges.add(badgeId);
+                card.classList.add('selected');
+            }
+        });
+    }
+    
+    // Update preview
+    function updatePreview() {
+        if (selectedAvatarType === 'emoji' || !getEffectiveAvatarUrl()) {
+            previewAvatar.innerHTML = '';
+            previewAvatar.textContent = selectedEmoji;
+        } else {
+            const url = getEffectiveAvatarUrl();
+            previewAvatar.innerHTML = `<img src="${escapeHtml(url)}" alt="" class="w-20 h-20 rounded-full object-cover" onerror="this.parentElement.textContent='${selectedEmoji}'">`;
+        }
+        
+        const username = usernameInput.value.trim();
+        if (username) {
+            previewUsername.textContent = `@${username}`;
+            previewUsername.classList.remove('hidden');
+            previewNoUsername.classList.add('hidden');
+        } else {
+            previewUsername.classList.add('hidden');
+            previewNoUsername.classList.remove('hidden');
+        }
+        
+        previewBio.textContent = bioInput.value || 'Your bio will appear here';
+    }
+    
+    function getEffectiveAvatarUrl() {
+        if (selectedAvatarType === 'gravatar' && profile && profile.gravatar_preview_url) {
+            return profile.gravatar_preview_url;
+        }
+        if (selectedAvatarType === 'url' && selectedAvatarUrl) {
+            return selectedAvatarUrl;
+        }
+        return null;
+    }
+    
+    // Avatar tab management
+    function setupAvatarTabs() {
+        document.querySelectorAll('.avatar-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                switchAvatarTab(tab.dataset.tab);
+            });
+        });
+        
+        const urlInput = document.getElementById('avatar-url-input');
+        let urlDebounce;
+        urlInput.addEventListener('input', () => {
+            clearTimeout(urlDebounce);
+            urlDebounce = setTimeout(() => {
+                const url = urlInput.value.trim();
+                const errorEl = document.getElementById('url-error');
+                if (!url) {
+                    document.getElementById('url-preview-container').classList.add('hidden');
+                    errorEl.classList.add('hidden');
+                    selectedAvatarUrl = '';
+                    updatePreview();
+                    return;
+                }
+                if (!url.startsWith('https://')) {
+                    errorEl.classList.remove('hidden');
+                    document.getElementById('url-preview-container').classList.add('hidden');
+                    selectedAvatarUrl = '';
+                    updatePreview();
+                    return;
+                }
+                errorEl.classList.add('hidden');
+                selectedAvatarUrl = url;
+                showUrlPreview(url);
+                updatePreview();
+            }, 400);
+        });
+    }
+    
+    function switchAvatarTab(tab) {
+        selectedAvatarType = tab;
+        document.querySelectorAll('.avatar-tab').forEach(t => {
+            t.classList.toggle('selected', t.dataset.tab === tab);
+        });
+        document.querySelectorAll('.avatar-panel').forEach(p => p.classList.add('hidden'));
+        document.getElementById(`avatar-panel-${tab}`).classList.remove('hidden');
+        
+        if (tab === 'gravatar') {
+            showGravatarPreview(profile ? profile.gravatar_preview_url : null);
+        }
+        updatePreview();
+    }
+    
+    function showGravatarPreview(url) {
+        const container = document.getElementById('gravatar-preview');
+        if (!url) {
+            container.innerHTML = '<span class="text-text-secondary text-xs text-center px-2">No email on account</span>';
+            return;
+        }
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = 'Gravatar';
+        img.className = 'w-20 h-20 rounded-full object-cover';
+        img.onerror = () => {
+            container.innerHTML = '<span class="text-text-secondary text-xs text-center px-2">Could not load</span>';
+        };
+        container.innerHTML = '';
+        container.appendChild(img);
+    }
+    
+    function showUrlPreview(url) {
+        const container = document.getElementById('url-preview-container');
+        const img = document.getElementById('url-preview-img');
+        img.src = url;
+        img.onerror = () => container.classList.add('hidden');
+        img.onload = () => container.classList.remove('hidden');
+    }
+    
+    // Update public profile link
+    function updatePublicProfileLink() {
+        if (profile && profile.username) {
+            viewPublicProfile.href = `/ctf/h/${profile.username}`;
+            viewPublicProfile.classList.remove('hidden');
+        }
+    }
+    
+    // Show content
+    function showContent() {
+        loadingState.classList.add('hidden');
+        profileContent.classList.remove('hidden');
+    }
+    
+    // Check username availability
+    async function checkUsername() {
+        const username = usernameInput.value.trim();
+        
+        usernameStatus.classList.add('hidden');
+        usernameAvailable.classList.add('hidden');
+        usernameTaken.classList.add('hidden');
+        usernameInvalid.classList.add('hidden');
+        
+        if (!username || username.length < 3) {
+            return;
+        }
+        
+        try {
+            const data = await CTF.fetch(`/profile/check-username/${encodeURIComponent(username)}`);
+            
+            usernameStatus.classList.remove('hidden');
+            
+            if (data.available) {
+                usernameAvailable.classList.remove('hidden');
+                usernameValid = true;
+            } else if (data.error && data.error.includes('taken')) {
+                usernameTaken.classList.remove('hidden');
+                usernameValid = false;
+            } else {
+                usernameInvalid.textContent = `⚠ ${data.error}`;
+                usernameInvalid.classList.remove('hidden');
+                usernameValid = false;
+            }
+        } catch (error) {
+            console.error('Failed to check username:', error);
+        }
+    }
+    
+    // Save profile
+    async function saveProfile() {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Saving...';
+        
+        try {
+            // Update main profile
+            const socialLinks = {};
+            const platforms = ['github', 'hackerone', 'bugcrowd', 'twitter', 'linkedin', 'website'];
+            platforms.forEach(p => {
+                const v = document.getElementById(`social-${p}`).value.trim();
+                socialLinks[p] = v || null;
+            });
+
+            const profileData = {
+                bio: bioInput.value || null,
+                avatar_emoji: selectedEmoji,
+                avatar_type: selectedAvatarType,
+                avatar_url: selectedAvatarType === 'url' ? selectedAvatarUrl || null : null,
+                is_public: isPublicCheckbox.checked,
+                show_activity: showActivityCheckbox.checked,
+                social_links: socialLinks,
+            };
+            
+            // Include username if changed
+            const newUsername = usernameInput.value.trim();
+            if (newUsername && newUsername !== profile?.username) {
+                profileData.username = newUsername;
+            }
+            
+            profile = await CTF.fetch('/profile', {
+                method: 'PUT',
+                body: JSON.stringify(profileData),
+            });
+            
+            // Update featured badges
+            try {
+                profile = await CTF.fetch('/profile/featured-badges', {
+                    method: 'PUT',
+                    body: JSON.stringify({ badge_ids: Array.from(selectedBadges) }),
+                });
+            } catch (badgeError) {
+                console.warn('Failed to update featured badges:', badgeError);
+            }
+            
+            updatePublicProfileLink();
+            showSaveStatus('success');
+        } catch (error) {
+            console.error('Failed to save:', error);
+            showSaveStatus('error', error.message);
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Save Changes';
+        }
+    }
+    
+    // Show save status
+    function showSaveStatus(status, message) {
+        const statusEl = document.getElementById('save-status');
+        const successEl = document.getElementById('save-success');
+        const errorEl = document.getElementById('save-error');
+        
+        successEl.classList.add('hidden');
+        errorEl.classList.add('hidden');
+        
+        if (status === 'success') {
+            successEl.classList.remove('hidden');
+        } else {
+            errorEl.textContent = `✗ ${message || 'Failed to save'}`;
+            errorEl.classList.remove('hidden');
+        }
+        
+        statusEl.classList.remove('hidden');
+        
+        setTimeout(() => {
+            statusEl.classList.add('hidden');
+        }, 3000);
+    }
+    
+    // Helper functions
+    function getIconEmoji(iconUrl) {
+        if (!iconUrl) return '🏅';
+        return `<img src="/static/images/ctf/badges/${iconUrl}" alt="" class="w-full h-full object-contain"
+                     onerror="this.parentElement.style.background=''; this.replaceWith(document.createTextNode('🏅'))">`;
+    }
+    
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+    
+    // Event listeners
+    checkUsernameBtn.addEventListener('click', checkUsername);
+    usernameInput.addEventListener('input', () => {
+        updatePreview();
+        usernameStatus.classList.add('hidden');
+    });
+    usernameInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            checkUsername();
+        }
+    });
+    
+    bioInput.addEventListener('input', () => {
+        bioCount.textContent = `${bioInput.value.length}/300`;
+        updatePreview();
+    });
+    
+    saveBtn.addEventListener('click', saveProfile);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,18 @@
+id: renaissance-hacker
+title: "Renaissance Hacker"
+description: |
+  Completed challenges across 3 different categories.
+  Recon, bypass, exfil -- you do it all.
+
+category: achievement
+rarity: epic
+points: 100
+
+icon_url: renaissance-hacker.png
+
+evaluator_class: MultiCategoryCompletionEvaluator
+evaluator_config:
+  min_categories: 3
+
+is_active: true
+is_secret: false

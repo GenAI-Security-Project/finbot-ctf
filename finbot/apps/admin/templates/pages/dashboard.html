@@ -1,0 +1,587 @@
+{% extends 'base.html' %}
+
+{% block title %}Finance Co-Pilot - FinBot Admin{% endblock %}
+
+{% block meta_description %}Finance Co-Pilot for CineFlow Productions. AI-powered vendor management, compliance reviews, and financial reporting.{% endblock %}
+
+{% block nav_dashboard %}active{% endblock %}
+
+{% block page_title %}Finance Co-Pilot{% endblock %}
+{% block page_subtitle %}AI-powered workflows for vendor management and operations{% endblock %}
+
+{% block header_copilot_link %}{% endblock %}
+
+{% block header_actions %}
+<button id="clear-chat-btn" class="px-4 py-2 text-sm font-medium rounded-lg border border-admin-primary/30 text-admin-primary hover:bg-admin-primary/10 transition-colors inline-flex items-center gap-2">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+    </svg>
+    Clear Chat
+</button>
+{% endblock %}
+
+{% block content %}
+<div class="chat-container">
+    <div class="chat-messages" id="chat-messages">
+        <div id="chat-welcome" class="copilot-welcome">
+            <!-- Welcome header -->
+            <div class="flex flex-col items-center text-center mb-8">
+                <div class="welcome-icon">
+                    <img src="{{ url_for('static', path='images/common/finbot.png') }}" alt="FinBot" class="w-16 h-16 rounded-full">
+                </div>
+                <h3 class="text-xl font-bold text-text-bright mt-4">I'm your Finance Co-Pilot</h3>
+                <p class="text-text-secondary mt-2 max-w-lg mx-auto">
+                    Choose a workflow below or ask me anything. I'll generate detailed reports saved as persistent artifacts.
+                </p>
+            </div>
+
+            <!-- Quick Start -->
+            <div class="mb-6">
+                <div class="text-xs font-semibold text-admin-primary uppercase tracking-wider mb-3">Quick Start</div>
+                <div class="flex flex-wrap gap-2">
+                    <button class="suggestion-chip" data-message="What needs my attention today?">What needs my attention today?</button>
+                    <button class="suggestion-chip" data-message="Summarize my unread messages">Summarize my unread messages</button>
+                    <button class="suggestion-chip" data-message="Generate a vendor performance report">Generate a vendor performance report</button>
+                    <button class="suggestion-chip" data-message="Review compliance documents for a vendor">Review compliance documents for a vendor</button>
+                    <button class="suggestion-chip" data-message="Reconcile invoices against payments">Reconcile invoices against payments</button>
+                </div>
+            </div>
+
+            <!-- Workflow search -->
+            <div class="mb-4">
+                <div class="relative max-w-md">
+                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                    <input id="workflow-search" type="text" placeholder="Filter workflows..." class="w-full pl-10 pr-4 py-2 text-sm bg-portal-bg-primary border border-admin-primary/20 rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:border-admin-primary transition-colors">
+                </div>
+            </div>
+
+            <!-- Collapsible workflow categories -->
+            <div id="workflow-categories" class="space-y-2 mb-8">
+                <!-- Daily Operations -->
+                <div class="workflow-category" data-category="daily">
+                    <button class="workflow-category-header" data-expanded="true">
+                        <div class="flex items-center gap-2">
+                            <svg class="w-4 h-4 text-admin-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                            <span class="text-sm font-semibold text-text-bright">Daily Operations</span>
+                            <span class="text-xs text-text-secondary bg-portal-bg-primary px-2 py-0.5 rounded-full">4</span>
+                        </div>
+                        <svg class="w-4 h-4 text-text-secondary chevron transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div class="workflow-chips">
+                        <button class="suggestion-chip" data-message="What needs my attention today?">What needs my attention today?</button>
+                        <button class="suggestion-chip" data-message="Generate a daily digest">Generate a daily digest</button>
+                        <button class="suggestion-chip" data-message="Show all pending action items">Show all pending action items</button>
+                        <button class="suggestion-chip" data-message="Any alerts or high-priority issues?">Any alerts or high-priority issues?</button>
+                    </div>
+                </div>
+
+                <!-- Inbox & Communications -->
+                <div class="workflow-category" data-category="inbox">
+                    <button class="workflow-category-header" data-expanded="false">
+                        <div class="flex items-center gap-2">
+                            <svg class="w-4 h-4 text-admin-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                            <span class="text-sm font-semibold text-text-bright">Inbox & Communications</span>
+                            <span class="text-xs text-text-secondary bg-portal-bg-primary px-2 py-0.5 rounded-full">7</span>
+                        </div>
+                        <svg class="w-4 h-4 text-text-secondary chevron transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div class="workflow-chips hidden">
+                        <button class="suggestion-chip" data-message="Summarize my unread messages">Summarize my unread messages</button>
+                        <button class="suggestion-chip" data-message="Read and prioritize my inbox">Read and prioritize my inbox</button>
+                        <button class="suggestion-chip" data-message="Any urgent messages I should know about?">Any urgent messages I should know about?</button>
+                        <button class="suggestion-chip" data-message="Draft status update emails for all vendors">Draft status update emails for all vendors</button>
+                        <button class="suggestion-chip" data-message="Send payment reminders to vendors with pending invoices">Send payment reminders to vendors with pending invoices</button>
+                        <button class="suggestion-chip" data-message="Draft a notification about policy changes">Draft a notification about policy changes</button>
+                        <button class="suggestion-chip" data-message="Notify all active vendors about upcoming deadlines">Notify all active vendors about upcoming deadlines</button>
+                    </div>
+                </div>
+
+                <!-- Vendor Reports -->
+                <div class="workflow-category" data-category="reports">
+                    <button class="workflow-category-header" data-expanded="false">
+                        <div class="flex items-center gap-2">
+                            <svg class="w-4 h-4 text-admin-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                            <span class="text-sm font-semibold text-text-bright">Vendor Reports</span>
+                            <span class="text-xs text-text-secondary bg-portal-bg-primary px-2 py-0.5 rounded-full">7</span>
+                        </div>
+                        <svg class="w-4 h-4 text-text-secondary chevron transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div class="workflow-chips hidden">
+                        <button class="suggestion-chip" data-message="Generate a vendor performance report">Generate a vendor performance report</button>
+                        <button class="suggestion-chip" data-message="Summarize all vendor statuses">Summarize all vendor statuses</button>
+                        <button class="suggestion-chip" data-message="Which vendors need attention?">Which vendors need attention?</button>
+                        <button class="suggestion-chip" data-message="Show high-risk vendors and why">Show high-risk vendors and why</button>
+                        <button class="suggestion-chip" data-message="Compare vendor activity this month">Compare vendor activity this month</button>
+                        <button class="suggestion-chip" data-message="Generate a due diligence report for a vendor">Generate a due diligence report for a vendor</button>
+                        <button class="suggestion-chip" data-message="Show vendor trust level breakdown">Show vendor trust level breakdown</button>
+                    </div>
+                </div>
+
+                <!-- Compliance & Onboarding -->
+                <div class="workflow-category" data-category="compliance">
+                    <button class="workflow-category-header" data-expanded="false">
+                        <div class="flex items-center gap-2">
+                            <svg class="w-4 h-4 text-admin-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                            <span class="text-sm font-semibold text-text-bright">Compliance & Onboarding</span>
+                            <span class="text-xs text-text-secondary bg-portal-bg-primary px-2 py-0.5 rounded-full">6</span>
+                        </div>
+                        <svg class="w-4 h-4 text-text-secondary chevron transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div class="workflow-chips hidden">
+                        <button class="suggestion-chip" data-message="Review compliance documents for a vendor">Review compliance documents for a vendor</button>
+                        <button class="suggestion-chip" data-message="Which vendors are missing required documents?">Which vendors are missing required documents?</button>
+                        <button class="suggestion-chip" data-message="Prepare an onboarding checklist for pending vendors">Prepare an onboarding checklist for pending vendors</button>
+                        <button class="suggestion-chip" data-message="Assess onboarding readiness for a new vendor">Assess onboarding readiness for a new vendor</button>
+                        <button class="suggestion-chip" data-message="Audit all vendors for compliance gaps">Audit all vendors for compliance gaps</button>
+                        <button class="suggestion-chip" data-message="Review uploaded files for a vendor">Review uploaded files for a vendor</button>
+                    </div>
+                </div>
+
+                <!-- Invoice & Financial -->
+                <div class="workflow-category" data-category="financial">
+                    <button class="workflow-category-header" data-expanded="false">
+                        <div class="flex items-center gap-2">
+                            <svg class="w-4 h-4 text-admin-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            <span class="text-sm font-semibold text-text-bright">Invoice & Financial</span>
+                            <span class="text-xs text-text-secondary bg-portal-bg-primary px-2 py-0.5 rounded-full">6</span>
+                        </div>
+                        <svg class="w-4 h-4 text-text-secondary chevron transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div class="workflow-chips hidden">
+                        <button class="suggestion-chip" data-message="Reconcile invoices against payments">Reconcile invoices against payments</button>
+                        <button class="suggestion-chip" data-message="Show pending invoices needing review">Show pending invoices needing review</button>
+                        <button class="suggestion-chip" data-message="Flag any invoice discrepancies">Flag any invoice discrepancies</button>
+                        <button class="suggestion-chip" data-message="Generate a financial summary for a vendor">Generate a financial summary for a vendor</button>
+                        <button class="suggestion-chip" data-message="Which invoices are overdue?">Which invoices are overdue?</button>
+                        <button class="suggestion-chip" data-message="Summarize outstanding payments across all vendors">Summarize outstanding payments across all vendors</button>
+                    </div>
+                </div>
+
+                <!-- System & Infrastructure -->
+                <div class="workflow-category" data-category="system">
+                    <button class="workflow-category-header" data-expanded="false">
+                        <div class="flex items-center gap-2">
+                            <svg class="w-4 h-4 text-admin-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/></svg>
+                            <span class="text-sm font-semibold text-text-bright">System & Infrastructure</span>
+                            <span class="text-xs text-text-secondary bg-portal-bg-primary px-2 py-0.5 rounded-full">6</span>
+                        </div>
+                        <svg class="w-4 h-4 text-text-secondary chevron transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div class="workflow-chips hidden">
+                        <button class="suggestion-chip" data-message="Run a system health check">Run a system health check</button>
+                        <button class="suggestion-chip" data-message="Check disk usage and storage status">Check disk usage and storage status</button>
+                        <button class="suggestion-chip" data-message="Run database maintenance and optimization">Run database maintenance and optimization</button>
+                        <button class="suggestion-chip" data-message="Test connectivity to external services">Test connectivity to external services</button>
+                        <button class="suggestion-chip" data-message="Review system configuration files">Review system configuration files</button>
+                        <button class="suggestion-chip" data-message="Rotate logs and check service health">Rotate logs and check service health</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Reports -->
+            <div id="recent-reports-section" class="mb-4">
+                <div class="text-xs font-semibold text-admin-primary uppercase tracking-wider mb-3">Recent Reports</div>
+                <div id="reports-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <p class="text-sm text-text-secondary col-span-full">No reports generated yet. Choose a workflow above to get started.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="chat-input-area">
+        <div id="autocomplete-dropdown" class="autocomplete-dropdown hidden"></div>
+        <div class="chat-input-wrapper">
+            <button id="workflows-toggle" class="workflows-toggle-btn" title="Show workflows">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/>
+                </svg>
+            </button>
+            <textarea
+                id="chat-input"
+                placeholder="Ask the co-pilot..."
+                rows="1"
+                class="chat-input"
+            ></textarea>
+            <button id="chat-send" class="chat-send-btn" disabled>
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                </svg>
+            </button>
+        </div>
+        <p class="text-xs text-text-secondary/50 mt-2 text-center">Co-Pilot may produce inaccurate information. Verify important details.</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.chat-container {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 180px);
+    min-height: 400px;
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 0;
+    scroll-behavior: smooth;
+}
+
+.copilot-welcome {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px 0 40px;
+}
+
+.welcome-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    padding: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.welcome-icon img {
+    border-radius: 50%;
+    background: #0a0a0f;
+}
+
+.suggestion-chip {
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.suggestion-chip:hover {
+    background: rgba(245, 158, 11, 0.15);
+    border-color: rgba(245, 158, 11, 0.4);
+    transform: translateY(-1px);
+}
+
+.workflow-category-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(245, 158, 11, 0.04);
+    border: 1px solid rgba(245, 158, 11, 0.1);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.workflow-category-header:hover {
+    background: rgba(245, 158, 11, 0.08);
+    border-color: rgba(245, 158, 11, 0.2);
+}
+
+.workflow-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 12px 4px;
+}
+
+.chevron { transition: transform 0.2s; }
+
+.report-card {
+    display: block;
+    padding: 12px 16px;
+    border-radius: 10px;
+    background: rgba(245, 158, 11, 0.05);
+    border: 1px solid rgba(245, 158, 11, 0.15);
+    transition: all 0.2s;
+    text-decoration: none;
+}
+
+.report-card:hover {
+    background: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.3);
+    transform: translateY(-1px);
+}
+
+.report-type-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: rgba(245, 158, 11, 0.15);
+    color: #fbbf24;
+}
+
+.msg-bubble {
+    display: flex;
+    gap: 12px;
+    padding: 8px 0;
+    max-width: 800px;
+    margin: 0 auto;
+    animation: msgFadeIn 0.3s ease-out;
+}
+
+@keyframes msgFadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.msg-bubble.user { flex-direction: row-reverse; }
+
+.msg-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 4px;
+}
+
+.msg-avatar.assistant {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    padding: 2px;
+    overflow: hidden;
+}
+
+.msg-avatar.assistant img { background: #0a0a0f; }
+
+.msg-avatar.user {
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    color: #0a0a0f;
+}
+
+.msg-content {
+    padding: 12px 16px;
+    border-radius: 16px;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    max-width: 600px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.msg-bubble.assistant .msg-content {
+    background: #151520;
+    color: #e2e8f0;
+    border: 1px solid rgba(245, 158, 11, 0.1);
+    border-top-left-radius: 4px;
+}
+
+.msg-bubble.user .msg-content {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(217, 119, 6, 0.15));
+    color: #ffffff;
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    border-top-right-radius: 4px;
+}
+
+.msg-bubble.system .msg-content {
+    background: rgba(255, 184, 0, 0.08);
+    color: #fbbf24;
+    border: 1px solid rgba(255, 184, 0, 0.15);
+    font-size: 0.8rem;
+    text-align: center;
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+.streaming-cursor::after {
+    content: '▋';
+    animation: blink 0.8s infinite;
+    color: #f59e0b;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+
+.msg-content:has(.thinking-indicator) {
+    padding: 6px 14px;
+    line-height: 1.2;
+}
+
+.thinking-indicator {
+    display: inline-flex;
+    align-items: baseline;
+    color: rgba(245, 158, 11, 0.55);
+    font-size: 0.8rem;
+}
+
+.thinking-text {
+    margin-right: 1px;
+}
+
+.thinking-dots span {
+    animation: dot-bounce 1.4s infinite ease-in-out;
+    display: inline-block;
+}
+
+.thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+.thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes dot-bounce {
+    0%, 60%, 100% { opacity: 0.2; transform: translateY(0); }
+    30% { opacity: 1; transform: translateY(-2px); }
+}
+
+.chat-input-area {
+    padding: 16px 0 8px;
+    border-top: 1px solid rgba(245, 158, 11, 0.1);
+    flex-shrink: 0;
+    position: relative;
+}
+
+.workflows-toggle-btn {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 6px;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.workflows-toggle-btn:hover {
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.1);
+}
+
+.workflows-toggle-btn.active {
+    color: #f59e0b;
+}
+
+.autocomplete-dropdown {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    right: 0;
+    max-width: 800px;
+    margin: 0 auto 8px;
+    background: #151520;
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    border-radius: 12px;
+    padding: 8px;
+    max-height: 240px;
+    overflow-y: auto;
+    z-index: 20;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.autocomplete-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+    font-size: 0.85rem;
+    color: #e2e8f0;
+}
+
+.autocomplete-item:hover, .autocomplete-item.selected {
+    background: rgba(245, 158, 11, 0.1);
+}
+
+.autocomplete-item .ac-category {
+    font-size: 0.65rem;
+    color: #94a3b8;
+    background: rgba(245, 158, 11, 0.1);
+    padding: 2px 6px;
+    border-radius: 8px;
+    flex-shrink: 0;
+}
+
+.autocomplete-item .ac-icon {
+    color: #f59e0b;
+    flex-shrink: 0;
+}
+
+.chat-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 800px;
+    margin: 0 auto;
+    background: #151520;
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    border-radius: 24px;
+    padding: 6px 6px 6px 20px;
+    transition: border-color 0.2s;
+    min-height: 48px;
+}
+
+.chat-input-wrapper:focus-within {
+    border-color: #f59e0b;
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.1);
+}
+
+.chat-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #ffffff;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    resize: none;
+    max-height: 120px;
+    font-family: inherit;
+    padding: 4px 0;
+}
+
+.chat-input::placeholder { color: #94a3b8; }
+
+.chat-send-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: #0a0a0f;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.chat-send-btn:hover:not(:disabled) {
+    transform: scale(1.05);
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
+}
+
+.chat-send-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.chat-messages::-webkit-scrollbar { width: 6px; }
+.chat-messages::-webkit-scrollbar-track { background: transparent; }
+.chat-messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+.chat-messages::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', path='js/admin/copilot.js') }}"></script>
+{% endblock %}

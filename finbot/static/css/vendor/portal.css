@@ -531,6 +531,157 @@ body {
     color: var(--text-secondary);
 }
 
+.vendor-input.border-red-400 {
+    border-color: #f87171 !important;
+    box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.15);
+}
+
+.vendor-input.border-red-400:focus {
+    border-color: #f87171 !important;
+    box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.25);
+}
+
+/* ==========================================================================
+   CUSTOM SELECT COMPONENT
+   ========================================================================== */
+
+.custom-select {
+    position: relative;
+}
+
+.custom-select-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
+}
+
+.custom-select-trigger:focus-visible {
+    outline: none;
+    border-color: var(--vendor-primary);
+    box-shadow:
+        0 0 0 3px rgba(0, 212, 255, 0.1),
+        var(--glow-primary);
+    background: var(--portal-surface-hover);
+}
+
+.custom-select-display {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.custom-select-placeholder {
+    color: var(--text-secondary);
+}
+
+.custom-select-arrow {
+    color: var(--text-secondary);
+    flex-shrink: 0;
+    margin-left: 8px;
+    transition: transform 0.2s ease;
+}
+
+.custom-select-open .custom-select-arrow {
+    transform: rotate(180deg);
+    color: var(--vendor-primary);
+}
+
+/* Dropdown panel */
+.custom-select-listbox {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(100% + 4px);
+    background: var(--portal-bg-secondary);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    border-radius: 12px;
+    backdrop-filter: blur(20px);
+    box-shadow:
+        0 12px 40px rgba(0, 0, 0, 0.5),
+        var(--glow-primary);
+    max-height: 260px;
+    overflow-y: auto;
+    z-index: 50;
+    padding: 6px;
+    list-style: none;
+    margin: 0;
+    animation: customSelectOpen 0.15s ease-out;
+}
+
+.custom-select-listbox[hidden] {
+    display: none;
+}
+
+.custom-select-listbox-above {
+    top: auto;
+    bottom: calc(100% + 4px);
+}
+
+/* Options */
+.custom-select-listbox li[role="option"] {
+    padding: 10px 16px;
+    color: var(--text-primary);
+    cursor: pointer;
+    border-radius: 8px;
+    transition: background-color 0.15s ease, color 0.15s ease;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.custom-select-listbox li[role="option"].custom-select-option-active {
+    background: rgba(0, 212, 255, 0.08);
+    color: var(--text-bright);
+}
+
+.custom-select-listbox li[role="option"].custom-select-option-selected {
+    color: var(--vendor-primary);
+    font-weight: 500;
+}
+
+.custom-select-listbox li[role="option"].custom-select-option-selected::after {
+    content: '\2713';
+    float: right;
+    color: var(--vendor-primary);
+}
+
+/* Error state propagation via :has() */
+.vendor-form-group:has(input[type="hidden"].border-red-400) .custom-select-trigger {
+    border-color: #f87171 !important;
+    box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.15);
+}
+
+.vendor-form-group:has(input[type="hidden"].border-red-400) .custom-select-trigger:focus-visible {
+    border-color: #f87171 !important;
+    box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.25);
+}
+
+/* Scrollbar */
+.custom-select-listbox::-webkit-scrollbar {
+    width: 6px;
+}
+
+.custom-select-listbox::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.custom-select-listbox::-webkit-scrollbar-thumb {
+    background: rgba(0, 212, 255, 0.3);
+    border-radius: 3px;
+}
+
+.custom-select-listbox {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 212, 255, 0.3) transparent;
+}
+
+@keyframes customSelectOpen {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
 /* ==========================================================================
    CHAT INTERFACE
    ========================================================================== */
@@ -968,6 +1119,312 @@ body {
     40% {
         opacity: 1;
         transform: scale(1);
+    }
+}
+
+/* ==========================================================================
+   COLLAPSIBLE SIDEBAR
+   ========================================================================== */
+
+.ai-sidebar {
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar-collapse-toggle-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 20px;
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.sidebar-collapse-toggle-bar:hover {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-primary);
+}
+
+.sidebar-collapse-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    transition: transform 0.3s ease;
+}
+
+.ai-sidebar.collapsed .sidebar-collapse-toggle-bar {
+    justify-content: center;
+    padding: 10px;
+}
+
+.ai-sidebar.collapsed .sidebar-collapse-icon {
+    transform: rotate(180deg);
+}
+
+.sidebar-collapsible-text {
+    transition: opacity 0.2s ease, width 0.2s ease;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.ai-sidebar.collapsed {
+    width: 68px !important;
+}
+
+.ai-sidebar.collapsed .sidebar-collapsible-text,
+.ai-sidebar.collapsed .sidebar-collapsible-section {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
+    pointer-events: none;
+    position: absolute;
+}
+
+.ai-sidebar.collapsed .sidebar-logo-section {
+    padding: 1rem;
+    justify-content: center;
+}
+
+.ai-sidebar.collapsed .sidebar-logo-section .flex.items-center.space-x-3 {
+    justify-content: center;
+}
+
+.ai-sidebar.collapsed .sidebar-logo-section .w-12 {
+    width: 36px;
+    height: 36px;
+}
+
+.ai-sidebar.collapsed .vendor-nav-item,
+.ai-sidebar.collapsed .admin-nav-item {
+    justify-content: center;
+    padding: 12px;
+    margin: 4px 8px;
+    gap: 0;
+}
+
+.ai-sidebar.collapsed .vendor-nav-item span,
+.ai-sidebar.collapsed .admin-nav-item span {
+    display: none;
+}
+
+.ai-sidebar.collapsed .vendor-nav-item:hover,
+.ai-sidebar.collapsed .admin-nav-item:hover {
+    transform: none;
+}
+
+.ai-sidebar.collapsed .sidebar-user-section {
+    padding: 0.75rem;
+}
+
+.ai-sidebar.collapsed .sidebar-user-section .sidebar-user-details {
+    display: none;
+}
+
+.ai-sidebar.collapsed .sidebar-user-section .sidebar-user-avatar {
+    margin: 0 auto;
+}
+
+.ai-sidebar.collapsed .sidebar-user-section .sidebar-user-actions,
+.ai-sidebar.collapsed .sidebar-user-section .sidebar-user-extra {
+    display: none;
+}
+
+/* Tooltip for collapsed nav items */
+.ai-sidebar.collapsed .vendor-nav-item,
+.ai-sidebar.collapsed .admin-nav-item {
+    position: relative;
+}
+
+.ai-sidebar.collapsed .vendor-nav-item::after,
+.ai-sidebar.collapsed .admin-nav-item::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: calc(100% + 12px);
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--portal-bg-tertiary);
+    color: var(--text-bright);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.ai-sidebar.collapsed .vendor-nav-item:hover::after,
+.ai-sidebar.collapsed .admin-nav-item:hover::after {
+    opacity: 1;
+}
+
+/* ==========================================================================
+   MOBILE RESPONSIVE STYLES
+   ========================================================================== */
+
+/* Mobile sidebar toggle button */
+.sidebar-toggle {
+    display: none;
+}
+
+/* Mobile sidebar overlay */
+.sidebar-overlay {
+    display: none;
+}
+
+/* Hide collapse toggle on mobile -- use the slide-in behavior instead */
+@media (max-width: 768px) {
+    .sidebar-collapse-toggle-bar {
+        display: none !important;
+    }
+    .ai-sidebar.collapsed {
+        width: 320px !important;
+    }
+    .ai-sidebar.collapsed .sidebar-collapsible-text,
+    .ai-sidebar.collapsed .sidebar-collapsible-section {
+        opacity: 1;
+        width: auto;
+        height: auto;
+        overflow: visible;
+        position: static;
+        pointer-events: auto;
+    }
+    .ai-sidebar.collapsed .vendor-nav-item,
+    .ai-sidebar.collapsed .admin-nav-item {
+        justify-content: flex-start;
+        padding: 16px 20px;
+        margin: 4px 12px;
+        gap: 16px;
+    }
+    .ai-sidebar.collapsed .vendor-nav-item span,
+    .ai-sidebar.collapsed .admin-nav-item span {
+        display: inline;
+    }
+    .ai-sidebar.collapsed .sidebar-user-section .sidebar-user-details,
+    .ai-sidebar.collapsed .sidebar-user-section .sidebar-user-actions,
+    .ai-sidebar.collapsed .sidebar-user-section .sidebar-user-extra {
+        display: block;
+    }
+    .ai-sidebar.collapsed .sidebar-user-section .sidebar-user-avatar {
+        margin: 0;
+    }
+}
+
+@media (max-width: 768px) {
+    /* Show toggle button on mobile */
+    .sidebar-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        z-index: 1002;
+        background: rgba(21, 21, 32, 0.95);
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        border-radius: 6px;
+        padding: 8px;
+        color: #ffffff;
+        backdrop-filter: blur(10px);
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        width: 40px;
+        height: 40px;
+    }
+
+    .sidebar-toggle svg {
+        width: 20px;
+        height: 20px;
+        display: block;
+        flex-shrink: 0;
+    }
+
+    .sidebar-toggle:hover {
+        background: rgba(21, 21, 32, 1);
+        border-color: rgba(255, 255, 255, 0.4);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        transform: scale(1.05);
+    }
+
+    /* Hide toggle when sidebar is open */
+    .sidebar-toggle.hidden {
+        display: none !important;
+    }
+
+    /* Show overlay on mobile */
+    .sidebar-overlay {
+        display: block;
+        position: fixed;
+        top: 0;
+        left: 320px;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 999;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transition: all 0.3s ease;
+    }
+
+    .sidebar-overlay.show {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+    }
+
+    /* Hide sidebar off-screen by default on mobile */
+    .ai-sidebar {
+        position: fixed !important;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        width: 320px;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+        z-index: 1001;
+        box-shadow: 2px 0 20px rgba(0, 0, 0, 0.5);
+        background: #0a0a0f !important;
+        backdrop-filter: none !important;
+    }
+
+    .ai-sidebar::before {
+        display: none !important;
+    }
+
+    /* Show sidebar when open */
+    .ai-sidebar.open {
+        transform: translateX(0);
+        pointer-events: auto;
+    }
+
+    .ai-sidebar * {
+        pointer-events: auto;
+    }
+
+    /* Adjust main content */
+    .dashboard-layout {
+        flex-direction: column;
+    }
+
+    .dashboard-content {
+        margin-left: 0;
+        width: 100%;
     }
 }
 

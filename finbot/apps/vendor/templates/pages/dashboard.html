@@ -7,56 +7,364 @@
 {% block nav_dashboard %}active{% endblock %}
 
 {% block page_title %}Dashboard{% endblock %}
-{% block page_subtitle %}Welcome to your vendor portal{% endblock %}
+{% block page_subtitle %}Overview of your vendor account{% endblock %}
+
+{% block header_actions %}
+<button id="refresh-dashboard-btn" class="vendor-btn quantum-secondary">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+    </svg>
+    Refresh
+</button>
+<a href="/vendor/assistant" class="vendor-btn quantum-primary">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z"/>
+    </svg>
+    AI Assistant
+</a>
+{% endblock %}
 
 {% block content %}
-<!-- Work in Progress Banner -->
-<div class="flex items-center justify-center min-h-[60vh]">
-    <div class="holo-card max-w-2xl w-full">
-        <div class="holo-body text-center py-16 px-8">
-            <!-- Animated Icon -->
-            <div class="relative inline-block mb-8">
-                <div class="w-24 h-24 rounded-full bg-gradient-to-r from-vendor-primary to-vendor-secondary flex items-center justify-center mx-auto animate-pulse">
-                    <svg class="w-12 h-12 text-text-bright" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
-                    </svg>
-                </div>
-                <div class="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-vendor-warning flex items-center justify-center">
-                    <svg class="w-4 h-4 text-portal-bg-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
-                    </svg>
+<!-- Loading Indicator -->
+<div class="loading-indicator hidden">
+    <div class="flex items-center justify-center py-12">
+        <svg class="animate-spin h-8 w-8 text-vendor-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+    </div>
+</div>
+
+<!-- Vendor Status Banner -->
+<div id="vendor-status-banner" class="mb-6 hidden">
+    <div class="rounded-xl border p-4 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+            <div id="status-icon" class="w-10 h-10 rounded-full flex items-center justify-center"></div>
+            <div>
+                <h3 id="status-title" class="text-sm font-semibold text-text-bright"></h3>
+                <p id="status-description" class="text-xs text-text-secondary"></p>
+            </div>
+        </div>
+        <a id="status-action-link" href="#" class="vendor-btn quantum-secondary text-xs px-3 py-2 hidden"></a>
+    </div>
+</div>
+
+<!-- Top Metrics Row -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
+    <!-- Total Invoiced -->
+    <div class="metric-card group" id="metric-total-invoiced">
+        <div class="flex items-center justify-between mb-3">
+            <div class="w-10 h-10 rounded-xl bg-vendor-primary/10 border border-vendor-primary/20 flex items-center justify-center group-hover:bg-vendor-primary/20 transition-colors">
+                <svg class="w-5 h-5 text-vendor-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"/>
+                </svg>
+            </div>
+            <span class="text-xs font-medium text-text-secondary">Invoiced</span>
+        </div>
+        <div class="text-2xl font-bold text-text-bright mb-1" id="val-total-invoiced">--</div>
+        <div class="text-xs text-text-secondary"><span id="val-invoice-count">0</span> invoices total</div>
+    </div>
+
+    <!-- Payments Received -->
+    <div class="metric-card group" id="metric-payments">
+        <div class="flex items-center justify-between mb-3">
+            <div class="w-10 h-10 rounded-xl bg-vendor-accent/10 border border-vendor-accent/20 flex items-center justify-center group-hover:bg-vendor-accent/20 transition-colors">
+                <svg class="w-5 h-5 text-vendor-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </div>
+            <span class="text-xs font-medium text-text-secondary">Received</span>
+        </div>
+        <div class="text-2xl font-bold text-vendor-accent mb-1" id="val-paid-amount">--</div>
+        <div class="text-xs text-text-secondary"><span id="val-paid-count">0</span> paid invoices</div>
+    </div>
+
+    <!-- Outstanding -->
+    <div class="metric-card group" id="metric-outstanding">
+        <div class="flex items-center justify-between mb-3">
+            <div class="w-10 h-10 rounded-xl bg-vendor-warning/10 border border-vendor-warning/20 flex items-center justify-center group-hover:bg-vendor-warning/20 transition-colors">
+                <svg class="w-5 h-5 text-vendor-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </div>
+            <span class="text-xs font-medium text-text-secondary">Outstanding</span>
+        </div>
+        <div class="text-2xl font-bold text-vendor-warning mb-1" id="val-pending-amount">--</div>
+        <div class="text-xs text-text-secondary"><span id="val-pending-count">0</span> pending</div>
+    </div>
+
+    <!-- Completion Rate -->
+    <div class="metric-card group" id="metric-completion">
+        <div class="flex items-center justify-between mb-3">
+            <div class="w-10 h-10 rounded-xl bg-vendor-secondary/10 border border-vendor-secondary/20 flex items-center justify-center group-hover:bg-vendor-secondary/20 transition-colors">
+                <svg class="w-5 h-5 text-vendor-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                </svg>
+            </div>
+            <span class="text-xs font-medium text-text-secondary">Paid Rate</span>
+        </div>
+        <div class="text-2xl font-bold text-text-bright mb-2" id="val-completion-rate">--%</div>
+        <div class="w-full bg-portal-bg-primary rounded-full h-1.5">
+            <div id="completion-bar" class="h-1.5 rounded-full bg-gradient-to-r from-vendor-primary to-vendor-accent transition-all duration-1000 ease-out" style="width: 0%"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Secondary Metrics -->
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+    <a href="/vendor/payments" class="block p-4 rounded-xl border border-white/5 bg-portal-surface hover:bg-portal-surface-hover hover:border-vendor-primary/20 transition-all group">
+        <div class="flex items-center space-x-3">
+            <div class="w-8 h-8 rounded-lg bg-vendor-accent/10 flex items-center justify-center">
+                <svg class="w-4 h-4 text-vendor-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+                </svg>
+            </div>
+            <div>
+                <div class="text-lg font-bold text-text-bright" id="val-txn-count">0</div>
+                <div class="text-xs text-text-secondary">Transactions</div>
+            </div>
+        </div>
+    </a>
+
+    <a href="/vendor/messages" class="block p-4 rounded-xl border border-white/5 bg-portal-surface hover:bg-portal-surface-hover hover:border-vendor-primary/20 transition-all group">
+        <div class="flex items-center space-x-3">
+            <div class="w-8 h-8 rounded-lg bg-vendor-primary/10 flex items-center justify-center relative">
+                <svg class="w-4 h-4 text-vendor-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                </svg>
+                <span id="unread-badge" class="hidden absolute -top-1 -right-1 w-4 h-4 rounded-full bg-vendor-danger text-[10px] font-bold text-white flex items-center justify-center"></span>
+            </div>
+            <div>
+                <div class="text-lg font-bold text-text-bright" id="val-msg-count">0</div>
+                <div class="text-xs text-text-secondary">Messages</div>
+            </div>
+        </div>
+    </a>
+
+    <a href="/vendor/findrive" class="block p-4 rounded-xl border border-white/5 bg-portal-surface hover:bg-portal-surface-hover hover:border-vendor-primary/20 transition-all group">
+        <div class="flex items-center space-x-3">
+            <div class="w-8 h-8 rounded-lg bg-vendor-secondary/10 flex items-center justify-center">
+                <svg class="w-4 h-4 text-vendor-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                </svg>
+            </div>
+            <div>
+                <div class="text-lg font-bold text-text-bright" id="val-file-count">0</div>
+                <div class="text-xs text-text-secondary">Files</div>
+            </div>
+        </div>
+    </a>
+
+    <a href="/vendor/invoices" class="block p-4 rounded-xl border border-white/5 bg-portal-surface hover:bg-portal-surface-hover hover:border-vendor-danger/20 transition-all group">
+        <div class="flex items-center space-x-3">
+            <div class="w-8 h-8 rounded-lg bg-vendor-danger/10 flex items-center justify-center">
+                <svg class="w-4 h-4 text-vendor-danger" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+            </div>
+            <div>
+                <div class="text-lg font-bold text-text-bright" id="val-overdue-count">0</div>
+                <div class="text-xs text-text-secondary">Overdue</div>
+            </div>
+        </div>
+    </a>
+</div>
+
+<!-- Main Content Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Recent Invoices (2/3 width) -->
+    <div class="lg:col-span-2">
+        <div class="holo-card">
+            <div class="holo-header">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-lg font-bold text-text-bright">Recent Invoices</h2>
+                    <a href="/vendor/invoices" class="text-xs text-vendor-primary hover:text-vendor-accent transition-colors font-medium">
+                        View All &rarr;
+                    </a>
                 </div>
             </div>
-
-            <!-- Title -->
-            <h2 class="text-3xl font-bold text-text-bright mb-4">
-                Dashboard Under Construction
-            </h2>
-
-            <!-- Description -->
-            <p class="text-text-secondary text-lg mb-8 max-w-md mx-auto">
-                We're building something amazing. The full dashboard experience with metrics, insights, and analytics is coming soon.
-            </p>
-
-            <!-- Status Indicator -->
-            <div class="inline-flex items-center space-x-2 px-4 py-2 rounded-full bg-gradient-to-r from-vendor-primary/20 to-vendor-secondary/20 border border-vendor-primary/30">
-                <span class="relative flex h-3 w-3">
-                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-vendor-accent opacity-75"></span>
-                    <span class="relative inline-flex rounded-full h-3 w-3 bg-vendor-accent"></span>
-                </span>
-                <span class="text-sm font-medium text-vendor-accent">Work in Progress</span>
+            <div class="holo-body">
+                <div id="recent-invoices-list" class="space-y-2">
+                    <div class="flex items-center justify-center py-8">
+                        <svg class="animate-spin h-5 w-5 text-vendor-primary mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span class="text-text-secondary text-sm">Loading...</span>
+                    </div>
+                </div>
             </div>
+        </div>
+    </div>
 
-            <!-- Quick Links -->
-            <div class="mt-12 flex flex-wrap justify-center gap-4">
-                <a href="/vendor/profile" class="px-6 py-3 rounded-lg bg-gradient-to-r from-vendor-primary to-vendor-secondary text-text-bright font-medium hover:opacity-90 transition-opacity">
-                    Go to Vendor Profile
+    <!-- Recent Messages (1/3 width) -->
+    <div>
+        <div class="holo-card">
+            <div class="holo-header">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-lg font-bold text-text-bright">Messages</h2>
+                    <a href="/vendor/messages" class="text-xs text-vendor-primary hover:text-vendor-accent transition-colors font-medium">
+                        View All &rarr;
+                    </a>
+                </div>
+            </div>
+            <div class="holo-body">
+                <div id="recent-messages-list" class="space-y-3">
+                    <div class="flex items-center justify-center py-8">
+                        <svg class="animate-spin h-5 w-5 text-vendor-primary mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span class="text-text-secondary text-sm">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="mt-6">
+    <div class="holo-card">
+        <div class="holo-header">
+            <h2 class="text-lg font-bold text-text-bright">Quick Actions</h2>
+        </div>
+        <div class="holo-body">
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                <a href="/vendor/invoices" class="quick-action-tile group">
+                    <div class="w-10 h-10 rounded-xl bg-vendor-primary/10 flex items-center justify-center mb-2 group-hover:bg-vendor-primary/20 transition-colors">
+                        <svg class="w-5 h-5 text-vendor-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                        </svg>
+                    </div>
+                    <span class="text-xs font-medium text-text-secondary group-hover:text-text-bright transition-colors">Create Invoice</span>
                 </a>
-                <a href="/vendor/invoices" class="px-6 py-3 rounded-lg border border-vendor-primary/50 text-vendor-primary font-medium hover:bg-vendor-primary/10 transition-colors">
-                    View Invoices
+                <a href="/vendor/payments" class="quick-action-tile group">
+                    <div class="w-10 h-10 rounded-xl bg-vendor-accent/10 flex items-center justify-center mb-2 group-hover:bg-vendor-accent/20 transition-colors">
+                        <svg class="w-5 h-5 text-vendor-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+                        </svg>
+                    </div>
+                    <span class="text-xs font-medium text-text-secondary group-hover:text-text-bright transition-colors">View Payments</span>
+                </a>
+                <a href="/vendor/findrive" class="quick-action-tile group">
+                    <div class="w-10 h-10 rounded-xl bg-vendor-secondary/10 flex items-center justify-center mb-2 group-hover:bg-vendor-secondary/20 transition-colors">
+                        <svg class="w-5 h-5 text-vendor-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                        </svg>
+                    </div>
+                    <span class="text-xs font-medium text-text-secondary group-hover:text-text-bright transition-colors">FinDrive Files</span>
+                </a>
+                <a href="/vendor/messages" class="quick-action-tile group">
+                    <div class="w-10 h-10 rounded-xl bg-vendor-warning/10 flex items-center justify-center mb-2 group-hover:bg-vendor-warning/20 transition-colors">
+                        <svg class="w-5 h-5 text-vendor-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                        </svg>
+                    </div>
+                    <span class="text-xs font-medium text-text-secondary group-hover:text-text-bright transition-colors">Messages</span>
+                </a>
+                <a href="/vendor/profile" class="quick-action-tile group">
+                    <div class="w-10 h-10 rounded-xl bg-vendor-danger/10 flex items-center justify-center mb-2 group-hover:bg-vendor-danger/20 transition-colors">
+                        <svg class="w-5 h-5 text-vendor-danger" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                        </svg>
+                    </div>
+                    <span class="text-xs font-medium text-text-secondary group-hover:text-text-bright transition-colors">Edit Profile</span>
                 </a>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.quick-action-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1.25rem 0.75rem;
+    border-radius: 12px;
+    background: var(--portal-surface);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    text-decoration: none;
+}
+
+.quick-action-tile:hover {
+    background: var(--portal-surface-hover);
+    border-color: rgba(0, 212, 255, 0.15);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.invoice-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem;
+    border-radius: 10px;
+    background: var(--portal-surface);
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.invoice-row:hover {
+    background: var(--portal-surface-hover);
+    border-color: rgba(0, 212, 255, 0.1);
+    transform: translateX(2px);
+}
+
+.msg-row {
+    padding: 0.75rem;
+    border-radius: 10px;
+    background: var(--portal-surface);
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.msg-row:hover {
+    background: var(--portal-surface-hover);
+    border-color: rgba(0, 212, 255, 0.1);
+}
+
+.msg-row.unread {
+    border-left: 2px solid var(--vendor-primary);
+}
+
+.status-dot {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.5rem;
+    border-radius: 9999px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.status-dot.paid { background: rgba(6,255,165,0.12); color: #06ffa5; border: 1px solid rgba(6,255,165,0.25); }
+.status-dot.approved { background: rgba(6,255,165,0.12); color: #06ffa5; border: 1px solid rgba(6,255,165,0.25); }
+.status-dot.pending { background: rgba(255,184,0,0.12); color: #ffb800; border: 1px solid rgba(255,184,0,0.25); }
+.status-dot.submitted { background: rgba(0,212,255,0.12); color: #00d4ff; border: 1px solid rgba(0,212,255,0.25); }
+.status-dot.rejected { background: rgba(255,51,102,0.12); color: #ff3366; border: 1px solid rgba(255,51,102,0.25); }
+.status-dot.overdue { background: rgba(255,51,102,0.12); color: #ff3366; border: 1px solid rgba(255,51,102,0.25); }
+.status-dot.draft { background: rgba(148,163,184,0.12); color: #94a3b8; border: 1px solid rgba(148,163,184,0.25); }
+
+.msg-type-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.msg-type-icon.notification { background: rgba(0,212,255,0.1); color: #00d4ff; }
+.msg-type-icon.alert { background: rgba(255,184,0,0.1); color: #ffb800; }
+.msg-type-icon.system { background: rgba(124,58,237,0.1); color: #7c3aed; }
+</style>
 {% endblock %}

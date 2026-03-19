@@ -25,6 +25,25 @@ class LabelsSchema(BaseModel):
     owasp_llm: list[str] = Field(default_factory=list)
     cwe: list[str] = Field(default_factory=list)
     mitre_atlas: list[str] = Field(default_factory=list)
+    owasp_agentic: list[str] = Field(default_factory=list)
+
+
+class ScoringModifierSchema(BaseModel):
+    """A single scoring modifier (penalty or bonus) applied on challenge completion"""
+
+    type: str = Field(min_length=1, max_length=50, description="Modifier type (e.g. 'pi_jb')")
+    penalty: float = Field(ge=0.0, le=1.0, default=0.0, description="Penalty fraction (0.5 = lose 50%)")
+    min_confidence: float = Field(ge=0.0, le=1.0, default=0.5, description="Minimum confidence to trigger")
+    judge_system_prompt: str | None = Field(default=None, description="Custom judge prompt override")
+    model: str | None = Field(default=None, description="Specific LLM model for the modifier judge")
+
+
+class ScoringSchema(BaseModel):
+    """Scoring configuration for a challenge"""
+
+    modifiers: list[ScoringModifierSchema] = Field(
+        default_factory=list, description="Ordered list of scoring modifiers"
+    )
 
 
 class ChallengeSchema(BaseModel):
@@ -52,6 +71,8 @@ class ChallengeSchema(BaseModel):
 
     detector_class: str = Field(min_length=1, max_length=100)
     detector_config: dict | None = Field(default=None)
+
+    scoring: ScoringSchema | None = Field(default=None, description="Scoring modifiers config")
 
     is_active: bool = True
     order_index: int = Field(ge=0, default=0)

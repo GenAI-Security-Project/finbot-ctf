@@ -8,13 +8,13 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from finbot.core.auth.middleware import get_session_context
+from finbot.core.utils import to_utc_iso
 from finbot.core.auth.session import SessionContext
 from finbot.core.data.database import get_db
 from finbot.core.data.repositories import (
     ChallengeRepository,
     UserChallengeProgressRepository,
 )
-from finbot.ctf.detectors import create_detector
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1", tags=["challenges"])
@@ -53,7 +53,11 @@ class ChallengeDetail(BaseModel):
     attempts: int
     hints_used: int
     hints_cost: int
+    points_modifier: float = 1.0
+    effective_points: int | None = None
     completed_at: str | None
+    completion_evidence: dict | None = None
+    last_attempt_result: dict | None = None
 
 
 class CheckResult(BaseModel):
@@ -154,6 +158,28 @@ def get_challenge(
         else:
             masked_hints.append({"cost": hint["cost"], "text": "[locked]"})
 
+    # Parse completion evidence for completed challenges
+    completion_evidence = None
+    if progress and progress.status == "completed" and progress.completion_evidence:
+        try:
+            completion_evidence = json.loads(progress.completion_evidence)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # Parse last attempt result for in-progress challenges
+    last_attempt_result = None
+    if progress and progress.last_attempt_result:
+        try:
+            last_attempt_result = json.loads(progress.last_attempt_result)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    modifier = (
+        progress.points_modifier
+        if progress and progress.points_modifier is not None
+        else 1.0
+    )
+
     return ChallengeDetail(
         id=challenge.id,
         title=challenge.title,
@@ -171,9 +197,13 @@ def get_challenge(
         attempts=progress.attempts if progress else 0,
         hints_used=hints_used,
         hints_cost=progress.hints_cost if progress else 0,
-        completed_at=progress.completed_at.isoformat()
+        points_modifier=modifier,
+        effective_points=int(challenge.points * modifier),
+        completed_at=to_utc_iso(progress.completed_at)
         if progress and progress.completed_at
         else None,
+        completion_evidence=completion_evidence,
+        last_attempt_result=last_attempt_result,
     )
 
 
@@ -183,7 +213,12 @@ def check_challenge(
     session_context: SessionContext = Depends(get_session_context),
     db: Session = Depends(get_db),
 ):
-    """On-demand challenge progress check"""
+    """On-demand challenge progress check.
+
+    Returns current progress status from the database. Detection happens
+    in real-time through the event pipeline — this endpoint just reflects
+    what has already been detected.
+    """
     if not session_context:
         raise HTTPException(status_code=401, detail="Authentication required")
 
@@ -204,27 +239,22 @@ def check_challenge(
             confidence=1.0,
         )
 
-    # Create detector and run aggregate check
-    config = (
-        json.loads(challenge.detector_config) if challenge.detector_config else None
-    )
-    detector = create_detector(challenge.detector_class, challenge.id, config)
-
-    if not detector:
-        raise HTTPException(status_code=500, detail="Detector not available")
-
-    result = detector.check_aggregate(
-        session_context.namespace, session_context.user_id, db
-    )
-
-    # Record the attempt
+    # Record the check attempt
     progress_repo.record_attempt(challenge_id)
 
+    if progress and progress.status == "in_progress":
+        return CheckResult(
+            status="in_progress",
+            detected=False,
+            message="Challenge in progress — keep interacting with the AI agent in the Vendor Portal. Detection happens automatically.",
+            confidence=0.0,
+        )
+
     return CheckResult(
-        status="completed" if result.detected else "in_progress",
-        detected=result.detected,
-        message=result.message,
-        confidence=result.confidence,
+        status="available",
+        detected=False,
+        message="No progress yet. Head to the Vendor Portal and interact with the AI agent to attempt this challenge.",
+        confidence=0.0,
     )
 
 
@@ -258,12 +288,16 @@ def use_hint(
     # Get next hint
     hint = hints[current_hints_used]
 
+    # Don't charge points if the challenge is already completed
+    is_completed = progress and progress.status == "completed"
+    cost = 0 if is_completed else hint["cost"]
+
     # Use hint
-    updated_progress = progress_repo.use_hint(challenge_id, hint["cost"])
+    updated_progress = progress_repo.use_hint(challenge_id, cost)
 
     return HintResponse(
         hint_index=current_hints_used,
         hint_text=hint["text"],
-        points_deducted=hint["cost"],
+        points_deducted=cost,
         total_hints_cost=updated_progress.hints_cost,
     )

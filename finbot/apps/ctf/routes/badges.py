@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from finbot.core.auth.middleware import get_session_context
+from finbot.core.utils import to_utc_iso
 from finbot.core.auth.session import SessionContext
 from finbot.core.data.database import get_db
 from finbot.core.data.repositories import BadgeRepository, UserBadgeRepository
@@ -75,25 +76,37 @@ def list_badges(
         if earned_only and not earned:
             continue
 
-        # Hide secret badges unless earned
-        if badge.is_secret and not earned:
-            continue
-
         user_badge = earned_map.get(badge.id)
+
+        # Mask secret badge details unless earned
+        if badge.is_secret and not earned:
+            result.append(
+                BadgeListItem(
+                    id=badge.id,
+                    title="???",
+                    description="Hidden achievement waiting to be discovered.",
+                    category=badge.category,
+                    rarity=badge.rarity,
+                    points=badge.points,
+                    icon_url=None,
+                    earned=False,
+                    earned_at=None,
+                    is_secret=True,
+                )
+            )
+            continue
 
         result.append(
             BadgeListItem(
                 id=badge.id,
                 title=badge.title,
-                description=badge.description
-                if earned or not badge.is_secret
-                else "???",
+                description=badge.description,
                 category=badge.category,
                 rarity=badge.rarity,
                 points=badge.points,
                 icon_url=badge.icon_url,
                 earned=earned,
-                earned_at=user_badge.earned_at.isoformat() if user_badge else None,
+                earned_at=to_utc_iso(user_badge.earned_at) if user_badge else None,
                 is_secret=badge.is_secret,
             )
         )
@@ -145,6 +158,6 @@ def get_badge(
         points=badge.points,
         icon_url=badge.icon_url,
         earned=earned,
-        earned_at=user_badge.earned_at.isoformat() if user_badge else None,
+        earned_at=to_utc_iso(user_badge.earned_at) if user_badge else None,
         progress=progress,
     )
