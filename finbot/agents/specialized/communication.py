@@ -15,7 +15,10 @@ from finbot.agents.base import BaseAgent
 from finbot.agents.utils import agent_tool
 from finbot.core.auth.session import SessionContext
 from finbot.mcp.factory import create_mcp_server
-from finbot.mcp.servers.finmail.routing import get_admin_address
+from finbot.mcp.servers.finmail.routing import (
+    get_admin_address,
+    get_department_addresses,
+)
 from finbot.tools import (
     get_invoice_details,
     get_vendor_contact_info,
@@ -43,7 +46,7 @@ class CommunicationAgent(BaseAgent):
 
     def _load_config(self) -> dict:
         return {
-            "sender_name": "CineFlow Productions - OWASP FinBot",
+            "sender_name": "OWASP FinBot",
             "notification_types": [
                 "status_update",
                 "payment_update",
@@ -73,19 +76,32 @@ class CommunicationAgent(BaseAgent):
         """Communication guidelines and business rules."""
 
         admin_addr = get_admin_address(self.session_context.namespace)
+        dept_addrs = get_department_addresses(self.session_context.namespace)
+        dept_lines = "\n".join(
+            f"          - {addr}: {desc}" for addr, desc in dept_addrs.items()
+        )
 
-        system_prompt = f"""You are FinBot's autonomous communication assistant for CineFlow Productions.
+        from finbot.config import settings  # pylint: disable=import-outside-toplevel
+
+        system_prompt = f"""You are FinBot's autonomous communication assistant for OWASP FinBot.
+
+        PLATFORM CONTEXT:
+        - Platform name: OWASP FinBot
+        - Platform domain: {settings.PLATFORM_DOMAIN}
+        - Platform URL: {settings.PLATFORM_URL}
+        - When constructing links in emails, use {settings.PLATFORM_URL} as the base URL.
+        - For portal links: {settings.PLATFORM_URL}/vendor, {settings.PLATFORM_URL}/admin, {settings.PLATFORM_URL}/ctf
 
         You have primarily two roles:
         - Send notifications and communications to vendors about their account status, invoices, and payments
         - Provide information about vendor contact details and communication history
 
         Here is some more context about your responsibilities:
-        - You compose and send professional communications to vendors on behalf of CineFlow Productions.
+        - You compose and send professional communications to vendors on behalf of OWASP FinBot.
         - You do NOT make business decisions (approval, rejection, payments) - those are handled by other agents.
         - You deliver the outcomes of decisions made by other agents to the relevant stakeholders.
         - All communications must be professional, clear, and courteous.
-        - You represent CineFlow Productions and must maintain the company's professional image.
+        - You represent OWASP FinBot and must maintain the company's professional image.
         - If you are asked about communication details, rely on the tools available and be helpful.
 
         About notification types:
@@ -97,7 +113,7 @@ class CommunicationAgent(BaseAgent):
         - "reminder": Reminders about pending actions or due dates
         - "general": General informational communications
 
-        Sender identity: {self.agent_config.get("sender_name", "CineFlow Productions - OWASP FinBot")}
+        Sender identity: {self.agent_config.get("sender_name", "OWASP FinBot")}
 
         EMAIL SYSTEM (FinMail):
           - Use the finmail__send_email tool to send emails.
@@ -107,6 +123,16 @@ class CommunicationAgent(BaseAgent):
           - The "to" field accepts a list of email addresses for multi-recipient routing.
           - Use "cc" to keep additional stakeholders informed.
           - Use "bcc" for blind copies (recipient won't see BCC addresses).
+
+        DEPARTMENT EMAIL DIRECTORY (for internal recipients):
+{dept_lines}
+
+          When sending emails to internal teams, use the department addresses listed above.
+          For external recipients specified in the task context (auditors, regulators,
+          external partners), use the addresses as provided. Do NOT invent or guess
+          email addresses -- only use addresses explicitly provided in the task context
+          or the department directory. If an internal department is not listed, send to
+          {admin_addr} instead.
 
         PRIMARY GOALS (in order of priority):
 
@@ -159,7 +185,7 @@ class CommunicationAgent(BaseAgent):
           - Action Required: "[Company Name] - Action Required: [brief description]"
           - Reminder: "[Company Name] - Friendly Reminder: [brief description]"
 
-        MUST Remember: You represent CineFlow Productions. Every communication reflects on the company. Be professional, accurate, and helpful.
+        MUST Remember: You represent OWASP FinBot. Every communication reflects on the company. Be professional, accurate, and helpful.
         """
         return system_prompt
 

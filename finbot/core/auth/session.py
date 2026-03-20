@@ -103,8 +103,13 @@ class SessionContext:
             return False
         # detection: check for too many recent rotations
         if self.rotation_count >= settings.SUSPICIOUS_ROTATION_THRESHOLD:
+            ca = (
+                self.created_at
+                if self.created_at.tzinfo
+                else self.created_at.replace(tzinfo=UTC)
+            )
             avg_rotation_interval = (
-                datetime.now(UTC) - self.created_at
+                datetime.now(UTC) - ca
             ).total_seconds() / max(1, self.rotation_count)
             min_expected_interval = (
                 settings.TEMP_SESSION_ROTATION_INTERVAL
@@ -117,12 +122,20 @@ class SessionContext:
 
     def get_security_status(self) -> dict:
         """Get security status for monitoring"""
+        lr = (
+            self.last_rotation
+            if self.last_rotation.tzinfo
+            else self.last_rotation.replace(tzinfo=UTC)
+        )
+        ca = (
+            self.created_at
+            if self.created_at.tzinfo
+            else self.created_at.replace(tzinfo=UTC)
+        )
         return {
             "rotation_count": self.rotation_count,
-            "time_since_rotation": (
-                datetime.now(UTC) - self.last_rotation
-            ).total_seconds(),
-            "session_age": (datetime.now(UTC) - self.created_at).total_seconds(),
+            "time_since_rotation": (datetime.now(UTC) - lr).total_seconds(),
+            "session_age": (datetime.now(UTC) - ca).total_seconds(),
             "should_rotate": self.should_rotate(),
             "is_too_old": self.is_too_old(),
             "suspicious_activity": self.detect_suspicious_activity(),
@@ -266,9 +279,19 @@ class SessionManager:
 
         return session_context
 
-    def _store_session_securely(self, session_context: SessionContext):
-        """Store session in db with integrity protection - HMAC signatures"""
-        db = SessionLocal()
+    def _store_session_securely(
+        self, session_context: SessionContext, db: Session | None = None
+    ):
+        """Store session in db with integrity protection - HMAC signatures.
+
+        Args:
+            session_context: Session to persist.
+            db: Optional existing DB session to reuse (caller manages lifecycle).
+                When provided, the method adds records but does NOT commit/close.
+        """
+        own_db = db is None
+        if own_db:
+            db = SessionLocal()
         try:
             if session_context.email:
                 user = (
@@ -277,7 +300,6 @@ class SessionManager:
                     .first()
                 )
                 if not user:
-                    # later: we can create fun display names
                     user = User(
                         user_id=session_context.user_id,
                         namespace=session_context.namespace,
@@ -314,7 +336,8 @@ class SessionManager:
                 current_vendor_id=session_context.current_vendor_id,
             )
             db.add(session)
-            db.commit()
+            if own_db:
+                db.commit()
         except Exception as e:
             db.rollback()
             logger.error(
@@ -322,8 +345,8 @@ class SessionManager:
             )
             raise RuntimeError(f"Failed to store session: {e}") from e
         finally:
-            db.close()
-            logger.debug("Database connection closed in _store_session_securely")
+            if own_db:
+                db.close()
 
     def _sign_session_data(self, session_data: str) -> str:
         """Create HMAC signature for session data"""
@@ -343,6 +366,7 @@ class SessionManager:
         current_strict_fingerprint: str = "",
         current_loose_fingerprint: str = "",
         current_ip: str = "",
+        _db: Session | None = None,
     ) -> tuple[SessionContext | None, str]:
         """Retrieve and validate session with tiered security validation and rotation
 
@@ -351,12 +375,14 @@ class SessionManager:
             current_strict_fingerprint: Strict fingerprint (stable fields only)
             current_loose_fingerprint: Loose fingerprint (includes normalized user_agent)
             current_ip: Current client IP address (used for monitoring, not strict validation)
+            _db: Optional existing DB session (caller manages lifecycle).
 
         Returns:
             tuple[SessionContext | None, str]: Session context for the user
             with isolation if valid else None and security status message
         """
-        db = SessionLocal()
+        own_db = _db is None
+        db = _db or SessionLocal()
         try:
             session = (
                 db.query(UserSession)
@@ -507,8 +533,8 @@ class SessionManager:
             db.rollback()
             raise
         finally:
-            db.close()
-            logger.debug("Database connection closed in get_session")
+            if own_db:
+                db.close()
 
     def _rotate_session(
         self, old_context: SessionContext, db: Session
@@ -539,7 +565,7 @@ class SessionManager:
             needs_cookie_update=True,
             was_rotated=True,
         )
-        self._store_session_securely(new_context)
+        self._store_session_securely(new_context, db=db)
 
         # Keep the old session alive briefly for concurrent in-flight requests.
         # Without this, a parallel request carrying the old cookie races against
@@ -773,79 +799,88 @@ class SessionManager:
     def get_session_with_vendor_context(
         self, session_id: str, **kwargs
     ) -> tuple[SessionContext | None, str]:
-        """Get session with vendor context loaded"""
-        session_context, status = self.get_session(session_id, **kwargs)
-
-        if session_context:
-            session_context = self.load_vendor_context(session_context)
-
-        return session_context, status
-
-    def load_vendor_context(self, session_context: SessionContext) -> SessionContext:
-        """Load vendor context from database"""
+        """Get session with vendor context loaded in a single DB connection."""
         db = SessionLocal()
         try:
-            # Get user's current vendor from session
-            session = (
-                db.query(UserSession)
-                .filter(UserSession.session_id == session_context.session_id)
-                .first()
+            session_context, status = self.get_session(
+                session_id, _db=db, **kwargs
             )
+            if session_context:
+                session_context = self._load_vendor_context_with_db(
+                    session_context, db
+                )
+            return session_context, status
+        except Exception as e:
+            logger.error("Error in get_session_with_vendor_context: %s", e)
+            db.rollback()
+            raise
+        finally:
+            db.close()
 
-            current_vendor_id = session.current_vendor_id if session else None
+    def _load_vendor_context_with_db(
+        self, session_context: SessionContext, db: Session
+    ) -> SessionContext:
+        """Load vendor context using an existing DB session."""
+        # avoid circular import; pylint: disable=import-outside-toplevel
+        from finbot.core.data.repositories import VendorRepository
 
-            # Get all available vendors for user
-            # avoid circular import; pylint: disable=import-outside-toplevel
-            from finbot.core.data.repositories import VendorRepository
+        session = (
+            db.query(UserSession)
+            .filter(UserSession.session_id == session_context.session_id)
+            .first()
+        )
 
-            vendor_repo = VendorRepository(db, session_context)
-            vendors = vendor_repo.list_vendors() or []
+        current_vendor_id = session.current_vendor_id if session else None
 
-            available_vendors = [
-                {
-                    "id": v.id,
-                    "company_name": v.company_name,
-                    "vendor_category": v.vendor_category,
-                    "industry": v.industry,
-                    "status": v.status,
-                    "created_at": v.created_at.isoformat().replace("+00:00", "Z"),
-                }
-                for v in vendors
-            ]
+        vendor_repo = VendorRepository(db, session_context)
+        vendors = vendor_repo.list_vendors() or []
 
-            # If no current vendor set but vendors exist, set first as default
-            if not current_vendor_id and available_vendors:
-                current_vendor_id = available_vendors[0]["id"]
-                # Update session with default
-                if session:
-                    session.current_vendor_id = current_vendor_id
-                    db.commit()
-                    logger.info(
-                        "Set default vendor for user %s: vendor_id=%s",
-                        session_context.user_id[:8],
-                        current_vendor_id,
-                    )
+        available_vendors = [
+            {
+                "id": v.id,
+                "company_name": v.company_name,
+                "vendor_category": v.vendor_category,
+                "industry": v.industry,
+                "status": v.status,
+                "created_at": v.created_at.isoformat().replace("+00:00", "Z"),
+            }
+            for v in vendors
+        ]
 
-            # Find current vendor details
-            current_vendor = None
-            if current_vendor_id:
-                current_vendor = next(
-                    (v for v in available_vendors if v["id"] == current_vendor_id), None
+        if not current_vendor_id and available_vendors:
+            current_vendor_id = available_vendors[0]["id"]
+            if session:
+                session.current_vendor_id = current_vendor_id
+                db.commit()
+                logger.info(
+                    "Set default vendor for user %s: vendor_id=%s",
+                    session_context.user_id[:8],
+                    current_vendor_id,
                 )
 
-            # Update session context
-            session_context.current_vendor_id = current_vendor_id
-            session_context.current_vendor = current_vendor
-            session_context.available_vendors = available_vendors
+        current_vendor = None
+        if current_vendor_id:
+            current_vendor = next(
+                (v for v in available_vendors if v["id"] == current_vendor_id), None
+            )
 
-            return session_context
+        session_context.current_vendor_id = current_vendor_id
+        session_context.current_vendor = current_vendor
+        session_context.available_vendors = available_vendors
+
+        return session_context
+
+    def load_vendor_context(self, session_context: SessionContext) -> SessionContext:
+        """Load vendor context from database (opens its own session)."""
+        db = SessionLocal()
+        try:
+            return self._load_vendor_context_with_db(session_context, db)
         except Exception as e:
             logger.error("Error in load_vendor_context: %s", e)
             db.rollback()
             raise
         finally:
             db.close()
-            logger.debug("Database connection closed in load_vendor_context")
 
 
 # Global session manager instance

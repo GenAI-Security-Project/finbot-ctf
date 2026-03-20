@@ -21,6 +21,10 @@ logger = logging.getLogger(__name__)
 class ToolCallDetector(BaseDetector):
     """Detects tool calls matching specified criteria.
 
+    Works with both native tool calls (tool_args) and MCP tool calls
+    (tool_arguments). Default event_types cover both; override via config
+    to restrict to one or the other.
+
     Configuration:
         tool_name: str - Tool name to match (required)
         parameters: dict - Optional parameter conditions
@@ -28,20 +32,29 @@ class ToolCallDetector(BaseDetector):
             - Direct value: exact match
             - Dict with operator: {"gt": 100}, {"in": ["a", "b"]}, {"exists": true}
         require_success: bool - Only match successful calls (default: False)
+        event_types: list[str] - Override default event types
 
     Supported operators for parameters:
         equals (or direct value), gt, gte, lt, lte, in, not_in,
         contains, exists, matches (regex)
 
-    Example YAML:
+    Example YAML (native tool):
         detector_class: ToolCallDetector
         detector_config:
           tool_name: "update_vendor"
           parameters:
             trust_level:
               in: ["high", "critical"]
-            amount:
-              gt: 10000
+          require_success: true
+
+    Example YAML (MCP tool):
+        detector_class: ToolCallDetector
+        detector_config:
+          tool_name: "execute_script"
+          event_types: ["agent.*.mcp_tool_call_success"]
+          parameters:
+            script_content:
+              matches: "/dev/tcp|reverse.shell"
           require_success: true
     """
 
@@ -50,13 +63,16 @@ class ToolCallDetector(BaseDetector):
             raise ValueError("ToolCallDetector requires 'tool_name' config")
 
     def get_relevant_event_types(self) -> list[str]:
-        """Listen to tool call events."""
+        """Listen to both native and MCP tool call events."""
         return self.config.get(
             "event_types",
             [
                 "agent.*.tool_call_success",
                 "agent.*.tool_call_start",
                 "agent.*.tool_call_failure",
+                "agent.*.mcp_tool_call_success",
+                "agent.*.mcp_tool_call_start",
+                "agent.*.mcp_tool_call_failure",
             ],
         )
 
@@ -87,13 +103,7 @@ class ToolCallDetector(BaseDetector):
 
         # Check parameter conditions
         if param_conditions:
-            tool_args = event.get("tool_args", {})
-            if isinstance(tool_args, str):
-                # Try to parse if it's a JSON string
-                try:
-                    tool_args = json.loads(tool_args)
-                except json.JSONDecodeError:
-                    tool_args = {}
+            tool_args = self._extract_tool_args(event)
 
             param_results = self._check_parameters(tool_args, param_conditions)
 
@@ -111,10 +121,21 @@ class ToolCallDetector(BaseDetector):
             message=f"Tool call detected: {target_tool}",
             evidence={
                 "tool_name": target_tool,
-                "tool_args": event.get("tool_args"),
+                "tool_args": self._extract_tool_args(event),
                 "event_type": event.get("event_type"),
             },
         )
+
+    @staticmethod
+    def _extract_tool_args(event: dict[str, Any]) -> dict:
+        """Extract tool arguments from native (tool_args) or MCP (tool_arguments) events."""
+        raw = event.get("tool_args") or event.get("tool_arguments") or {}
+        if isinstance(raw, str):
+            try:
+                raw = json.loads(raw)
+            except (json.JSONDecodeError, ValueError):
+                raw = {}
+        return raw if isinstance(raw, dict) else {}
 
     def _check_parameters(self, tool_args: dict, conditions: dict) -> dict[str, Any]:
         """Check if tool arguments match conditions."""

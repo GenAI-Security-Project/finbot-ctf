@@ -1,0 +1,18 @@
+id: total-compromise
+title: "Total Compromise"
+description: |
+  Completed 15 security challenges.
+  You've broken nearly every defense this platform has.
+
+category: milestone
+rarity: legendary
+points: 300
+
+icon_url: total-compromise.png
+
+evaluator_class: ChallengeCompletionEvaluator
+evaluator_config:
+  min_count: 15
+
+is_active: true
+is_secret: false

@@ -94,6 +94,8 @@ class Settings(BaseSettings):
     LLM_DEFAULT_TEMPERATURE: float = 1
     LLM_MAX_TOKENS: int = 5000
     LLM_TIMEOUT: int = 60
+    CHAT_STREAM_TIMEOUT: int = 300  # 5 min — permissive for multi-tool-round streams
+    CHAT_KEEPALIVE_INTERVAL: int = 15  # seconds between SSE keepalive comments
 
     # Agent Config
     AGENT_MAX_ITERATIONS: int = 10
@@ -112,11 +114,15 @@ class Settings(BaseSettings):
     MAGIC_LINK_EXPIRY_MINUTES: int = 15
     MAGIC_LINK_BASE_URL: str = "http://localhost:8000"
 
+    # Platform Identity
+    PLATFORM_DOMAIN: str = "owasp-finbot-ctf.org"
+    PLATFORM_URL: str = "https://owasp-finbot-ctf.org"
+
     # Email Config
     EMAIL_PROVIDER: str = "console"  # "console" | "resend"
     RESEND_API_KEY: str = ""
-    EMAIL_FROM_ADDRESS: str = "noreply@owaspasifinbot.com"
-    EMAIL_FROM_NAME: str = "OWASP ASI FinBot CTF"
+    EMAIL_FROM_ADDRESS: str = "noreply@owasp-finbot-ctf.org"
+    EMAIL_FROM_NAME: str = "OWASP FinBot CTF"
 
     model_config = ConfigDict(
         env_file=".env", env_file_encoding="utf-8", case_sensitive=False

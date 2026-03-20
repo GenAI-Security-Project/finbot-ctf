@@ -1,0 +1,19 @@
+id: zero-day
+title: "Zero Day"
+description: |
+  Completed an expert-difficulty challenge.
+  You found what nobody was supposed to find.
+
+category: achievement
+rarity: legendary
+points: 150
+
+icon_url: zero-day.png
+
+evaluator_class: DifficultyCompletionEvaluator
+evaluator_config:
+  min_count: 1
+  difficulty: expert
+
+is_active: true
+is_secret: false

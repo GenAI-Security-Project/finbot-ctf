@@ -12,6 +12,12 @@
     let selectedWorkflowId = null;
     let sortOrder = 'desc';
 
+    const PAGE_SIZE = 500;
+    let nextPage = 1;
+    let hasMore = false;
+    let totalEvents = 0;
+    let isLoading = false;
+
     const AGENTS = {
         orchestrator_agent:   { icon: '🎯', cls: 'orchestrator',   label: 'Orchestrator',   color: '#00d4ff' },
         onboarding_agent:     { icon: '🤖', cls: 'onboarding',     label: 'Onboarding',     color: '#7c3aed' },
@@ -24,22 +30,69 @@
 
     async function init() {
         setupViewToggle();
-        await loadAllEvents();
+        setupLoadMore();
+        await loadEvents();
+    }
+
+    function setupLoadMore() {
+        const btn = document.getElementById('load-more-btn');
+        if (btn) {
+            btn.addEventListener('click', async () => {
+                btn.disabled = true;
+                btn.textContent = 'Loading…';
+                await loadEvents(true);
+                btn.textContent = 'Load Older Activity';
+            });
+        }
     }
 
     // ==================== DATA ====================
 
-    async function loadAllEvents() {
+    async function loadEvents(append = false) {
+        if (isLoading) return;
+        isLoading = true;
+
         try {
-            const data = await CTF.getActivity({ page_size: 200 });
-            allEvents = data.items || [];
-            allAchievements = data.achievements || {};
+            const data = await CTF.getActivity({ page: nextPage, page_size: PAGE_SIZE });
+            const items = data.items || [];
+
+            if (append) {
+                allEvents = allEvents.concat(items);
+            } else {
+                allEvents = items;
+                allAchievements = data.achievements || {};
+                totalEvents = data.total || 0;
+            }
+
+            hasMore = data.has_more;
+            if (hasMore) nextPage++;
+
             renderCurrentView();
+            updateLoadMoreButton();
         } catch (err) {
             console.error('Failed to load activity:', err);
             document.getElementById('orch-loading').classList.add('hidden');
             document.getElementById('orch-empty').classList.remove('hidden');
+        } finally {
+            isLoading = false;
         }
+    }
+
+    function updateLoadMoreButton() {
+        const container = document.getElementById('load-more-container');
+        if (!container) return;
+
+        if (!hasMore || allEvents.length === 0) {
+            container.classList.add('hidden');
+            return;
+        }
+
+        const remaining = totalEvents - allEvents.length;
+        container.classList.remove('hidden');
+        const btn = container.querySelector('#load-more-btn');
+        const info = container.querySelector('#load-more-info');
+        if (btn) btn.disabled = false;
+        if (info) info.textContent = `Showing ${allEvents.length.toLocaleString()} of ${totalEvents.toLocaleString()} events · ${remaining.toLocaleString()} older events available`;
     }
 
     // ==================== VIEW TOGGLE ====================
@@ -69,6 +122,7 @@
     function renderCurrentView() {
         if (currentView === 'workflow') render();
         else if (currentView === 'timeline') renderTimeline();
+        updateLoadMoreButton();
     }
 
     // ==================== RENDER ====================
@@ -690,6 +744,7 @@
     function showTraceForWorkflow(wfId) {
         document.getElementById('workflow-view').classList.add('hidden');
         document.getElementById('timeline-view').classList.add('hidden');
+        document.getElementById('load-more-container').classList.add('hidden');
 
         const traceView = document.getElementById('trace-view');
         const container = document.getElementById('trace-container');

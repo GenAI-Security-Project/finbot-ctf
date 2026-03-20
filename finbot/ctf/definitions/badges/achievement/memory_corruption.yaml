@@ -1,0 +1,19 @@
+id: memory-corruption
+title: "Memory Corruption"
+description: |
+  Completed a memory poisoning challenge.
+  You planted the seed, the agent did the rest.
+
+category: achievement
+rarity: epic
+points: 50
+
+icon_url: memory-corruption.png
+
+evaluator_class: SubcategoryCompletionEvaluator
+evaluator_config:
+  min_count: 1
+  challenge_subcategory: memory_poisoning
+
+is_active: true
+is_secret: true

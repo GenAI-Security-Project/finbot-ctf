@@ -398,6 +398,73 @@
 .doc-paragraph { margin-bottom: 0; }
 
 /* ================================================================
+   RICH TEXT FORMATTING TOOLBAR
+   ================================================================ */
+.fmt-toolbar {
+    display: flex; align-items: center; gap: 4px;
+    padding: 6px 8px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+.fmt-btn {
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid transparent; border-radius: 4px;
+    background: none; cursor: pointer;
+    font-size: 14px; color: #475569;
+    transition: all 0.12s;
+}
+.fmt-btn:hover { background: #e2e8f0; color: #1e293b; }
+.fmt-btn-italic { font-family: Georgia, serif; }
+.fmt-sep { width: 1px; height: 20px; background: #e2e8f0; margin: 0 2px; flex-shrink: 0; }
+.fmt-select {
+    height: 28px; padding: 0 4px;
+    border: 1px solid #e2e8f0; border-radius: 4px;
+    background: #fff; font-size: 12px; color: #475569;
+    cursor: pointer; outline: none;
+}
+.fmt-select:focus { border-color: #93c5fd; }
+.fmt-swatches { display: flex; align-items: center; gap: 3px; }
+.fmt-swatch {
+    width: 18px; height: 18px;
+    border-radius: 3px; border: 1.5px solid transparent;
+    cursor: pointer; transition: transform 0.1s;
+    padding: 0;
+}
+.fmt-swatch:hover { transform: scale(1.2); }
+.fmt-swatch-light { border-color: #d1d5db; }
+.fmt-color-input {
+    width: 28px; height: 24px;
+    border: 1px solid #e2e8f0; border-radius: 4px;
+    padding: 1px; cursor: pointer; background: #fff;
+}
+.doc-body-editable, .inv-notes-editable {
+    outline: none;
+    font-family: inherit; line-height: 1.8;
+    color: #334155;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+.doc-body-editable { font-size: 15px; min-height: 560px; }
+.inv-notes-editable {
+    font-size: 13px; min-height: 72px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 10px 12px;
+}
+.inv-notes-editable:focus { border-color: #3b82f6; }
+.doc-body-editable:empty::before,
+.inv-notes-editable:empty::before {
+    content: attr(data-placeholder);
+    color: #d1d5db;
+    font-style: italic;
+    pointer-events: none;
+}
+
+/* ================================================================
    RESPONSIVE
    ================================================================ */
 @media (max-width: 768px) {

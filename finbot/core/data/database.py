@@ -4,6 +4,7 @@ DB Configuration and Management
 
 import logging
 import os
+from contextlib import contextmanager
 from typing import Generator
 
 from sqlalchemy import create_engine, event, text
@@ -87,8 +88,10 @@ Base = declarative_base()
 
 
 def get_db() -> Generator[Session, None, None]:
-    """Get a database session
-    - Ensures proper session handling and cleanup
+    """FastAPI dependency that yields a database session.
+
+    Use ONLY with FastAPI's ``Depends(get_db)``; for all other call sites use
+    :func:`db_session` instead. Otherwise, you may leak database connections.
     """
     db = SessionLocal()
     try:
@@ -99,7 +102,27 @@ def get_db() -> Generator[Session, None, None]:
         raise
     finally:
         db.close()
-        logger.info("Database session closed")
+
+
+@contextmanager
+def db_session() -> Generator[Session, None, None]:
+    """Context-managed database session for use outside FastAPI Depends.
+
+    Usage::
+
+        with db_session() as db:
+            repo = SomeRepository(db, ctx)
+            repo.do_work()
+    """
+    db = SessionLocal()
+    try:
+        yield db
+    except Exception as e:
+        logger.error("Database session error: %s", e)
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 def create_tables() -> None:

@@ -156,6 +156,22 @@
                 <div id="check-result" class="hidden mt-4 p-4 rounded-lg"></div>
             </div>
 
+            <!-- Last Attempt Card (in-progress challenges) -->
+            <div id="last-attempt-section" class="glass-card hidden">
+                <button id="last-attempt-toggle" onclick="toggleLastAttempt()" class="w-full flex items-center justify-between p-4 text-left hover:bg-white/[0.02] transition-colors rounded-xl">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm">🔎</span>
+                        <span class="text-sm font-medium text-text-secondary">Last Attempt Result</span>
+                    </div>
+                    <svg id="last-attempt-chevron" class="w-4 h-4 text-text-secondary transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </button>
+                <div id="last-attempt-body" class="hidden px-4 pb-4">
+                    <div id="last-attempt-content" class="space-y-0.5"></div>
+                </div>
+            </div>
+
             <!-- Evidence Card (collapsed by default, completed only) -->
             <div id="evidence-section" class="glass-card hidden">
                 <button id="evidence-toggle" onclick="toggleEvidence()" class="w-full flex items-center justify-between p-4 text-left hover:bg-white/[0.02] transition-colors rounded-xl">
@@ -315,7 +331,8 @@
     }
 
 
-    #evidence-chevron.rotated {
+    #evidence-chevron.rotated,
+    #last-attempt-chevron.rotated {
         transform: rotate(180deg);
     }
 
@@ -586,6 +603,11 @@ function renderChallenge(ch) {
         renderEvidence(ch.completion_evidence);
     }
 
+    // Last attempt result (in-progress or failed)
+    if (ch.status !== 'completed' && ch.last_attempt_result) {
+        renderLastAttempt(ch.last_attempt_result);
+    }
+
     // Prerequisites
     if (ch.prerequisites && ch.prerequisites.length > 0) {
         const card = document.getElementById('prerequisites-card');
@@ -792,6 +814,60 @@ function toggleEvidence() {
     label.textContent = isHidden ? 'Hide Evidence of Completion' : 'Show Evidence of Completion';
 }
 
+function renderLastAttempt(attempt) {
+    const section = document.getElementById('last-attempt-section');
+    const contentEl = document.getElementById('last-attempt-content');
+    section.classList.remove('hidden');
+
+    const detected = attempt.detected;
+    const statusColor = detected ? 'text-ctf-accent' : 'text-ctf-warning';
+    const statusText = detected ? 'Detected' : 'Not Detected';
+
+    const rows = [];
+
+    rows.push({key: 'Result', value: `<span class="${statusColor} font-medium">${statusText}</span>`});
+
+    if (attempt.message) {
+        rows.push({key: 'Message', value: escapeHtml(attempt.message)});
+    }
+
+    if (attempt.confidence !== undefined && attempt.confidence !== null) {
+        const pct = Math.round(attempt.confidence * 100);
+        rows.push({key: 'Confidence', value: `${pct}%`});
+    }
+
+    if (attempt.event_type) {
+        rows.push({key: 'Trigger', value: escapeHtml(attempt.event_type)});
+    }
+
+    if (attempt.timestamp) {
+        const d = new Date(attempt.timestamp);
+        rows.push({key: 'Timestamp', value: d.toLocaleString()});
+    }
+
+    if (attempt.evidence && Object.keys(attempt.evidence).length > 0) {
+        for (const [k, v] of Object.entries(attempt.evidence)) {
+            rows.push({key: formatKeyLabel(k), value: formatEvidenceValue(v)});
+        }
+    }
+
+    contentEl.innerHTML = rows.map(row => `
+        <div class="evidence-row">
+            <div class="evidence-key">${row.key}</div>
+            <div class="evidence-value">${row.value}</div>
+        </div>
+    `).join('');
+}
+
+function toggleLastAttempt() {
+    const body = document.getElementById('last-attempt-body');
+    const chevron = document.getElementById('last-attempt-chevron');
+    const isHidden = body.classList.contains('hidden');
+
+    body.classList.toggle('hidden');
+    chevron.classList.toggle('rotated');
+}
+
 const MODIFIER_NAMES = {
     'pi_jb': 'Prompt Injection / Jailbreak',
 };
@@ -812,13 +888,20 @@ function formatEvidenceValue(value) {
     if (Array.isArray(value)) {
         if (value.length === 0) return '<span class="text-text-secondary">None</span>';
         return '<ul class="nested-list">' +
-            value.map(item => `<li>${escapeHtml(String(item))}</li>`).join('') +
+            value.map(item => {
+                if (item != null && typeof item === 'object') {
+                    const parts = Object.entries(item)
+                        .map(([k, v]) => `<span class="text-text-secondary">${escapeHtml(formatKeyLabel(k))}:</span> ${formatEvidenceValue(v)}`);
+                    return `<li>${parts.join(' · ')}</li>`;
+                }
+                return `<li>${escapeHtml(String(item))}</li>`;
+            }).join('') +
             '</ul>';
     }
 
     if (typeof value === 'object') {
         return Object.entries(value)
-            .map(([k, v]) => `<span class="text-text-secondary">${escapeHtml(formatKeyLabel(k))}:</span> ${escapeHtml(String(v))}`)
+            .map(([k, v]) => `<span class="text-text-secondary">${escapeHtml(formatKeyLabel(k))}:</span> ${formatEvidenceValue(v)}`)
             .join('<br>');
     }
 

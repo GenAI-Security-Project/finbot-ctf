@@ -35,14 +35,15 @@ class SessionMiddleware(BaseHTTPMiddleware):
             self._add_security_headers(response)
             return response
 
-        session_context, status = await self._get_or_create_session(request)
+        is_vendor_route = request.url.path.startswith("/vendor")
+        session_context, status = await self._get_or_create_session(
+            request, load_vendor_context=is_vendor_route
+        )
 
         # Annotate portal type based on request path
         if request.url.path.startswith("/admin"):
             session_context.portal_type = "admin"
-            session_context.current_vendor_id = None
-            session_context.current_vendor = None
-        elif request.url.path.startswith("/vendor"):
+        elif is_vendor_route:
             session_context.portal_type = "vendor"
 
         request.state.session_context = session_context
@@ -66,7 +67,7 @@ class SessionMiddleware(BaseHTTPMiddleware):
         return response
 
     async def _get_or_create_session(
-        self, request: Request
+        self, request: Request, *, load_vendor_context: bool = False
     ) -> tuple[SessionContext, str]:
         """Get existing session or create new one with tiered security validation"""
 
@@ -89,18 +90,25 @@ class SessionMiddleware(BaseHTTPMiddleware):
             ).encode()
         ).hexdigest()[:16]
 
+        fp_kwargs = dict(
+            current_strict_fingerprint=current_strict_fingerprint,
+            current_loose_fingerprint=current_loose_fingerprint,
+            current_ip=current_ip,
+        )
+
         if session_id:
-            session_context, status = session_manager.get_session(
-                session_id,
-                current_strict_fingerprint,
-                current_loose_fingerprint,
-                current_ip,
-            )
+            if load_vendor_context:
+                session_context, status = (
+                    session_manager.get_session_with_vendor_context(
+                        session_id, **fp_kwargs
+                    )
+                )
+            else:
+                session_context, status = session_manager.get_session(
+                    session_id, **fp_kwargs
+                )
 
             if session_context:
-                # ideally we should separate this and load only for vendor portal
-                # but this info may be useful for other parts of the application
-                session_context = session_manager.load_vendor_context(session_context)
                 return session_context, status
             logger.warning("Session validation failed: %s", status)
 
@@ -111,8 +119,8 @@ class SessionMiddleware(BaseHTTPMiddleware):
             accept_language=accept_language,
             accept_encoding=accept_encoding,
         )
-        # load vendor context for new session
-        new_session = session_manager.load_vendor_context(new_session)
+        if load_vendor_context:
+            new_session = session_manager.load_vendor_context(new_session)
 
         return new_session, "session_created"
 

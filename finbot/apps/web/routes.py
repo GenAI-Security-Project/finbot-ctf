@@ -1,5 +1,6 @@
 """
-Route handlers for the CineFlow Productions web app
+Route handlers for the CineFlow Productions demo tenant website.
+Mounted at /demo/cineflow/ -- a fictional company preserved for future IPI scenarios.
 """
 
 from fastapi import APIRouter, HTTPException, Request
@@ -47,17 +48,6 @@ async def contact(request: Request):
     """Contact page"""
     return template_response(request, "pages/contact.html")
 
-
-@router.get("/portals", response_class=HTMLResponse)
-async def portals(request: Request):
-    """Portals page - access vendor, admin, and CTF portals"""
-    return template_response(request, "pages/portals.html")
-
-
-@router.get("/finbot", response_class=HTMLResponse)
-async def finbot_about(request: Request):
-    """FinBot About page - project info, team, and contributors"""
-    return template_response(request, "pages/finbot.html")
 
 
 # Test routes for error pages (for development/testing)

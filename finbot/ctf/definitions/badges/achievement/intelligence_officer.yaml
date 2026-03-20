@@ -1,0 +1,19 @@
+id: intelligence-officer
+title: "Intelligence Officer"
+description: |
+  Completed 2 reconnaissance challenges.
+  No system prompt is safe from you.
+
+category: achievement
+rarity: rare
+points: 75
+
+icon_url: intelligence-officer.png
+
+evaluator_class: ChallengeCompletionEvaluator
+evaluator_config:
+  min_count: 2
+  challenge_category: recon
+
+is_active: true
+is_secret: false

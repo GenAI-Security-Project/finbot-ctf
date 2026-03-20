@@ -235,6 +235,36 @@
     50% { opacity: 0; }
 }
 
+/* Thinking indicator — compact so the bubble stays slim */
+.msg-content:has(.thinking-indicator) {
+    padding: 6px 14px;
+    line-height: 1.2;
+}
+
+.thinking-indicator {
+    display: inline-flex;
+    align-items: baseline;
+    color: rgba(0, 212, 255, 0.55);
+    font-size: 0.8rem;
+}
+
+.thinking-text {
+    margin-right: 1px;
+}
+
+.thinking-dots span {
+    animation: dot-bounce 1.4s infinite ease-in-out;
+    display: inline-block;
+}
+
+.thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+.thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes dot-bounce {
+    0%, 60%, 100% { opacity: 0.2; transform: translateY(0); }
+    30% { opacity: 1; transform: translateY(-2px); }
+}
+
 /* Input area */
 .chat-input-area {
     padding: 16px 0 8px;

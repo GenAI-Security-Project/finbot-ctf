@@ -13,7 +13,7 @@ from typing import Any, Callable
 from fastmcp import Client, FastMCP
 
 from finbot.core.auth.session import SessionContext
-from finbot.core.data.database import get_db
+from finbot.core.data.database import db_session
 from finbot.core.data.repositories import MCPActivityLogRepository
 from finbot.core.messaging import event_bus
 
@@ -289,17 +289,17 @@ class MCPToolProvider:
     ) -> None:
         """Log MCP activity to the database for the admin portal."""
         try:
-            db = next(get_db())
-            repo = MCPActivityLogRepository(db, self._session_context)
-            repo.log_activity(
-                server_type=server_name,
-                direction=direction,
-                method=method,
-                tool_name=tool_name,
-                payload_json=json.dumps(payload) if payload else None,
-                workflow_id=self._workflow_id,
-                duration_ms=duration_ms,
-            )
+            with db_session() as db:
+                repo = MCPActivityLogRepository(db, self._session_context)
+                repo.log_activity(
+                    server_type=server_name,
+                    direction=direction,
+                    method=method,
+                    tool_name=tool_name,
+                    payload_json=json.dumps(payload) if payload else None,
+                    workflow_id=self._workflow_id,
+                    duration_ms=duration_ms,
+                )
         except Exception:  # pylint: disable=broad-exception-caught
             logger.debug("Failed to log MCP activity", exc_info=True)
 

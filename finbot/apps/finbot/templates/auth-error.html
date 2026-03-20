@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ error or 'Error' }} - OWASP FinBot CTF</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', path='images/common/favicon.ico') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { theme: { extend: { colors: {
+            'bg-primary': '#07070d', 'bg-secondary': '#0e0e1a',
+            'cyan': '#00d4ff', 'purple': '#7c3aed', 'danger': '#ff3366',
+            'text-1': '#f1f5f9', 'text-2': '#94a3b8', 'text-3': '#64748b',
+            'border-dim': 'rgba(255,255,255,0.06)',
+        }, fontFamily: { 'sans': ['Inter', 'system-ui', 'sans-serif'] } } } }
+    </script>
+    <style>body { background: #07070d; }</style>
+</head>
+<body class="text-text-2 font-sans antialiased min-h-screen flex items-center justify-center px-4">
+    <div class="max-w-md mx-auto text-center">
+        <div class="inline-flex items-center justify-center w-20 h-20 bg-danger/15 rounded-full mb-8">
+            <svg class="w-10 h-10 text-danger" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+            </svg>
+        </div>
+
+        <h1 class="text-3xl font-bold text-text-1 mb-4">{{ error or 'Something went wrong' }}</h1>
+
+        <p class="text-text-2 mb-8">{{ message or 'An unexpected error occurred. Please try again.' }}</p>
+
+        <div class="space-y-4">
+            <a href="/portals" class="inline-flex items-center justify-center w-full bg-gradient-to-r from-cyan to-purple text-bg-primary px-6 py-3 rounded-xl font-semibold hover:shadow-[0_0_24px_rgba(0,212,255,0.25)] transition-all">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                </svg>
+                Back to Portals
+            </a>
+        </div>
+    </div>
+</body>
+</html>

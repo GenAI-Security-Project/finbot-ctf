@@ -1264,3 +1264,38 @@
     overflow-y: auto;
 }
 
+/* ==========================================================================
+   Load More
+   ========================================================================== */
+
+.load-more-container {
+    text-align: center;
+    padding: 24px 0 8px;
+}
+
+.load-more-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 24px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(21, 21, 32, 0.6);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.load-more-btn:hover:not(:disabled) {
+    border-color: rgba(0, 212, 255, 0.25);
+    color: rgba(255, 255, 255, 0.9);
+    background: rgba(0, 212, 255, 0.05);
+}
+
+.load-more-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+

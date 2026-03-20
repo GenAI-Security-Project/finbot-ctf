@@ -13,7 +13,7 @@ from finbot.core.data.models import MagicLinkToken
 from finbot.core.email import get_email_service
 from finbot.core.templates import TemplateResponse
 
-template_response = TemplateResponse("finbot/apps/web/templates")
+template_response = TemplateResponse("finbot/apps/finbot/templates")
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -71,7 +71,7 @@ async def request_magic_link(
         db.rollback()
         return template_response(
             request,
-            "pages/auth-error.html",
+            "auth-error.html",
             {
                 "error": "Failed to send magic link",
                 "message": f"An error occurred: {e}. Please try again.",
@@ -97,7 +97,7 @@ async def verify_magic_link(request: Request, token: str):
         if not magic_token:
             return template_response(
                 request,
-                "pages/auth-error.html",
+                "auth-error.html",
                 {
                     "error": "Invalid link",
                     "message": "This sign-in link is invalid or has already been used.",
@@ -107,7 +107,7 @@ async def verify_magic_link(request: Request, token: str):
         if not magic_token.is_valid():
             return template_response(
                 request,
-                "pages/auth-error.html",
+                "auth-error.html",
                 {
                     "error": "Link expired",
                     "message": "This sign-in link has expired. Please request a new one.",
@@ -161,7 +161,7 @@ async def verify_magic_link(request: Request, token: str):
         if not new_session:
             return template_response(
                 request,
-                "pages/auth-error.html",
+                "auth-error.html",
                 {
                     "error": "Session error",
                     "message": "Failed to create session. Please try again.",
@@ -185,7 +185,7 @@ async def verify_magic_link(request: Request, token: str):
         db.rollback()
         return template_response(
             request,
-            "pages/auth-error.html",
+            "auth-error.html",
             {
                 "error": "Verification failed",
                 "message": f"An error occurred: {e}. Please try again.",
@@ -234,6 +234,6 @@ async def check_email(request: Request, email: str = ""):
 
     return template_response(
         request,
-        "pages/check-email.html",
+        "check-email.html",
         {"email": email},
     )
