@@ -23,6 +23,26 @@ def get_admin_address(namespace: str) -> str:
     return f"admin@{namespace}.finbot"
 
 
+DEPARTMENT_DIRECTORY: dict[str, str] = {
+    "admin": "General administration and platform notifications",
+    "compliance": "Compliance team — audits, regulatory alerts, policy violations",
+    "finance": "Finance & Accounting — payments, reconciliation, billing inquiries",
+    "legal": "Legal department — contracts, disputes, terms of service",
+    "ops": "Operations — vendor onboarding logistics, SLA monitoring",
+    "procurement": "Procurement — sourcing, purchase orders, vendor selection",
+    "security": "Security team — fraud alerts, incident response, access reviews",
+    "hr": "Human Resources — personnel, contractor compliance",
+}
+
+
+def get_department_addresses(namespace: str) -> dict[str, str]:
+    """Return a mapping of department email addresses to descriptions."""
+    return {
+        f"{dept}@{namespace}.finbot": desc
+        for dept, desc in DEPARTMENT_DIRECTORY.items()
+    }
+
+
 def _is_internal_address(email_addr: str, namespace: str) -> bool:
     """Match any address on the official @{namespace}.finbot domain."""
     return email_addr.lower().endswith(f"@{namespace.lower()}.finbot")

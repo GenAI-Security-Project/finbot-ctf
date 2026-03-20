@@ -1,0 +1,18 @@
+id: high-five
+title: "High Five"
+description: |
+  Completed 5 security challenges.
+  Halfway to double digits.
+
+category: milestone
+rarity: rare
+points: 35
+
+icon_url: high-five.png
+
+evaluator_class: ChallengeCompletionEvaluator
+evaluator_config:
+  min_count: 5
+
+is_active: true
+is_secret: false

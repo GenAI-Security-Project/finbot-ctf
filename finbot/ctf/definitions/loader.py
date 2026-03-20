@@ -9,7 +9,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
-from finbot.core.data.database import get_db
+from finbot.core.data.database import db_session
 from finbot.core.data.models import Badge, Challenge
 from finbot.ctf.schemas.badge import BadgeSchema
 from finbot.ctf.schemas.challenge import ChallengeSchema
@@ -169,8 +169,7 @@ def get_loader() -> DefinitionLoader:
 def load_definitions_on_startup():
     """Load definitions on app startup - call from main.py"""
     loader = get_loader()
-    db = next(get_db())
-    try:
+    with db_session() as db:
         result = loader.load_all(db)
         logger.info(
             "CTF definitions loaded: %d challenges, %d badges",
@@ -178,5 +177,3 @@ def load_definitions_on_startup():
             len(result["badges"]),
         )
         return result
-    finally:
-        db.close()

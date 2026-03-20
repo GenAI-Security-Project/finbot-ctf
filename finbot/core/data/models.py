@@ -695,6 +695,9 @@ class UserChallengeProgress(Base):
     )  # JSON: events that triggered completion
     completion_workflow_id = Column[str](String(64), nullable=True)
 
+    # Last attempt result (for progress tracking / CTF feedback)
+    last_attempt_result = Column[str](Text, nullable=True)  # JSON: gate results from last attempt
+
     created_at = Column[datetime](DateTime, default=lambda: datetime.now(UTC))
     updated_at = Column[datetime](
         DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC)
@@ -740,6 +743,9 @@ class UserChallengeProgress(Base):
             if self.completion_evidence
             else None,
             "completion_workflow_id": self.completion_workflow_id,
+            "last_attempt_result": json.loads(self.last_attempt_result)
+            if self.last_attempt_result
+            else None,
         }
 
 

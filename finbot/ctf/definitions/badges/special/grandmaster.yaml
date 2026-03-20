@@ -1,0 +1,18 @@
+id: grandmaster
+title: "Grandmaster"
+description: |
+  Earned 3000 total CTF points.
+  You've reached the pinnacle of FinBot security.
+
+category: special
+rarity: legendary
+points: 100
+
+icon_url: grandmaster.png
+
+evaluator_class: PointThresholdEvaluator
+evaluator_config:
+  min_points: 3000
+
+is_active: true
+is_secret: false

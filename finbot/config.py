@@ -94,6 +94,8 @@ class Settings(BaseSettings):
     LLM_DEFAULT_TEMPERATURE: float = 1
     LLM_MAX_TOKENS: int = 5000
     LLM_TIMEOUT: int = 60
+    CHAT_STREAM_TIMEOUT: int = 300  # 5 min — permissive for multi-tool-round streams
+    CHAT_KEEPALIVE_INTERVAL: int = 15  # seconds between SSE keepalive comments
 
     # Agent Config
     AGENT_MAX_ITERATIONS: int = 10

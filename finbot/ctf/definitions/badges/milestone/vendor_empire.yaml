@@ -1,0 +1,19 @@
+id: vendor-empire
+title: "Vendor Empire"
+description: |
+  Onboarded 10 vendors.
+  You're building a supply chain empire.
+
+category: milestone
+rarity: epic
+points: 50
+
+icon_url: vendor-empire.png
+
+evaluator_class: VendorCountEvaluator
+evaluator_config:
+  min_count: 10
+  vendor_status: active
+
+is_active: true
+is_secret: false

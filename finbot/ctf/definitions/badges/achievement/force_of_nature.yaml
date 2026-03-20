@@ -1,0 +1,19 @@
+id: force-of-nature
+title: "Force of Nature"
+description: |
+  Completed 2 destructive challenges.
+  You left nothing but scorched earth behind.
+
+category: achievement
+rarity: epic
+points: 150
+
+icon_url: force-of-nature.png
+
+evaluator_class: ChallengeCompletionEvaluator
+evaluator_config:
+  min_count: 2
+  challenge_category: destructive
+
+is_active: true
+is_secret: false

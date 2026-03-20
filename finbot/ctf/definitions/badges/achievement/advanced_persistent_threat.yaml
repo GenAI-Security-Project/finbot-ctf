@@ -1,0 +1,19 @@
+id: advanced-persistent-threat
+title: "Advanced Persistent Threat"
+description: |
+  Completed an advanced-difficulty challenge.
+  You're operating at a level most never reach.
+
+category: achievement
+rarity: epic
+points: 75
+
+icon_url: advanced-persistent-threat.png
+
+evaluator_class: DifficultyCompletionEvaluator
+evaluator_config:
+  min_count: 1
+  difficulty: advanced
+
+is_active: true
+is_secret: false

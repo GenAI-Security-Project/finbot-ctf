@@ -71,8 +71,12 @@ def _register_all_evaluators():
     """Import all evaluator implementations to trigger registration"""
     from finbot.ctf.evaluators.implementations import (
         challenge_completion,
+        difficulty_completion,
         invoice_amount,
         invoice_count,
+        multi_category_completion,
+        point_threshold,
+        subcategory_completion,
         vendor_count,
     )
 

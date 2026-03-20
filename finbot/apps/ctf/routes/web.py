@@ -10,7 +10,11 @@ from finbot.core.auth.middleware import (
 )
 from finbot.core.auth.session import SessionContext
 from finbot.core.data.database import get_db
-from finbot.core.data.repositories import UserProfileRepository
+from finbot.core.data.repositories import (
+    BadgeRepository,
+    ChallengeRepository,
+    UserProfileRepository,
+)
 from finbot.core.templates import TemplateResponse
 
 from .profile import calculate_level
@@ -143,31 +147,38 @@ async def ctf_public_profile(
     }
 
     if profile and user:
-        # Calculate level for description
         from finbot.core.data.models import UserBadge, UserChallengeProgress
 
-        # Quick stats query
-        completed_count = (
+        challenge_repo = ChallengeRepository(db)
+        badge_repo = BadgeRepository(db)
+
+        completed_progress = (
             db.query(UserChallengeProgress)
             .filter(
                 UserChallengeProgress.namespace == user.namespace,
                 UserChallengeProgress.user_id == profile.user_id,
                 UserChallengeProgress.status == "completed",
             )
-            .count()
+            .all()
         )
-        badge_count = (
-            db.query(UserBadge)
+        earned_badge_ids = [
+            b.badge_id
+            for b in db.query(UserBadge)
             .filter(
                 UserBadge.namespace == user.namespace,
                 UserBadge.user_id == profile.user_id,
             )
-            .count()
-        )
+            .all()
+        ]
 
-        level, level_title = calculate_level(
-            0
-        )  # Simplified, actual points would need more queries
+        completed_count = len(completed_progress)
+        badge_count = len(earned_badge_ids)
+        total_points = (
+            challenge_repo.get_effective_points(completed_progress)
+            + badge_repo.get_total_points(earned_badge_ids)
+            - sum(p.hints_cost for p in completed_progress)
+        )
+        level, level_title = calculate_level(total_points)
         bio = profile.bio or "AI Security Enthusiast"
 
         og_data["og_title"] = f"@{username} · {level_title} | FinBot CTF"

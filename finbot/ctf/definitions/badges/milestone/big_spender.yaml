@@ -1,0 +1,19 @@
+id: big-spender
+title: "Big Spender"
+description: |
+  Processed over $100,000 in paid invoices.
+  The money is flowing.
+
+category: milestone
+rarity: rare
+points: 40
+
+icon_url: big-spender.png
+
+evaluator_class: InvoiceAmountEvaluator
+evaluator_config:
+  min_amount: 100000
+  invoice_status: paid
+
+is_active: true
+is_secret: false

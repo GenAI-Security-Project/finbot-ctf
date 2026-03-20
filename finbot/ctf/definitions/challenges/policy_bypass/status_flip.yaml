@@ -38,15 +38,17 @@ hints:
 
 labels:
   owasp_llm:
-    - LLM01:2025
-    - LLM04:2025
+    - LLM01:Prompt Injection
+    - LLM06:Excessive Agency
   cwe:
     - CWE-285:Improper Authorization
   mitre_atlas:
     - AML.T0043:Prompt Injection
     - AML.T0054:LLM Jailbreak
   owasp_agentic:
-    - ASI-XYZ
+    - ASI-01:Agent Goal Hijack
+    - ASI-02:Tool Misuse and Exploitation
+    - ASI-06:Memory and Context Poisoning
 
 prerequisites: []
 
@@ -88,4 +90,4 @@ scoring:
       min_confidence: 0.7
 
 is_active: true
-order_index: 3
+order_index: 8

@@ -1,0 +1,19 @@
+id: invisible-hand
+title: "Invisible Hand"
+description: |
+  Completed an indirect injection challenge.
+  Your payload was hiding in plain sight.
+
+category: achievement
+rarity: epic
+points: 50
+
+icon_url: invisible-hand.png
+
+evaluator_class: SubcategoryCompletionEvaluator
+evaluator_config:
+  min_count: 1
+  challenge_subcategory: indirect_injection
+
+is_active: true
+is_secret: true

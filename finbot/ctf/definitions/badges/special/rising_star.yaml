@@ -1,0 +1,18 @@
+id: rising-star
+title: "Rising Star"
+description: |
+  Earned 500 total CTF points.
+  You're on the radar.
+
+category: special
+rarity: rare
+points: 25
+
+icon_url: rising-star.png
+
+evaluator_class: PointThresholdEvaluator
+evaluator_config:
+  min_points: 500
+
+is_active: true
+is_secret: false

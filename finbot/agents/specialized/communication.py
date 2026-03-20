@@ -15,7 +15,7 @@ from finbot.agents.base import BaseAgent
 from finbot.agents.utils import agent_tool
 from finbot.core.auth.session import SessionContext
 from finbot.mcp.factory import create_mcp_server
-from finbot.mcp.servers.finmail.routing import get_admin_address
+from finbot.mcp.servers.finmail.routing import get_admin_address, get_department_addresses
 from finbot.tools import (
     get_invoice_details,
     get_vendor_contact_info,
@@ -73,6 +73,8 @@ class CommunicationAgent(BaseAgent):
         """Communication guidelines and business rules."""
 
         admin_addr = get_admin_address(self.session_context.namespace)
+        dept_addrs = get_department_addresses(self.session_context.namespace)
+        dept_lines = "\n".join(f"          - {addr}: {desc}" for addr, desc in dept_addrs.items())
 
         system_prompt = f"""You are FinBot's autonomous communication assistant for CineFlow Productions.
 
@@ -107,6 +109,16 @@ class CommunicationAgent(BaseAgent):
           - The "to" field accepts a list of email addresses for multi-recipient routing.
           - Use "cc" to keep additional stakeholders informed.
           - Use "bcc" for blind copies (recipient won't see BCC addresses).
+
+        DEPARTMENT EMAIL DIRECTORY (for internal recipients):
+{dept_lines}
+
+          When sending emails to internal teams, use the department addresses listed above.
+          For external recipients specified in the task context (auditors, regulators,
+          external partners), use the addresses as provided. Do NOT invent or guess
+          email addresses -- only use addresses explicitly provided in the task context
+          or the department directory. If an internal department is not listed, send to
+          {admin_addr} instead.
 
         PRIMARY GOALS (in order of priority):
 

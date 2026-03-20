@@ -7,6 +7,8 @@ Interactive AI assistants that sit above the orchestrator layer.
 Both share the same streaming SSE infrastructure via ChatAssistantBase.
 """
 
+import asyncio
+import contextlib
 import json
 import logging
 import secrets
@@ -18,7 +20,7 @@ from openai import AsyncOpenAI
 
 from finbot.config import settings
 from finbot.core.auth.session import SessionContext
-from finbot.core.data.database import get_db
+from finbot.core.data.database import db_session
 from finbot.core.data.models import CTFEvent
 from finbot.core.data.repositories import ChatMessageRepository, VendorRepository
 from finbot.core.messaging import event_bus
@@ -62,7 +64,10 @@ class ChatAssistantBase:
         self.max_history = max_history
         self.agent_name = agent_name
         self._workflow_id = self._resolve_workflow_id()
-        self._client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        self._client = AsyncOpenAI(
+            api_key=settings.OPENAI_API_KEY,
+            timeout=settings.CHAT_STREAM_TIMEOUT,
+        )
         self._model = settings.LLM_DEFAULT_MODEL
         self._mcp_provider: MCPToolProvider | None = None
         self._mcp_connected = False
@@ -70,25 +75,24 @@ class ChatAssistantBase:
 
     def _resolve_workflow_id(self) -> str:
         try:
-            db = next(get_db())
-            last_event = (
-                db.query(CTFEvent.workflow_id, CTFEvent.timestamp)
-                .filter(
-                    CTFEvent.session_id == self.session_context.session_id,
-                    CTFEvent.agent_name == self.agent_name,
-                    CTFEvent.workflow_id.isnot(None),
+            with db_session() as db:
+                last_event = (
+                    db.query(CTFEvent.workflow_id, CTFEvent.timestamp)
+                    .filter(
+                        CTFEvent.session_id == self.session_context.session_id,
+                        CTFEvent.agent_name == self.agent_name,
+                        CTFEvent.workflow_id.isnot(None),
+                    )
+                    .order_by(CTFEvent.timestamp.desc())
+                    .first()
                 )
-                .order_by(CTFEvent.timestamp.desc())
-                .first()
-            )
-            db.close()
 
-            if last_event and last_event.workflow_id:
-                elapsed = (
-                    datetime.now(UTC) - last_event.timestamp.replace(tzinfo=UTC)
-                ).total_seconds()
-                if elapsed < CHAT_IDLE_TIMEOUT_SECONDS:
-                    return last_event.workflow_id
+                if last_event and last_event.workflow_id:
+                    elapsed = (
+                        datetime.now(UTC) - last_event.timestamp.replace(tzinfo=UTC)
+                    ).total_seconds()
+                    if elapsed < CHAT_IDLE_TIMEOUT_SECONDS:
+                        return last_event.workflow_id
         except Exception:  # pylint: disable=broad-exception-caught
             logger.debug("Could not resolve previous chat workflow, starting new one")
 
@@ -166,15 +170,15 @@ class ChatAssistantBase:
             return json.dumps({"error": f"Tool {name} failed: {str(e)}"})
 
     def _load_history(self) -> list[dict]:
-        db = next(get_db())
-        repo = ChatMessageRepository(db, self.session_context)
-        messages = repo.get_history(limit=self.max_history)
-        return [{"role": m.role, "content": m.content} for m in messages]
+        with db_session() as db:
+            repo = ChatMessageRepository(db, self.session_context)
+            messages = repo.get_history(limit=self.max_history)
+            return [{"role": m.role, "content": m.content} for m in messages]
 
     def _save_message(self, role: str, content: str, workflow_id: str | None = None):
-        db = next(get_db())
-        repo = ChatMessageRepository(db, self.session_context)
-        repo.add_message(role=role, content=content, workflow_id=workflow_id)
+        with db_session() as db:
+            repo = ChatMessageRepository(db, self.session_context)
+            repo.add_message(role=role, content=content, workflow_id=workflow_id)
 
     async def _call_start_workflow(
         self,
@@ -225,13 +229,13 @@ class ChatAssistantBase:
             summary=f"Chat workflow started: {description[:100]}",
         )
 
-        db = next(get_db())
-        repo = ChatMessageRepository(db, self.session_context)
-        repo.add_message(
-            role="system",
-            content=f"Workflow started: {description}",
-            workflow_id=child_workflow_id,
-        )
+        with db_session() as db:
+            repo = ChatMessageRepository(db, self.session_context)
+            repo.add_message(
+                role="system",
+                content=f"Workflow started: {description}",
+                workflow_id=child_workflow_id,
+            )
 
         return json.dumps(
             {
@@ -240,6 +244,30 @@ class ChatAssistantBase:
                 "message": "Workflow has been started and will run in the background.",
             }
         )
+
+    _TOOL_LABELS: dict[str, str] = {
+        "get_vendor_details": "Looking up vendor details\u2026",
+        "get_vendor_contact_info": "Fetching contact info\u2026",
+        "get_vendor_risk_profile": "Checking risk profile\u2026",
+        "get_vendor_invoices": "Pulling invoice records\u2026",
+        "get_invoice_details": "Retrieving invoice details\u2026",
+        "get_invoice_for_payment": "Looking up payment info\u2026",
+        "get_vendor_payment_summary": "Reviewing payment history\u2026",
+        "get_all_vendors_summary": "Gathering vendor data\u2026",
+        "get_pending_actions_summary": "Checking pending actions\u2026",
+        "get_vendor_compliance_docs": "Reviewing compliance docs\u2026",
+        "get_vendor_activity_report": "Generating activity report\u2026",
+        "update_invoice_status": "Updating invoice status\u2026",
+        "update_vendor_status": "Updating vendor status\u2026",
+        "update_vendor_risk": "Updating risk assessment\u2026",
+        "complete_task": "Wrapping up\u2026",
+    }
+
+    def _tool_display_label(self, tool_name: str) -> str:
+        if tool_name in self._TOOL_LABELS:
+            return self._TOOL_LABELS[tool_name]
+        pretty = tool_name.replace("_", " ").replace("-", " ")
+        return f"Running {pretty}\u2026"
 
     async def stream_response(
         self,
@@ -286,8 +314,8 @@ class ChatAssistantBase:
         full_response = ""
         start_time = datetime.now(UTC)
 
-        max_tool_rounds = 5
-        for _ in range(max_tool_rounds):
+        max_tool_rounds = 15
+        for round_idx in range(max_tool_rounds):
             stream_params = {
                 "model": self._model,
                 "input": input_messages,
@@ -323,57 +351,87 @@ class ChatAssistantBase:
             if not pending_tool_calls:
                 break
 
-            for tc in pending_tool_calls:
-                await event_bus.emit_agent_event(
-                    agent_name=self.agent_name,
-                    event_type="tool_call_start",
-                    event_subtype="chat",
-                    event_data={
-                        "tool_name": tc["name"],
-                        "arguments": tc["arguments"],
-                        "vendor_id": self.session_context.current_vendor_id,
-                        "llm_model": self._model,
-                    },
-                    session_context=self.session_context,
-                    workflow_id=self._workflow_id,
-                    summary=f"Chat tool call: {tc['name']}",
-                )
+            keepalive_queue: asyncio.Queue[str] = asyncio.Queue()
 
-                input_messages.append(
-                    {
-                        "type": "function_call",
-                        "name": tc["name"],
-                        "call_id": tc["call_id"],
-                        "arguments": json.dumps(tc["arguments"]),
-                    }
-                )
-                tool_start = datetime.now(UTC)
-                result = await self._execute_tool(tc["name"], tc["arguments"])
-                tool_duration_ms = int(
-                    (datetime.now(UTC) - tool_start).total_seconds() * 1000
-                )
-                input_messages.append(
-                    {
-                        "type": "function_call_output",
-                        "call_id": tc["call_id"],
-                        "output": result,
-                    }
-                )
+            async def _keepalive_emitter() -> None:
+                """Emit SSE keepalive comments while tools run."""
+                interval = settings.CHAT_KEEPALIVE_INTERVAL
+                while True:
+                    await asyncio.sleep(interval)
+                    keepalive_queue.put_nowait(": keepalive\n\n")
 
-                await event_bus.emit_agent_event(
-                    agent_name=self.agent_name,
-                    event_type="tool_call_success",
-                    event_subtype="chat",
-                    event_data={
-                        "tool_name": tc["name"],
-                        "duration_ms": tool_duration_ms,
-                        "vendor_id": self.session_context.current_vendor_id,
-                        "llm_model": self._model,
-                    },
-                    session_context=self.session_context,
-                    workflow_id=self._workflow_id,
-                    summary=f"Chat tool completed: {tc['name']} ({tool_duration_ms}ms)",
-                )
+            keepalive_task = asyncio.create_task(_keepalive_emitter())
+            try:
+                yield f"data: {json.dumps({'type': 'status', 'content': 'Thinking\u2026'})}\n\n"
+
+                for tc in pending_tool_calls:
+                    yield f"data: {json.dumps({'type': 'status', 'content': self._tool_display_label(tc['name'])})}\n\n"
+
+                    await event_bus.emit_agent_event(
+                        agent_name=self.agent_name,
+                        event_type="tool_call_start",
+                        event_subtype="chat",
+                        event_data={
+                            "tool_name": tc["name"],
+                            "arguments": tc["arguments"],
+                            "vendor_id": self.session_context.current_vendor_id,
+                            "llm_model": self._model,
+                        },
+                        session_context=self.session_context,
+                        workflow_id=self._workflow_id,
+                        summary=f"Chat tool call: {tc['name']}",
+                    )
+
+                    input_messages.append(
+                        {
+                            "type": "function_call",
+                            "name": tc["name"],
+                            "call_id": tc["call_id"],
+                            "arguments": json.dumps(tc["arguments"]),
+                        }
+                    )
+                    tool_start = datetime.now(UTC)
+                    result = await self._execute_tool(tc["name"], tc["arguments"])
+                    tool_duration_ms = int(
+                        (datetime.now(UTC) - tool_start).total_seconds() * 1000
+                    )
+                    input_messages.append(
+                        {
+                            "type": "function_call_output",
+                            "call_id": tc["call_id"],
+                            "output": result,
+                        }
+                    )
+
+                    await event_bus.emit_agent_event(
+                        agent_name=self.agent_name,
+                        event_type="tool_call_success",
+                        event_subtype="chat",
+                        event_data={
+                            "tool_name": tc["name"],
+                            "duration_ms": tool_duration_ms,
+                            "vendor_id": self.session_context.current_vendor_id,
+                            "llm_model": self._model,
+                        },
+                        session_context=self.session_context,
+                        workflow_id=self._workflow_id,
+                        summary=f"Chat tool completed: {tc['name']} ({tool_duration_ms}ms)",
+                    )
+
+                    while not keepalive_queue.empty():
+                        yield keepalive_queue.get_nowait()
+            finally:
+                keepalive_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await keepalive_task
+        else:
+            exhaust_msg = (
+                "\n\n---\n*I've reached the maximum number of steps I can take "
+                "for a single message. Please send a follow-up message so I can "
+                "continue.*"
+            )
+            full_response += exhaust_msg
+            yield f"data: {json.dumps({'type': 'token', 'content': exhaust_msg})}\n\n"
 
         duration_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
 
@@ -421,9 +479,15 @@ class VendorChatAssistant(ChatAssistantBase):
     def _get_system_prompt(self) -> str:
         from finbot.mcp.servers.finmail.routing import (
             get_admin_address,  # pylint: disable=import-outside-toplevel
+            get_department_addresses,
         )
 
         admin_addr = get_admin_address(self.session_context.namespace)
+        dept_addrs = get_department_addresses(self.session_context.namespace)
+        dept_lines = "\n".join(
+            f"  - {addr}: {desc}" for addr, desc in dept_addrs.items()
+        )
+
         return f"""You are FinBot, the AI assistant for CineFlow Productions' vendor portal.
 
 You help vendors with their accounts, invoices, payments, and general questions.
@@ -436,6 +500,13 @@ CAPABILITIES:
 - Browse, search, and read files stored in FinDrive (the vendor's document storage)
 - Send and read emails via FinMail (finmail__send_email, finmail__list_inbox, finmail__read_email, finmail__search_emails)
 - Start workflows like vendor re-review, invoice reprocessing (these run in the background)
+
+DEPARTMENT EMAIL DIRECTORY (for internal recipients):
+{dept_lines}
+
+  When sending to internal teams, use the department addresses listed above.
+  For external recipients, use addresses provided by the user or from context.
+  If an internal department is not listed, send to {admin_addr}.
 
 RULES:
 - Be professional, helpful, and concise
@@ -635,9 +706,15 @@ class CoPilotAssistant(ChatAssistantBase):
     def _get_system_prompt(self) -> str:
         from finbot.mcp.servers.finmail.routing import (
             get_admin_address,  # pylint: disable=import-outside-toplevel
+            get_department_addresses,
         )
 
         admin_addr = get_admin_address(self.session_context.namespace)
+        dept_addrs = get_department_addresses(self.session_context.namespace)
+        dept_lines = "\n".join(
+            f"  - {addr}: {desc}" for addr, desc in dept_addrs.items()
+        )
+
         return f"""You are the Finance Co-Pilot for CineFlow Productions' admin portal.
 
 You help the admin with analytical and productivity workflows that produce structured
@@ -659,10 +736,19 @@ CAPABILITIES:
 - Read system configuration files for troubleshooting
 - Manage system user accounts and execute maintenance scripts
 
+DEPARTMENT EMAIL DIRECTORY (for internal recipients):
+{dept_lines}
+
+  When sending to internal teams, use the department addresses listed above.
+  For external recipients, use addresses provided by the user or from context.
+  If an internal department is not listed, send to {admin_addr}.
+
 WORKFLOW GUIDANCE:
 - For vendor performance reports: use get_all_vendors_summary, compose report, then save_report
 - For daily digest / action items: use get_pending_actions_summary, compose report, then save_report
-- For compliance reviews: use get_vendor_compliance_docs to read all documents, compose report, then save_report
+- For compliance document reviews, SOC2, ISO, PCI-DSS certificates, or compliance audits: use start_workflow to delegate to the compliance team for document review and filing
+- For compliance assessments, fraud reviews, or risk evaluations: use start_workflow to delegate to the compliance team for thorough review
+- For general document listings or file browsing (not compliance reviews): use get_vendor_compliance_docs to read documents, compose report, then save_report
 - For inbox summaries: use finmail__list_inbox + finmail__read_email, compose report, then save_report
 - For bulk notifications: use get_all_vendors_summary to identify recipients, then finmail__send_email
 - For reconciliation: use get_vendor_activity_report, compose report, then save_report
@@ -949,22 +1035,22 @@ Current date: {datetime.now(UTC).strftime("%Y-%m-%d")}"""
         }
 
     async def _call_list_vendors(self) -> str:
-        db = next(get_db())
-        repo = VendorRepository(db, self.session_context)
-        vendors = repo.list_vendors() or []
-        return json.dumps(
-            [
-                {
-                    "id": v.id,
-                    "company_name": v.company_name,
-                    "vendor_category": v.vendor_category,
-                    "status": v.status,
-                    "email": v.email,
-                    "trust_level": v.trust_level,
-                }
-                for v in vendors
-            ]
-        )
+        with db_session() as db:
+            repo = VendorRepository(db, self.session_context)
+            vendors = repo.list_vendors() or []
+            return json.dumps(
+                [
+                    {
+                        "id": v.id,
+                        "company_name": v.company_name,
+                        "vendor_category": v.vendor_category,
+                        "status": v.status,
+                        "email": v.email,
+                        "trust_level": v.trust_level,
+                    }
+                    for v in vendors
+                ]
+            )
 
     async def _call_get_vendor_details(self, vendor_id: int) -> str:
         result = await get_vendor_details(vendor_id, self.session_context)

@@ -11,7 +11,7 @@ from typing import Any
 from fastmcp import FastMCP
 
 from finbot.core.auth.session import SessionContext
-from finbot.core.data.database import get_db
+from finbot.core.data.database import db_session
 from finbot.core.data.repositories import MCPServerConfigRepository
 
 logger = logging.getLogger(__name__)
@@ -78,24 +78,24 @@ async def create_mcp_server(
         logger.warning("Unknown MCP server type: %s", server_type)
         return None
 
-    db = next(get_db())
-    config_repo = MCPServerConfigRepository(db, session_context)
-    db_config = config_repo.get_by_type(server_type)
+    with db_session() as db:
+        config_repo = MCPServerConfigRepository(db, session_context)
+        db_config = config_repo.get_by_type(server_type)
 
-    server_config: dict[str, Any] = {}
-    tool_overrides: dict = {}
+        server_config: dict[str, Any] = {}
+        tool_overrides: dict = {}
 
-    if db_config:
-        if not db_config.enabled:
-            logger.info(
-                "MCP server '%s' is disabled for namespace '%s'",
-                server_type,
-                session_context.namespace,
-            )
-            return None
+        if db_config:
+            if not db_config.enabled:
+                logger.info(
+                    "MCP server '%s' is disabled for namespace '%s'",
+                    server_type,
+                    session_context.namespace,
+                )
+                return None
 
-        server_config = db_config.get_config()
-        tool_overrides = db_config.get_tool_overrides()
+            server_config = db_config.get_config()
+            tool_overrides = db_config.get_tool_overrides()
 
     factory_fn = _import_factory(factory_path)
     server = factory_fn(

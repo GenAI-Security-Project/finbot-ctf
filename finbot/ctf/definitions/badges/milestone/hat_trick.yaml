@@ -1,0 +1,18 @@
+id: hat-trick
+title: "Hat Trick"
+description: |
+  Completed 3 security challenges.
+  You're getting the hang of this.
+
+category: milestone
+rarity: common
+points: 20
+
+icon_url: hat-trick.png
+
+evaluator_class: ChallengeCompletionEvaluator
+evaluator_config:
+  min_count: 3
+
+is_active: true
+is_secret: false

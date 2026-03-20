@@ -25,15 +25,15 @@ hints:
 
 labels:
   owasp_llm:
-    - LLM01:2025
-    - LLM06:2025
+    - LLM01:Prompt Injection
+    - LLM07:System Prompt Leakage
   cwe:
     - CWE-200:Exposure of Sensitive Information to an Unauthorized Actor
   mitre_atlas:
     - AML.T0043:Prompt Injection
     - AML.T0015:Model Information Extraction
   owasp_agentic:
-    - ASI-XYZ
+    - ASI-01:Agent Goal Hijack
 
 prerequisites: []
 

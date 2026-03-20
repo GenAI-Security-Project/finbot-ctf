@@ -12,7 +12,7 @@ from typing import Any
 from fastmcp import FastMCP
 
 from finbot.core.auth.session import SessionContext
-from finbot.core.data.database import get_db
+from finbot.core.data.database import db_session
 from finbot.mcp.servers.finstripe.repositories import PaymentTransactionRepository
 
 logger = logging.getLogger(__name__)
@@ -61,36 +61,36 @@ def create_finstripe_server(
         """
         transfer_id = _generate_transfer_id()
 
-        db = next(get_db())
-        repo = PaymentTransactionRepository(db, session_context)
-        txn = repo.create_transaction(
-            invoice_id=invoice_id,
-            vendor_id=vendor_id,
-            transfer_id=transfer_id,
-            amount=amount,
-            currency=currency,
-            payment_method=payment_method,
-            status="completed",
-            description=description,
-        )
+        with db_session() as db:
+            repo = PaymentTransactionRepository(db, session_context)
+            txn = repo.create_transaction(
+                invoice_id=invoice_id,
+                vendor_id=vendor_id,
+                transfer_id=transfer_id,
+                amount=amount,
+                currency=currency,
+                payment_method=payment_method,
+                status="completed",
+                description=description,
+            )
 
-        logger.info(
-            "FinStripe transfer created: %s, amount=%.2f, vendor_account=%s",
-            transfer_id,
-            amount,
-            vendor_account,
-        )
+            logger.info(
+                "FinStripe transfer created: %s, amount=%.2f, vendor_account=%s",
+                transfer_id,
+                amount,
+                vendor_account,
+            )
 
-        return {
-            "transfer_id": txn.transfer_id,
-            "status": txn.status,
-            "amount": txn.amount,
-            "currency": txn.currency,
-            "payment_method": txn.payment_method,
-            "vendor_account": vendor_account,
-            "invoice_reference": invoice_reference,
-            "description": txn.description,
-        }
+            return {
+                "transfer_id": txn.transfer_id,
+                "status": txn.status,
+                "amount": txn.amount,
+                "currency": txn.currency,
+                "payment_method": txn.payment_method,
+                "vendor_account": vendor_account,
+                "invoice_reference": invoice_reference,
+                "description": txn.description,
+            }
 
     @mcp.tool
     def get_transfer(transfer_id: str) -> dict[str, Any]:
@@ -98,17 +98,17 @@ def create_finstripe_server(
 
         Returns the current status and details of a previously initiated transfer.
         """
-        db = next(get_db())
-        repo = PaymentTransactionRepository(db, session_context)
-        txn = repo.get_by_transfer_id(transfer_id)
+        with db_session() as db:
+            repo = PaymentTransactionRepository(db, session_context)
+            txn = repo.get_by_transfer_id(transfer_id)
 
-        if not txn:
-            return {
-                "error": f"Transfer {transfer_id} not found",
-                "transfer_id": transfer_id,
-            }
+            if not txn:
+                return {
+                    "error": f"Transfer {transfer_id} not found",
+                    "transfer_id": transfer_id,
+                }
 
-        return txn.to_dict()
+            return txn.to_dict()
 
     @mcp.tool
     def get_account_balance(account_id: str) -> dict[str, Any]:
@@ -133,14 +133,14 @@ def create_finstripe_server(
 
         Returns the most recent transfers ordered by creation date.
         """
-        db = next(get_db())
-        repo = PaymentTransactionRepository(db, session_context)
-        transactions = repo.list_for_vendor(vendor_id, limit=limit)
+        with db_session() as db:
+            repo = PaymentTransactionRepository(db, session_context)
+            transactions = repo.list_for_vendor(vendor_id, limit=limit)
 
-        return {
-            "vendor_id": vendor_id,
-            "count": len(transactions),
-            "transfers": [txn.to_dict() for txn in transactions],
-        }
+            return {
+                "vendor_id": vendor_id,
+                "count": len(transactions),
+                "transfers": [txn.to_dict() for txn in transactions],
+            }
 
     return mcp

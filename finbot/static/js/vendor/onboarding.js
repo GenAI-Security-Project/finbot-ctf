@@ -19,8 +19,8 @@ ready(function() {
         lastNames: ['Anderson', 'Mitchell', 'Thompson', 'Rodriguez', 'Martinez', 'Garcia', 'Wilson', 'Taylor', 'Moore', 'Jackson', 'White', 'Harris', 'Martin', 'Clark', 'Lewis', 'Robinson', 'Walker', 'Hall', 'Young', 'King'],
         domains: ['productions.com', 'studios.io', 'entertainment.co', 'media.net', 'films.com', 'creative.io', 'pictures.co'],
         bankNames: ['Chase Bank', 'Bank of America', 'Wells Fargo', 'Citibank', 'US Bank', 'PNC Bank', 'Capital One', 'TD Bank', 'Fifth Third Bank', 'Truist Bank'],
-        categories: ['talent', 'crew', 'equipment_rental', 'location_scouting', 'catering', 'vfx_animation', 'post_production', 'legal_consulting', 'transportation', 'set_design', 'costume_wardrobe', 'security'],
-        industries: ['film', 'fintech', 'banking', 'insurance', 'payments', 'lending', 'wealth'],
+        categories: ['talent', 'crew', 'equipment_rental', 'location_scouting', 'catering', 'vfx_animation', 'post_production', 'legal_consulting', 'transportation', 'set_design', 'costume_wardrobe', 'security', 'software_saas', 'it_services'],
+        industries: ['film', 'fintech', 'banking', 'insurance', 'payments', 'lending', 'wealth', 'software_saas', 'information_technology'],
         services: {
             talent: 'Professional talent management and casting services for film and television productions. We represent actors, directors, writers, and musicians with over 15 years of industry experience.',
             crew: 'Full-service production crew staffing including camera operators, sound engineers, lighting technicians, grip teams, and production assistants for projects of all sizes.',
@@ -33,7 +33,9 @@ ready(function() {
             transportation: 'Reliable production transportation and logistics including equipment trucks, talent vehicles, crew shuttles, and specialized transport solutions.',
             set_design: 'Creative set design and construction services from concept to completion. Our team builds everything from small props to large-scale production sets.',
             costume_wardrobe: 'Full costume and wardrobe department services including design, sourcing, fitting, and on-set management for period and contemporary productions.',
-            security: 'Professional on-set security services including asset protection, crowd control, talent security, and confidential production protection.'
+            security: 'Professional on-set security services including asset protection, crowd control, talent security, and confidential production protection.',
+            software_saas: 'Enterprise software and SaaS solutions including cloud platforms, workflow automation, data analytics, API integrations, and developer tools for production and business operations.',
+            it_services: 'Comprehensive IT services including infrastructure management, technical support, network administration, cybersecurity, cloud migration, and managed services for enterprise environments.'
         }
     };
 

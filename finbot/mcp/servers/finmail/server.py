@@ -19,7 +19,7 @@ from typing import Any
 from fastmcp import FastMCP
 
 from finbot.core.auth.session import SessionContext
-from finbot.core.data.database import get_db
+from finbot.core.data.database import db_session
 from finbot.core.data.models import Vendor
 from finbot.mcp.servers.finmail.repositories import EmailRepository
 from finbot.mcp.servers.finmail.routing import get_admin_address, route_and_deliver
@@ -40,16 +40,16 @@ def _get_vendor_email(session_context: SessionContext) -> str | None:
     """Look up the current vendor's email for from_address."""
     if not session_context.current_vendor_id:
         return None
-    db = next(get_db())
-    vendor = (
-        db.query(Vendor)
-        .filter(
-            Vendor.namespace == session_context.namespace,
-            Vendor.id == session_context.current_vendor_id,
+    with db_session() as db:
+        vendor = (
+            db.query(Vendor)
+            .filter(
+                Vendor.namespace == session_context.namespace,
+                Vendor.id == session_context.current_vendor_id,
+            )
+            .first()
         )
-        .first()
-    )
-    return vendor.email if vendor else None
+        return vendor.email if vendor else None
 
 
 def create_finmail_server(
@@ -107,24 +107,24 @@ def create_finmail_server(
             from_addr = get_admin_address(session_context.namespace)
             sender_type = "agent"
 
-        db = next(get_db())
-        repo = EmailRepository(db, session_context)
+        with db_session() as db:
+            repo = EmailRepository(db, session_context)
 
-        return route_and_deliver(
-            db=db,
-            repo=repo,
-            namespace=session_context.namespace,
-            to=to,
-            subject=subject,
-            body=body,
-            message_type=message_type,
-            sender_name=effective_sender,
-            sender_type=sender_type,
-            from_address=from_addr,
-            cc=cc,
-            bcc=bcc,
-            related_invoice_id=inv_id,
-        )
+            return route_and_deliver(
+                db=db,
+                repo=repo,
+                namespace=session_context.namespace,
+                to=to,
+                subject=subject,
+                body=body,
+                message_type=message_type,
+                sender_name=effective_sender,
+                sender_type=sender_type,
+                from_address=from_addr,
+                cc=cc,
+                bcc=bcc,
+                related_invoice_id=inv_id,
+            )
 
     @mcp.tool
     def list_inbox(
@@ -134,7 +134,8 @@ def create_finmail_server(
         unread_only: bool = False,
         limit: int = 20,
     ) -> dict[str, Any]:
-        """List messages in an inbox.
+        """List messages in an inbox. Returns message summaries with body previews.
+        Use read_email with the message ID to retrieve the full message content.
 
         Args:
             inbox: Which inbox to list: "vendor" or "admin"
@@ -148,61 +149,62 @@ def create_finmail_server(
                 "error": "Access denied: vendor sessions cannot read the admin inbox"
             }
 
-        db = next(get_db())
-        repo = EmailRepository(db, session_context)
-        max_limit = config.get("max_results_per_query", 50)
-        effective_limit = min(limit, max_limit)
-        is_read_filter = False if unread_only else None
-        type_filter = message_type if message_type else None
+        with db_session() as db:
+            repo = EmailRepository(db, session_context)
+            max_limit = config.get("max_results_per_query", 50)
+            effective_limit = min(limit, max_limit)
+            is_read_filter = False if unread_only else None
+            type_filter = message_type if message_type else None
 
-        if inbox == "vendor":
-            if vendor_id <= 0:
-                return {"error": "vendor_id is required when inbox is 'vendor'"}
-            messages = repo.list_vendor_emails(
-                vendor_id=vendor_id,
+            if inbox == "vendor":
+                if vendor_id <= 0:
+                    return {"error": "vendor_id is required when inbox is 'vendor'"}
+                messages = repo.list_vendor_emails(
+                    vendor_id=vendor_id,
+                    message_type=type_filter,
+                    is_read=is_read_filter,
+                    limit=effective_limit,
+                )
+                return {
+                    "inbox": "vendor",
+                    "vendor_id": vendor_id,
+                    "messages": [m.to_summary_dict() for m in messages],
+                    "count": len(messages),
+                }
+
+            messages = repo.list_admin_emails(
                 message_type=type_filter,
                 is_read=is_read_filter,
                 limit=effective_limit,
             )
             return {
-                "inbox": "vendor",
-                "vendor_id": vendor_id,
-                "messages": [m.to_dict() for m in messages],
+                "inbox": "admin",
+                "messages": [m.to_summary_dict() for m in messages],
                 "count": len(messages),
             }
-
-        messages = repo.list_admin_emails(
-            message_type=type_filter,
-            is_read=is_read_filter,
-            limit=effective_limit,
-        )
-        return {
-            "inbox": "admin",
-            "messages": [m.to_dict() for m in messages],
-            "count": len(messages),
-        }
 
     @mcp.tool
     def read_email(
         message_id: int,
     ) -> dict[str, Any]:
-        """Read a specific email message by ID.
+        """Read the full content of an email message by ID. Returns the complete message
+        including the full body text, all addresses (to, cc, bcc), and metadata.
 
         Args:
             message_id: The ID of the message to read
         """
-        db = next(get_db())
-        repo = EmailRepository(db, session_context)
-        msg = repo.get_email(message_id)
-        if not msg:
-            return {"error": f"Message {message_id} not found"}
+        with db_session() as db:
+            repo = EmailRepository(db, session_context)
+            msg = repo.get_email(message_id)
+            if not msg:
+                return {"error": f"Message {message_id} not found"}
 
-        if _is_vendor_session(session_context) and msg.inbox_type == "admin":
-            return {
-                "error": "Access denied: vendor sessions cannot read admin messages"
-            }
+            if _is_vendor_session(session_context) and msg.inbox_type == "admin":
+                return {
+                    "error": "Access denied: vendor sessions cannot read admin messages"
+                }
 
-        return {"message": msg.to_dict()}
+            return {"message": msg.to_dict()}
 
     @mcp.tool
     def search_emails(
@@ -211,7 +213,8 @@ def create_finmail_server(
         vendor_id: int = 0,
         limit: int = 20,
     ) -> dict[str, Any]:
-        """Search emails by subject or body text.
+        """Search emails by subject or body text. Returns message summaries with body previews.
+        Use read_email with the message ID to retrieve the full message content.
 
         Args:
             query: Search term to look for in subject and body
@@ -224,34 +227,34 @@ def create_finmail_server(
                 "error": "Access denied: vendor sessions cannot search the admin inbox"
             }
 
-        db = next(get_db())
-        repo = EmailRepository(db, session_context)
-        max_limit = config.get("max_results_per_query", 50)
-        effective_limit = min(limit, max_limit)
+        with db_session() as db:
+            repo = EmailRepository(db, session_context)
+            max_limit = config.get("max_results_per_query", 50)
+            effective_limit = min(limit, max_limit)
 
-        if inbox == "vendor":
-            if vendor_id <= 0:
-                return {"error": "vendor_id is required when inbox is 'vendor'"}
-            messages = repo.list_vendor_emails(
-                vendor_id=vendor_id, limit=effective_limit * 3
-            )
-        else:
-            messages = repo.list_admin_emails(limit=effective_limit * 3)
+            if inbox == "vendor":
+                if vendor_id <= 0:
+                    return {"error": "vendor_id is required when inbox is 'vendor'"}
+                messages = repo.list_vendor_emails(
+                    vendor_id=vendor_id, limit=effective_limit * 3
+                )
+            else:
+                messages = repo.list_admin_emails(limit=effective_limit * 3)
 
-        query_lower = query.lower()
-        results = [
-            m
-            for m in messages
-            if query_lower in (m.subject or "").lower()
-            or query_lower in (m.body or "").lower()
-        ][:effective_limit]
+            query_lower = query.lower()
+            results = [
+                m
+                for m in messages
+                if query_lower in (m.subject or "").lower()
+                or query_lower in (m.body or "").lower()
+            ][:effective_limit]
 
-        return {
-            "query": query,
-            "inbox": inbox,
-            "results": [m.to_dict() for m in results],
-            "count": len(results),
-        }
+            return {
+                "query": query,
+                "inbox": inbox,
+                "results": [m.to_summary_dict() for m in results],
+                "count": len(results),
+            }
 
     @mcp.tool
     def mark_as_read(
@@ -262,19 +265,19 @@ def create_finmail_server(
         Args:
             message_id: The ID of the message to mark as read
         """
-        db = next(get_db())
-        repo = EmailRepository(db, session_context)
+        with db_session() as db:
+            repo = EmailRepository(db, session_context)
 
-        msg = repo.get_email(message_id)
-        if not msg:
-            return {"error": f"Message {message_id} not found"}
+            msg = repo.get_email(message_id)
+            if not msg:
+                return {"error": f"Message {message_id} not found"}
 
-        if _is_vendor_session(session_context) and msg.inbox_type == "admin":
-            return {
-                "error": "Access denied: vendor sessions cannot modify admin messages"
-            }
+            if _is_vendor_session(session_context) and msg.inbox_type == "admin":
+                return {
+                    "error": "Access denied: vendor sessions cannot modify admin messages"
+                }
 
-        msg = repo.mark_as_read(message_id)
-        return {"marked_read": True, "message_id": message_id}
+            msg = repo.mark_as_read(message_id)
+            return {"marked_read": True, "message_id": message_id}
 
     return mcp

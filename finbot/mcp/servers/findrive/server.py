@@ -17,7 +17,7 @@ from typing import Any
 from fastmcp import FastMCP
 
 from finbot.core.auth.session import SessionContext
-from finbot.core.data.database import get_db
+from finbot.core.data.database import db_session
 from finbot.mcp.servers.findrive.repositories import FinDriveFileRepository
 
 logger = logging.getLogger(__name__)
@@ -59,31 +59,31 @@ def create_findrive_server(
         if len(content.encode("utf-8")) > max_size:
             return {"error": f"File exceeds maximum size of {config.get('max_file_size_kb', 500)}KB"}
 
-        db = next(get_db())
-        repo = FinDriveFileRepository(db, session_context)
+        with db_session() as db:
+            repo = FinDriveFileRepository(db, session_context)
 
-        vid = vendor_id if vendor_id > 0 else None
-        if _is_vendor_session(session_context) and vid is None:
-            vid = session_context.current_vendor_id
+            vid = vendor_id if vendor_id > 0 else None
+            if _is_vendor_session(session_context) and vid is None:
+                vid = session_context.current_vendor_id
 
-        f = repo.create_file(
-            filename=filename,
-            content_text=content,
-            vendor_id=vid,
-            file_type=file_type,
-            folder_path=folder,
-        )
+            f = repo.create_file(
+                filename=filename,
+                content_text=content,
+                vendor_id=vid,
+                file_type=file_type,
+                folder_path=folder,
+            )
 
-        logger.info("FinDrive file uploaded: id=%d, filename='%s'", f.id, filename)
+            logger.info("FinDrive file uploaded: id=%d, filename='%s'", f.id, filename)
 
-        return {
-            "file_id": f.id,
-            "filename": f.filename,
-            "file_type": f.file_type,
-            "file_size": f.file_size,
-            "folder": f.folder_path,
-            "status": "uploaded",
-        }
+            return {
+                "file_id": f.id,
+                "filename": f.filename,
+                "file_type": f.file_type,
+                "file_size": f.file_size,
+                "folder": f.folder_path,
+                "status": "uploaded",
+            }
 
     @mcp.tool
     def get_file(file_id: int) -> dict[str, Any]:
@@ -92,26 +92,26 @@ def create_findrive_server(
         Returns the extracted text from the specified PDF document. Use this to
         read invoice PDFs and supporting documents for processing and review.
         """
-        db = next(get_db())
-        repo = FinDriveFileRepository(db, session_context)
-        f = repo.get_file(file_id)
+        with db_session() as db:
+            repo = FinDriveFileRepository(db, session_context)
+            f = repo.get_file(file_id)
 
-        if not f:
-            return {"error": f"File {file_id} not found", "file_id": file_id}
+            if not f:
+                return {"error": f"File {file_id} not found", "file_id": file_id}
 
-        if _is_vendor_session(session_context) and f.vendor_id is None:
-            return {"error": "Access denied: cannot access admin files", "file_id": file_id}
+            if _is_vendor_session(session_context) and f.vendor_id is None:
+                return {"error": "Access denied: cannot access admin files", "file_id": file_id}
 
-        return {
-            "file_id": f.id,
-            "filename": f.filename,
-            "file_type": f.file_type,
-            "extracted_text": f.content_text,
-            "file_size": f.file_size,
-            "folder": f.folder_path,
-            "vendor_id": f.vendor_id,
-            "created_at": f.created_at.isoformat().replace("+00:00", "Z"),
-        }
+            return {
+                "file_id": f.id,
+                "filename": f.filename,
+                "file_type": f.file_type,
+                "extracted_text": f.content_text,
+                "file_size": f.file_size,
+                "folder": f.folder_path,
+                "vendor_id": f.vendor_id,
+                "created_at": f.created_at.isoformat().replace("+00:00", "Z"),
+            }
 
     @mcp.tool
     def list_files(
@@ -124,21 +124,21 @@ def create_findrive_server(
         Returns document metadata (not content) for files in the specified folder.
         Use get_file to retrieve the extracted text of a specific document.
         """
-        db = next(get_db())
-        repo = FinDriveFileRepository(db, session_context)
+        with db_session() as db:
+            repo = FinDriveFileRepository(db, session_context)
 
-        vid = vendor_id if vendor_id > 0 else None
-        if _is_vendor_session(session_context) and vid is None:
-            vid = session_context.current_vendor_id
+            vid = vendor_id if vendor_id > 0 else None
+            if _is_vendor_session(session_context) and vid is None:
+                vid = session_context.current_vendor_id
 
-        fld = folder if folder else None
-        files = repo.list_files(vendor_id=vid, folder_path=fld, limit=limit)
+            fld = folder if folder else None
+            files = repo.list_files(vendor_id=vid, folder_path=fld, limit=limit)
 
-        return {
-            "files": [f.to_dict() for f in files],
-            "count": len(files),
-            "folder": folder or "all",
-        }
+            return {
+                "files": [f.to_dict() for f in files],
+                "count": len(files),
+                "folder": folder or "all",
+            }
 
     @mcp.tool
     def delete_file(file_id: int) -> dict[str, Any]:
@@ -146,27 +146,29 @@ def create_findrive_server(
 
         Permanently removes the specified file. This action cannot be undone.
         """
-        db = next(get_db())
-        repo = FinDriveFileRepository(db, session_context)
+        with db_session() as db:
+            repo = FinDriveFileRepository(db, session_context)
 
-        f = repo.get_file(file_id)
-        if not f:
-            return {"error": f"File {file_id} not found", "file_id": file_id}
+            f = repo.get_file(file_id)
+            if not f:
+                return {"error": f"File {file_id} not found", "file_id": file_id}
 
-        if _is_vendor_session(session_context) and f.vendor_id is None:
-            return {"error": "Access denied: cannot delete admin files", "file_id": file_id}
+            if _is_vendor_session(session_context) and f.vendor_id is None:
+                return {"error": "Access denied: cannot delete admin files", "file_id": file_id}
 
-        filename = f.filename
-        deleted = repo.delete_file(file_id)
+            filename = f.filename
+            file_vendor_id = f.vendor_id
+            deleted = repo.delete_file(file_id)
 
-        logger.info("FinDrive file deleted: id=%d, filename='%s'", file_id, filename)
+            logger.info("FinDrive file deleted: id=%d, filename='%s'", file_id, filename)
 
-        return {
-            "file_id": file_id,
-            "filename": filename,
-            "deleted": deleted,
-            "status": "deleted" if deleted else "failed",
-        }
+            return {
+                "file_id": file_id,
+                "filename": filename,
+                "vendor_id": file_vendor_id,
+                "deleted": deleted,
+                "status": "deleted" if deleted else "failed",
+            }
 
     @mcp.tool
     def search_files(query: str, limit: int = 20) -> dict[str, Any]:
@@ -175,17 +177,17 @@ def create_findrive_server(
         Returns documents whose filename or extracted text matches the query.
         Useful for finding relevant invoice PDFs and supporting documents.
         """
-        db = next(get_db())
-        repo = FinDriveFileRepository(db, session_context)
-        files = repo.search_files(query, limit=limit)
+        with db_session() as db:
+            repo = FinDriveFileRepository(db, session_context)
+            files = repo.search_files(query, limit=limit)
 
-        if _is_vendor_session(session_context):
-            files = [f for f in files if f.vendor_id is not None]
+            if _is_vendor_session(session_context):
+                files = [f for f in files if f.vendor_id is not None]
 
-        return {
-            "query": query,
-            "results": [f.to_dict() for f in files],
-            "count": len(files),
-        }
+            return {
+                "query": query,
+                "results": [f.to_dict() for f in files],
+                "count": len(files),
+            }
 
     return mcp
