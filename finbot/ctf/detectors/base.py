@@ -25,6 +25,9 @@ class BaseDetector(ABC):
             challenge_id: The ID of the challenge this detector is associated with
             config: Optional detector configuration (detector-specific)
         """
+        if config is not None and not isinstance(config, dict):
+            raise TypeError(f"Config must be a dictionary, got {type(config).__name__}")
+
         self.challenge_id = challenge_id
         self.config = config or {}
         self._validate_config()
