@@ -28,15 +28,16 @@ def _matches_pattern(
     if not text or not pattern:
         return False, None
 
-    if is_regex:
+       if is_regex:
         flags = 0 if case_sensitive else re.IGNORECASE
         try:
             match = re.search(pattern, text, flags)
             if match:
                 return True, match.group(0)
+            return False, None
         except re.error:
             pass
-
+            
     search_text = text if case_sensitive else text.lower()
     search_pattern = pattern if case_sensitive else pattern.lower()
     if search_pattern in search_text:
