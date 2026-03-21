@@ -595,12 +595,20 @@ function animateCounter(element, start, end, duration, formatter = null) {
 
 /**
  * Generic sidebar management utility
+ *
+ * Handles two distinct behaviors:
+ * - Mobile (<= 768px): slide-in/out overlay (existing)
+ * - Desktop (> 768px): collapse to icon-only rail with localStorage persistence
  */
 const sidebar = {
+    STORAGE_KEY: 'finbot:sidebar-collapsed',
+
     state: {
         isOpen: false,
+        isCollapsed: false,
         overlay: null,
-        toggleButton: null
+        toggleButton: null,
+        sidebarSelector: '#sidebar'
     },
 
     init(sidebarSelector = '#sidebar', options = {}) {
@@ -616,15 +624,17 @@ const sidebar = {
 
         if (!sidebarElement) return false;
 
-        // Create toggle button if needed
+        this.state.sidebarSelector = sidebarSelector;
+
         if (config.createToggle && !this.state.toggleButton) {
             this.createToggleButton(config.toggleClass);
         }
 
-        // Create overlay if needed
         if (config.createOverlay && !this.state.overlay) {
             this.createOverlay(config.overlayClass);
         }
+
+        this._restoreCollapsedState(sidebarElement);
 
         return true;
     },
@@ -650,7 +660,9 @@ const sidebar = {
         this.state.overlay = overlay;
     },
 
-    toggle(sidebarSelector = '#sidebar') {
+    // --- Mobile slide-in/out ---
+
+    toggle(sidebarSelector) {
         if (this.state.isOpen) {
             this.close(sidebarSelector);
         } else {
@@ -658,8 +670,9 @@ const sidebar = {
         }
     },
 
-    open(sidebarSelector = '#sidebar') {
-        const sidebarElement = document.querySelector(sidebarSelector);
+    open(sidebarSelector) {
+        const sel = sidebarSelector || this.state.sidebarSelector;
+        const sidebarElement = document.querySelector(sel);
         if (!sidebarElement) return;
 
         this.state.isOpen = true;
@@ -669,14 +682,14 @@ const sidebar = {
             this.state.overlay.classList.add('show');
         }
 
-        // Hide toggle button when sidebar is open
         if (this.state.toggleButton) {
             this.state.toggleButton.classList.add('hidden');
         }
     },
 
-    close(sidebarSelector = '#sidebar') {
-        const sidebarElement = document.querySelector(sidebarSelector);
+    close(sidebarSelector) {
+        const sel = sidebarSelector || this.state.sidebarSelector;
+        const sidebarElement = document.querySelector(sel);
         if (!sidebarElement) return;
 
         this.state.isOpen = false;
@@ -686,10 +699,49 @@ const sidebar = {
             this.state.overlay.classList.remove('show');
         }
 
-        // Show toggle button when sidebar is closed
         if (this.state.toggleButton) {
             this.state.toggleButton.classList.remove('hidden');
         }
+    },
+
+    // --- Desktop collapse/expand ---
+
+    toggleCollapse() {
+        const sidebarElement = document.querySelector(this.state.sidebarSelector);
+        if (!sidebarElement) return;
+
+        if (this.state.isCollapsed) {
+            this.expand(sidebarElement);
+        } else {
+            this.collapse(sidebarElement);
+        }
+    },
+
+    collapse(el) {
+        const sidebarElement = el || document.querySelector(this.state.sidebarSelector);
+        if (!sidebarElement) return;
+
+        this.state.isCollapsed = true;
+        sidebarElement.classList.add('collapsed');
+        try { localStorage.setItem(this.STORAGE_KEY, '1'); } catch (_) {}
+    },
+
+    expand(el) {
+        const sidebarElement = el || document.querySelector(this.state.sidebarSelector);
+        if (!sidebarElement) return;
+
+        this.state.isCollapsed = false;
+        sidebarElement.classList.remove('collapsed');
+        try { localStorage.setItem(this.STORAGE_KEY, '0'); } catch (_) {}
+    },
+
+    _restoreCollapsedState(sidebarElement) {
+        try {
+            if (localStorage.getItem(this.STORAGE_KEY) === '1') {
+                this.state.isCollapsed = true;
+                sidebarElement.classList.add('collapsed');
+            }
+        } catch (_) {}
     }
 };
 

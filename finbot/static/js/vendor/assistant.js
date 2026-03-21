@@ -206,10 +206,11 @@ async function sendMessage(text) {
     assistantBubble.className = 'msg-bubble assistant';
     assistantBubble.innerHTML = `
         <div class="msg-avatar assistant"><img src="/static/images/common/finbot.png" alt="FinBot" class="w-full h-full rounded-full object-contain"></div>
-        <div class="msg-content streaming-cursor"></div>
+        <div class="msg-content"><span class="thinking-indicator"><span class="thinking-text">Thinking</span><span class="thinking-dots"><span>.</span><span>.</span><span>.</span></span></span></div>
     `;
     container.appendChild(assistantBubble);
     const contentEl = assistantBubble.querySelector('.msg-content');
+    const thinkingEl = assistantBubble.querySelector('.thinking-indicator');
     scrollToBottom();
 
     let fullResponse = '';
@@ -229,11 +230,15 @@ async function sendMessage(text) {
         chatAttachments = [];
         renderChatChips();
 
+        const controller = new AbortController();
+        const streamTimeout = setTimeout(() => controller.abort(), 5 * 60 * 1000);
+
         const res = await fetch('/vendor/api/v1/chat', {
             method: 'POST',
             headers,
             credentials: 'same-origin',
             body: JSON.stringify(payload),
+            signal: controller.signal,
         });
 
         if (!res.ok) {
@@ -260,8 +265,17 @@ async function sendMessage(text) {
                 try {
                     const event = JSON.parse(jsonStr);
                     if (event.type === 'token') {
+                        if (thinkingEl && thinkingEl.parentNode) {
+                            thinkingEl.remove();
+                            contentEl.classList.add('streaming-cursor');
+                        }
                         fullResponse += event.content;
                         contentEl.textContent = fullResponse;
+                        scrollToBottom();
+                    } else if (event.type === 'status') {
+                        if (thinkingEl && thinkingEl.parentNode) {
+                            thinkingEl.querySelector('.thinking-text').textContent = event.content.replace(/\u2026$/, '');
+                        }
                         scrollToBottom();
                     } else if (event.type === 'done') {
                         break;
@@ -269,8 +283,13 @@ async function sendMessage(text) {
                 } catch (_) { /* skip malformed events */ }
             }
         }
+
+        clearTimeout(streamTimeout);
     } catch (err) {
-        fullResponse = fullResponse || 'Sorry, something went wrong. Please try again.';
+        const msg = err.name === 'AbortError'
+            ? 'The request timed out. Please try again.'
+            : 'Sorry, something went wrong. Please try again.';
+        fullResponse = fullResponse || msg;
         contentEl.textContent = fullResponse;
     }
 

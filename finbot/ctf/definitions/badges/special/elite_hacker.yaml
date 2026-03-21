@@ -1,0 +1,18 @@
+id: elite-hacker
+title: "Elite Hacker"
+description: |
+  Earned 1500 total CTF points.
+  The leaderboard fears your name.
+
+category: special
+rarity: epic
+points: 50
+
+icon_url: elite-hacker.png
+
+evaluator_class: PointThresholdEvaluator
+evaluator_config:
+  min_points: 1500
+
+is_active: true
+is_secret: false

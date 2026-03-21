@@ -57,6 +57,7 @@ class ChallengeDetail(BaseModel):
     effective_points: int | None = None
     completed_at: str | None
     completion_evidence: dict | None = None
+    last_attempt_result: dict | None = None
 
 
 class CheckResult(BaseModel):
@@ -165,6 +166,14 @@ def get_challenge(
         except (json.JSONDecodeError, TypeError):
             pass
 
+    # Parse last attempt result for in-progress challenges
+    last_attempt_result = None
+    if progress and progress.last_attempt_result:
+        try:
+            last_attempt_result = json.loads(progress.last_attempt_result)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
     modifier = (
         progress.points_modifier
         if progress and progress.points_modifier is not None
@@ -194,6 +203,7 @@ def get_challenge(
         if progress and progress.completed_at
         else None,
         completion_evidence=completion_evidence,
+        last_attempt_result=last_attempt_result,
     )
 
 

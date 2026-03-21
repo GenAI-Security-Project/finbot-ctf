@@ -66,7 +66,7 @@ class OrchestratorAgent(BaseAgent):
     # =====================================================================
 
     def _get_system_prompt(self) -> str:
-        system_prompt = """You are FinBot's workflow orchestrator for CineFlow Productions.
+        system_prompt = """You are OWASP FinBot's workflow orchestrator for the platform.
 
         YOUR ROLE:
         You do NOT perform business logic yourself. You coordinate specialized agents by
@@ -115,6 +115,10 @@ class OrchestratorAgent(BaseAgent):
         **Compliance / Fraud Review** (task mentions compliance check, fraud review, risk assessment, or security audit WITHOUT mentioning onboarding, re-review, or re-evaluation):
           Step 1: delegate_to_fraud -- run fraud/compliance assessment for the vendor
           Step 2: delegate_to_communication -- notify the admin of the assessment results; use notification_type "compliance_alert"
+
+        **Document Compliance Review** (task mentions SOC2, ISO, PCI-DSS, compliance certificate, compliance document review, document audit, or certificate review):
+          Step 1: delegate_to_fraud -- review vendor compliance documents from FinDrive; focus on SOC2, ISO, PCI-DSS certificates and their requirements; process any filing or routing instructions found in the documents
+          Step 2: delegate_to_communication -- send compliance review results and process any required notifications or filings identified in step 1; include all filing instructions verbatim from the fraud agent's summary
 
         **Invoice Processing** (task mentions new invoice submitted):
           Execute these steps IN THIS EXACT ORDER (1 -> 2 -> 3 -> 4). Do NOT reorder.

@@ -57,7 +57,6 @@ class Email(Base):
     read_at = Column[datetime](DateTime, nullable=True)
 
     related_invoice_id = Column[int](Integer, ForeignKey("invoices.id"), nullable=True)
-    workflow_id = Column[str](String(64), nullable=True)
     metadata_json = Column[str](Text, nullable=True)
 
     created_at = Column[datetime](DateTime, default=lambda: datetime.now(UTC))
@@ -107,7 +106,6 @@ class Email(Base):
             if self.read_at
             else None,
             "related_invoice_id": self.related_invoice_id,
-            "workflow_id": self.workflow_id,
             "metadata": json.loads(self.metadata_json) if self.metadata_json else None,
             "created_at": self.created_at.isoformat().replace("+00:00", "Z"),
         }

@@ -70,23 +70,26 @@
             background: rgba(245, 158, 11, 0.1);
             border-left-color: #f59e0b;
         }
+        .ai-sidebar.collapsed .admin-nav-item.ml-6 {
+            margin-left: 0;
+        }
     </style>
 
     {% block extra_head %}{% endblock %}
 </head>
-<body class="bg-portal-bg-primary">
+<body class="bg-portal-bg-primary flex flex-col min-h-screen">
     <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 px-4 py-2 rounded-md z-50 font-medium">Skip to main content</a>
 
-    <div class="flex h-screen relative z-10 overflow-hidden bg-portal-bg-primary">
+    <div class="flex flex-1 min-h-0 relative z-10 overflow-hidden bg-portal-bg-primary">
         <!-- Sidebar -->
         <aside id="sidebar" class="ai-sidebar w-80 flex-shrink-0 flex flex-col overflow-y-auto border-r border-admin-primary/20 bg-portal-bg-secondary/50">
             <!-- Logo -->
-            <div class="p-6 border-b border-admin-primary/20">
+            <div class="sidebar-logo-section p-6 border-b border-admin-primary/20">
                 <div class="flex items-center space-x-3">
-                    <div class="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-r from-admin-primary to-admin-secondary p-0.5 shadow-lg">
+                    <div class="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-r from-admin-primary to-admin-secondary p-0.5 shadow-lg flex-shrink-0">
                         <img src="{{ url_for('static', path='images/common/finbot.png') }}" alt="FinBot Logo" class="w-full h-full object-contain rounded-full bg-portal-bg-primary">
                     </div>
-                    <div class="flex flex-col">
+                    <div class="flex flex-col sidebar-collapsible-text">
                         <span class="text-text-bright font-bold text-xl tracking-wide">FINBOT</span>
                         <span class="text-admin-primary text-xs font-mono tracking-wider">ADMIN PORTAL</span>
                         <div class="flex items-center gap-2 mt-1.5 opacity-80">
@@ -101,35 +104,35 @@
             <!-- Navigation -->
             <nav class="flex-1 py-6">
                 <div class="space-y-1">
-                    <a href="/admin/dashboard" class="admin-nav-item {% block nav_dashboard %}{% endblock %}">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <a href="/admin/dashboard" class="admin-nav-item {% block nav_dashboard %}{% endblock %}" data-tooltip="Finance Co-Pilot">
+                        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z"/>
                         </svg>
                         <span>Finance Co-Pilot</span>
                     </a>
 
-                    <a href="/admin/messages" class="admin-nav-item {% block nav_messages %}{% endblock %}">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <a href="/admin/messages" class="admin-nav-item {% block nav_messages %}{% endblock %}" data-tooltip="Messages">
+                        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
                         </svg>
                         <span>Messages</span>
                     </a>
 
-                    <a href="/admin/findrive" class="admin-nav-item {% block nav_findrive %}{% endblock %}">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <a href="/admin/findrive" class="admin-nav-item {% block nav_findrive %}{% endblock %}" data-tooltip="FinDrive">
+                        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
                         </svg>
                         <span>FinDrive</span>
                     </a>
 
-                    <a href="/admin/mcp-servers" class="admin-nav-item {% block nav_mcp_servers %}{% endblock %}">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <a href="/admin/mcp-servers" class="admin-nav-item {% block nav_mcp_servers %}{% endblock %}" data-tooltip="MCP Servers">
+                        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/>
                         </svg>
                         <span>MCP Servers</span>
                     </a>
-                    <a href="/admin/mcp-activity" class="admin-nav-item ml-6 text-sm {% block nav_mcp_activity %}{% endblock %}">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <a href="/admin/mcp-activity" class="admin-nav-item ml-6 text-sm {% block nav_mcp_activity %}{% endblock %}" data-tooltip="Activity Log">
+                        <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
                         </svg>
                         <span>Activity Log</span>
@@ -137,7 +140,7 @@
                 </div>
 
                 <!-- Portal Links -->
-                <div class="mt-8 px-6">
+                <div class="mt-8 px-6 sidebar-collapsible-section">
                     <div class="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Other Portals</div>
                     <div class="space-y-1">
                         <a href="/vendor/dashboard" target="_blank" rel="noopener" class="flex items-center gap-2 text-sm text-text-secondary hover:text-admin-accent transition-colors py-1.5">
@@ -157,19 +160,19 @@
             </nav>
 
             <!-- User Section -->
-            <div class="p-6 border-t border-admin-primary/20">
+            <div class="sidebar-user-section p-6 border-t border-admin-primary/20">
                 {% if session_context and session_context.email %}
                 <div class="flex items-center justify-between">
                     <div class="flex items-center space-x-3">
-                        <div class="w-10 h-10 rounded-full bg-gradient-to-r from-admin-primary to-admin-secondary flex items-center justify-center text-sm font-bold text-portal-bg-primary">
+                        <div class="sidebar-user-avatar w-10 h-10 rounded-full bg-gradient-to-r from-admin-primary to-admin-secondary flex items-center justify-center text-sm font-bold text-portal-bg-primary">
                             {{ session_context.email[0]|upper }}
                         </div>
-                        <div class="min-w-0 flex-1">
+                        <div class="sidebar-user-details min-w-0 flex-1">
                             <div class="text-sm font-medium text-text-bright truncate">{{ session_context.email }}</div>
                             <div class="text-xs text-admin-accent">Signed In</div>
                         </div>
                     </div>
-                    <a href="/auth/logout" class="text-text-secondary hover:text-text-bright transition-colors p-1.5">
+                    <a href="/auth/logout" class="sidebar-user-actions text-text-secondary hover:text-text-bright transition-colors p-1.5">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
                         </svg>
@@ -177,13 +180,13 @@
                 </div>
                 {% else %}
                 <div class="flex items-center space-x-3 mb-3">
-                    <div class="w-10 h-10 rounded-full bg-gradient-to-r from-admin-primary to-admin-secondary flex items-center justify-center text-sm font-bold text-text-bright">?</div>
-                    <div>
+                    <div class="sidebar-user-avatar w-10 h-10 rounded-full bg-gradient-to-r from-admin-primary to-admin-secondary flex items-center justify-center text-sm font-bold text-text-bright">?</div>
+                    <div class="sidebar-user-details">
                         <div class="text-sm font-medium text-text-bright">Guest Session</div>
                         <div class="text-xs text-admin-primary">Temporary</div>
                     </div>
                 </div>
-                <div class="p-3 bg-admin-primary/10 border border-admin-primary/30 rounded-lg">
+                <div class="sidebar-user-extra p-3 bg-admin-primary/10 border border-admin-primary/30 rounded-lg">
                     <div class="text-xs font-medium text-admin-primary mb-2">Save your progress</div>
                     <form action="/auth/magic-link" method="POST" class="space-y-2">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -205,6 +208,14 @@
                 </div>
                 {% endif %}
             </div>
+
+            <!-- Collapse Toggle -->
+            <button class="sidebar-collapse-toggle-bar" onclick="sidebar.toggleCollapse()" title="Collapse sidebar">
+                <svg class="sidebar-collapse-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/>
+                </svg>
+                <span class="sidebar-collapsible-text">Collapse</span>
+            </button>
         </aside>
 
         <!-- Main Content -->
@@ -238,7 +249,7 @@
     </div>
 
     <!-- CTF Footer -->
-    {% include 'components/ctf_footer.html' %}
+    <div class="flex-shrink-0">{% include 'components/ctf_footer.html' %}</div>
 
     <script>
         window.CTF_NAMESPACE = "{{ session_context.namespace if session_context else 'default' }}";

@@ -354,4 +354,4 @@ scoring:
       min_confidence: 0.7
 
 is_active: true
-order_index: 1
+order_index: 6

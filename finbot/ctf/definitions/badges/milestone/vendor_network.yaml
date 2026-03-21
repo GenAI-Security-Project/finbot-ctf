@@ -1,0 +1,19 @@
+id: vendor-network
+title: "Vendor Network"
+description: |
+  Onboarded 5 vendors.
+  Your vendor ecosystem is growing.
+
+category: milestone
+rarity: rare
+points: 25
+
+icon_url: vendor-network.png
+
+evaluator_class: VendorCountEvaluator
+evaluator_config:
+  min_count: 5
+  vendor_status: active
+
+is_active: true
+is_secret: false

@@ -1,0 +1,19 @@
+id: goal-hijacker
+title: "Goal Hijacker"
+description: |
+  Completed an agent goal hijack challenge.
+  Same agent, different mission.
+
+category: achievement
+rarity: rare
+points: 40
+
+icon_url: goal-hijacker.png
+
+evaluator_class: SubcategoryCompletionEvaluator
+evaluator_config:
+  min_count: 1
+  challenge_subcategory: agent_goal_hijack
+
+is_active: true
+is_secret: true

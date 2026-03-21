@@ -395,10 +395,11 @@ async function sendMessage(text) {
     assistantBubble.className = 'msg-bubble assistant';
     assistantBubble.innerHTML = `
         <div class="msg-avatar assistant"><img src="/static/images/common/finbot.png" alt="FinBot" class="w-full h-full rounded-full object-contain"></div>
-        <div class="msg-content streaming-cursor"></div>
+        <div class="msg-content"><span class="thinking-indicator"><span class="thinking-text">Thinking</span><span class="thinking-dots"><span>.</span><span>.</span><span>.</span></span></span></div>
     `;
     container.appendChild(assistantBubble);
     const contentEl = assistantBubble.querySelector('.msg-content');
+    const thinkingEl = assistantBubble.querySelector('.thinking-indicator');
     scrollToBottom();
 
     let fullResponse = '';
@@ -408,11 +409,15 @@ async function sendMessage(text) {
         const headers = { 'Content-Type': 'application/json' };
         if (csrfMeta) headers['X-CSRF-Token'] = csrfMeta.content;
 
+        const controller = new AbortController();
+        const streamTimeout = setTimeout(() => controller.abort(), 5 * 60 * 1000);
+
         const res = await fetch('/admin/api/v1/copilot/chat', {
             method: 'POST',
             headers,
             credentials: 'same-origin',
             body: JSON.stringify({ message: text }),
+            signal: controller.signal,
         });
 
         if (!res.ok) {
@@ -439,8 +444,17 @@ async function sendMessage(text) {
                 try {
                     const event = JSON.parse(jsonStr);
                     if (event.type === 'token') {
+                        if (thinkingEl && thinkingEl.parentNode) {
+                            thinkingEl.remove();
+                            contentEl.classList.add('streaming-cursor');
+                        }
                         fullResponse += event.content;
                         contentEl.innerHTML = renderReportLinks(escapeHtml(fullResponse));
+                        scrollToBottom();
+                    } else if (event.type === 'status') {
+                        if (thinkingEl && thinkingEl.parentNode) {
+                            thinkingEl.querySelector('.thinking-text').textContent = event.content.replace(/\u2026$/, '');
+                        }
                         scrollToBottom();
                     } else if (event.type === 'done') {
                         break;
@@ -448,9 +462,14 @@ async function sendMessage(text) {
                 } catch (_) { /* skip */ }
             }
         }
+
+        clearTimeout(streamTimeout);
     } catch (err) {
-        fullResponse = fullResponse || 'Sorry, something went wrong. Please try again.';
-        contentEl.innerHTML = renderReportLinks(escapeHtml(fullResponse));
+        const msg = err.name === 'AbortError'
+            ? 'The request timed out. Please try again.'
+            : 'Sorry, something went wrong. Please try again.';
+        fullResponse = fullResponse || msg;
+        contentEl.innerHTML = renderReportLinks(escapeHtml(msg));
     }
 
     contentEl.classList.remove('streaming-cursor');

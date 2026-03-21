@@ -1,0 +1,19 @@
+id: silver-tongue
+title: "Silver Tongue"
+description: |
+  Completed a social engineering challenge.
+  You didn't hack the system, you hacked the mind.
+
+category: achievement
+rarity: rare
+points: 40
+
+icon_url: silver-tongue.png
+
+evaluator_class: SubcategoryCompletionEvaluator
+evaluator_config:
+  min_count: 1
+  challenge_subcategory: social_engineering
+
+is_active: true
+is_secret: true

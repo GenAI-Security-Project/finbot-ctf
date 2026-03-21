@@ -1,0 +1,19 @@
+id: kernel-panic
+title: "Kernel Panic"
+description: |
+  Completed 2 RCE challenges.
+  You don't just talk to agents, you become them.
+
+category: achievement
+rarity: legendary
+points: 200
+
+icon_url: kernel-panic.png
+
+evaluator_class: ChallengeCompletionEvaluator
+evaluator_config:
+  min_count: 2
+  challenge_category: rce
+
+is_active: true
+is_secret: false

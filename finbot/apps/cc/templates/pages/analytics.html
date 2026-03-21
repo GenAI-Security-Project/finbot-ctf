@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics{% endblock %}
+{% block page_title %}Analytics{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+
+    <!-- Overview stats -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-8">
+        <div class="bg-cc-surface border border-cc-border rounded-lg p-4">
+            <p class="text-text-1 text-2xl font-semibold">{{ pageviews_7d }}</p>
+            <p class="text-text-3 text-xs mt-1">Views (7d)</p>
+        </div>
+        <div class="bg-cc-surface border border-cc-border rounded-lg p-4">
+            <p class="text-text-1 text-2xl font-semibold">{{ visitors_7d }}</p>
+            <p class="text-text-3 text-xs mt-1">Visitors (7d)</p>
+        </div>
+        <div class="bg-cc-surface border border-cc-border rounded-lg p-4">
+            <p class="text-text-1 text-2xl font-semibold">{{ pageviews_30d }}</p>
+            <p class="text-text-3 text-xs mt-1">Views (30d)</p>
+        </div>
+        <div class="bg-cc-surface border border-cc-border rounded-lg p-4">
+            <p class="text-text-1 text-2xl font-semibold">{{ visitors_30d }}</p>
+            <p class="text-text-3 text-xs mt-1">Visitors (30d)</p>
+        </div>
+        <div class="bg-cc-surface border border-cc-border rounded-lg p-4">
+            <p class="text-text-1 text-2xl font-semibold">{{ avg_response_ms }}ms</p>
+            <p class="text-text-3 text-xs mt-1">Avg Response</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <!-- Top Pages -->
+        <div class="bg-cc-surface border border-cc-border rounded-lg p-5">
+            <h3 class="text-text-1 text-xs font-semibold uppercase tracking-wider mb-4">Top Pages (7d)</h3>
+            {% if top_pages %}
+            <div class="space-y-2">
+                {% for page in top_pages %}
+                <div class="flex items-center justify-between text-xs">
+                    <span class="text-text-2 truncate mr-4">{{ page.path }}</span>
+                    <span class="text-text-1 font-semibold tabular-nums">{{ page.views }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-text-3 text-xs">No data yet</p>
+            {% endif %}
+        </div>
+
+        <!-- Referrers -->
+        <div class="bg-cc-surface border border-cc-border rounded-lg p-5">
+            <h3 class="text-text-1 text-xs font-semibold uppercase tracking-wider mb-4">Referrers (7d)</h3>
+            {% if referers %}
+            <div class="space-y-2">
+                {% for ref in referers %}
+                <div class="flex items-center justify-between text-xs">
+                    <span class="text-text-2 truncate mr-4">{{ ref.domain }}</span>
+                    <span class="text-text-1 font-semibold tabular-nums">{{ ref.count }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-text-3 text-xs">No referrer data yet</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <!-- Browser breakdown -->
+        <div class="bg-cc-surface border border-cc-border rounded-lg p-5">
+            <h3 class="text-text-1 text-xs font-semibold uppercase tracking-wider mb-4">Browsers (7d)</h3>
+            {% if browsers %}
+            <div class="space-y-2">
+                {% for b in browsers %}
+                <div class="flex items-center justify-between text-xs">
+                    <span class="text-text-2">{{ b.browser }}</span>
+                    <span class="text-text-1 font-semibold tabular-nums">{{ b.count }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-text-3 text-xs">No data yet</p>
+            {% endif %}
+        </div>
+
+        <!-- Device breakdown -->
+        <div class="bg-cc-surface border border-cc-border rounded-lg p-5">
+            <h3 class="text-text-1 text-xs font-semibold uppercase tracking-wider mb-4">Devices (7d)</h3>
+            {% if devices %}
+            <div class="space-y-2">
+                {% for d in devices %}
+                <div class="flex items-center justify-between text-xs">
+                    <span class="text-text-2">{{ d.device }}</span>
+                    <span class="text-text-1 font-semibold tabular-nums">{{ d.count }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-text-3 text-xs">No data yet</p>
+            {% endif %}
+        </div>
+
+        <!-- Auth Funnel -->
+        <div class="bg-cc-surface border border-cc-border rounded-lg p-5">
+            <h3 class="text-text-1 text-xs font-semibold uppercase tracking-wider mb-4">Auth Funnel (7d)</h3>
+            <div class="space-y-3">
+                <div class="flex items-center justify-between text-xs">
+                    <span class="text-text-2">Portals visited</span>
+                    <span class="text-text-1 font-semibold tabular-nums">{{ funnel.portals_visits }}</span>
+                </div>
+                <div class="flex items-center justify-between text-xs">
+                    <span class="text-text-2">Magic links sent</span>
+                    <span class="text-text-1 font-semibold tabular-nums">{{ funnel.magic_link_requests }}</span>
+                </div>
+                <div class="flex items-center justify-between text-xs">
+                    <span class="text-text-2">Verifications</span>
+                    <span class="text-text-1 font-semibold tabular-nums">{{ funnel.verifications }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Daily pageviews (simple table) -->
+    <div class="bg-cc-surface border border-cc-border rounded-lg p-5">
+        <h3 class="text-text-1 text-xs font-semibold uppercase tracking-wider mb-4">Daily Traffic (30d)</h3>
+        {% if daily %}
+        <div class="overflow-x-auto">
+            <div class="flex gap-1 items-end" style="min-height: 120px;">
+                {% for d in daily %}
+                {% set max_views = daily|map(attribute='views')|max %}
+                {% set bar_height = (d.views / max_views * 100) if max_views > 0 else 0 %}
+                <div class="flex-1 flex flex-col items-center gap-1 group" title="{{ d.day }}: {{ d.views }} views, {{ d.visitors }} visitors">
+                    <span class="text-text-3 text-[8px] opacity-0 group-hover:opacity-100 transition-opacity">{{ d.views }}</span>
+                    <div class="w-full bg-cyan/40 rounded-sm transition-all group-hover:bg-cyan/70" style="height: {{ bar_height }}px; min-height: 2px;"></div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% else %}
+        <p class="text-text-3 text-xs">No data yet. Traffic will appear here as pageviews are recorded.</p>
+        {% endif %}
+    </div>
+
+    <div class="mt-6 text-center">
+        <p class="text-text-3 text-xs">Total pageviews recorded: {{ total_pageviews }}</p>
+    </div>
+</div>
+{% endblock %}

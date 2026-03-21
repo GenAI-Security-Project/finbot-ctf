@@ -11,11 +11,15 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
+from finbot.config import settings
 from finbot.apps.admin.main import app as admin_app
+from finbot.apps.cc import models as _cc_models  # noqa: F401
+from finbot.core.analytics import models as _analytics_models  # noqa: F401
 from finbot.apps.ctf import ctf_app
 from finbot.apps.ctf.rendering import get_renderer
 from finbot.apps.vendor.main import app as vendor_app
-from finbot.apps.web.auth import router as auth_router
+from finbot.apps.finbot.auth import router as auth_router
+from finbot.apps.finbot.routes import router as finbot_router
 from finbot.apps.web.routes import router as web_router
 from finbot.core.auth.csrf import CSRFProtectionMiddleware
 from finbot.core.auth.middleware import SessionMiddleware, get_session_context
@@ -55,6 +59,16 @@ async def lifespan(app: FastAPI):
             print(f"🧹 Cleaned up {cleaned_count} expired sessions on startup")
     except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"⚠️ Session cleanup skipped: {e}")
+
+    # 2b. Cleanup old analytics data
+    if settings.CC_ANALYTICS_ENABLED:
+        try:
+            from finbot.core.analytics.retention import cleanup_old_pageviews
+            cleaned = cleanup_old_pageviews()
+            if cleaned > 0:
+                print(f"📊 Cleaned up {cleaned} old pageviews (>{settings.ANALYTICS_RETENTION_DAYS}d)")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            print(f"⚠️ Analytics cleanup skipped: {e}")
 
     # 3. Load CTF definitions from YAML
     try:
@@ -117,6 +131,11 @@ app = FastAPI(
 )
 
 # Add middleware - last in, first out order
+# Analytics runs after session (needs session context), before CSRF
+if settings.CC_ANALYTICS_ENABLED:
+    from finbot.core.analytics.middleware import AnalyticsMiddleware
+    app.add_middleware(AnalyticsMiddleware)
+
 # Execute session first, then CSRF
 app.add_middleware(CSRFProtectionMiddleware)
 app.add_middleware(SessionMiddleware)
@@ -131,11 +150,26 @@ app.mount("/static", StaticFiles(directory="finbot/static"), name="static")
 app.mount("/vendor", vendor_app)
 app.mount("/admin", admin_app)
 app.mount("/ctf", ctf_app)
+
+# Command Center — platform management for maintainers
+if settings.CC_ENABLED:
+    from finbot.apps.cc.main import app as cc_app  # pylint: disable=ungrouped-imports
+    from finbot.apps.cc.auth import seed_admins_from_env
+
+    app.mount("/cc", cc_app)
+    try:
+        seeded = seed_admins_from_env()
+        if seeded > 0:
+            print(f"🔑 Seeded {seeded} CC admins from env")
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        print(f"⚠️ CC admin seeding skipped: {e}")
 app.include_router(websocket_router)
 # Auth routes for magic link sign-in
 app.include_router(auth_router)
-# Web application is mounted at the root of the platform
-app.include_router(web_router)
+# OWASP FinBot CTF landing pages at root
+app.include_router(finbot_router)
+# CineFlow demo tenant (hidden, preserved for future IPI scenarios)
+app.include_router(web_router, prefix="/demo/cineflow")
 
 
 # web agreement handler

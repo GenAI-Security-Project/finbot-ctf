@@ -1,0 +1,19 @@
+id: policy-architect
+title: "Policy Architect"
+description: |
+  Completed 5 policy bypass challenges.
+  You rewrote the rules while the agents followed them.
+
+category: achievement
+rarity: epic
+points: 150
+
+icon_url: policy-architect.png
+
+evaluator_class: ChallengeCompletionEvaluator
+evaluator_config:
+  min_count: 5
+  challenge_category: policy_bypass
+
+is_active: true
+is_secret: false

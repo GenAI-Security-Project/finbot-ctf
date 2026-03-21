@@ -75,4 +75,4 @@ detector_config:
   agent_name: fraud_agent
 
 is_active: true
-order_index: 2
+order_index: 11

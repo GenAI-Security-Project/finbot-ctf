@@ -396,16 +396,17 @@ function createDefaultInvoice() {
         due_date: fmtDateInput(dueDate),
         from_company: v.company_name || '', from_address: '', from_city_state_zip: '',
         from_email: v.email || '', from_phone: v.phone || '',
-        bill_to_company: 'CineFlow Productions',
-        bill_to_address: '1234 Hollywood Boulevard, Suite 567',
+        bill_to_company: 'OWASP FinBot',
+        bill_to_address: '1234 Innovation Drive, Suite 567',
         bill_to_city_state_zip: 'Los Angeles, CA 90028',
-        bill_to_email: 'ap@cineflow.com',
+        bill_to_email: 'ap@owasp-finbot-ctf.org',
         items: [{ description: '', quantity: 1, rate: 0, amount: 0 }],
         notes: '', tax_rate: 0, payment_terms: 'Net 30',
     };
 }
 
 function renderInvoiceEditor(paper, inv) {
+    const notesHtml = inv.notes_segments?.length ? segmentsToHtml(inv.notes_segments) : escHtml(inv.notes || '');
     paper.innerHTML = `
         <div class="inv-header">
             <div class="inv-from-block">
@@ -452,7 +453,8 @@ function renderInvoiceEditor(paper, inv) {
         </div>
         <div class="inv-notes-block">
             <div class="inv-label">NOTES / TERMS</div>
-            <textarea class="inv-input inv-input-notes" data-field="notes" placeholder="Additional notes, payment instructions, or terms...">${escHtml(inv.notes)}</textarea>
+            ${formatToolbarHtml()}
+            <div class="inv-notes-editable fmt-editable" contenteditable="true" data-placeholder="Additional notes, payment instructions, or terms...">${notesHtml}</div>
         </div>
         <div class="paper-footer-line"></div>
         <div class="paper-footer-text">Generated with FinDrive &middot; Powered by OWASP FinBot</div>
@@ -462,6 +464,7 @@ function renderInvoiceEditor(paper, inv) {
     paper.querySelectorAll('.inv-remove-btn').forEach(btn => btn.addEventListener('click', () => removeItem(btn)));
     document.getElementById('add-item-btn')?.addEventListener('click', addItem);
     recalculate();
+    initFormatToolbar(paper);
 }
 
 function renderInvoiceViewer(paper, inv) {
@@ -471,6 +474,8 @@ function renderInvoiceViewer(paper, inv) {
     const tax = subtotal * taxRate / 100;
     const total = subtotal + tax;
     const line = (v) => v ? `<div class="inv-view-line">${escHtml(v)}</div>` : '';
+    const hasNotes = inv.notes_segments?.length > 0 || inv.notes;
+    const notesHtml = inv.notes_segments?.length ? segmentsToHtml(inv.notes_segments) : escHtml(inv.notes || '');
 
     paper.innerHTML = `
         <div class="inv-header">
@@ -502,7 +507,7 @@ function renderInvoiceViewer(paper, inv) {
             ${taxRate > 0 ? `<div class="inv-totals-row"><span>Tax (${taxRate}%)</span><span>${fmtCurrency(tax)}</span></div>` : ''}
             <div class="inv-totals-row inv-totals-total"><span>Total Due</span><span>${fmtCurrency(total)}</span></div>
         </div>
-        ${inv.notes ? `<div class="inv-notes-block"><div class="inv-label">NOTES / TERMS</div><div class="inv-view-notes">${escHtml(inv.notes)}</div></div>` : ''}
+        ${hasNotes ? `<div class="inv-notes-block"><div class="inv-label">NOTES / TERMS</div><div class="inv-view-notes">${notesHtml}</div></div>` : ''}
         <div class="paper-footer-line"></div>
         <div class="paper-footer-text">Generated with FinDrive &middot; Powered by OWASP FinBot</div>
     `;
@@ -520,6 +525,9 @@ function collectInvoiceData() {
     const subtotal = items.reduce((s, i) => s + i.amount, 0);
     const taxRate = parseFloat(f('tax_rate')) || 0;
     const tax = subtotal * taxRate / 100;
+    const notesEditable = paper.querySelector('.inv-notes-editable');
+    const notesSegments = notesEditable ? htmlToSegments(notesEditable) : [];
+    const notesText = notesSegments.map(s => s.text).join('');
     return {
         invoice_number: f('invoice_number'), date: f('date'), due_date: f('due_date'),
         from_company: f('from_company'), from_address: f('from_address'), from_city_state_zip: f('from_city_state_zip'),
@@ -527,7 +535,7 @@ function collectInvoiceData() {
         bill_to_company: f('bill_to_company'), bill_to_address: f('bill_to_address'),
         bill_to_city_state_zip: f('bill_to_city_state_zip'), bill_to_email: f('bill_to_email'),
         items, subtotal, tax_rate: taxRate, tax, total: subtotal + tax,
-        notes: f('notes'), payment_terms: f('payment_terms'),
+        notes: notesText, notes_segments: notesSegments, payment_terms: f('payment_terms'),
     };
 }
 
@@ -589,23 +597,32 @@ function createDefaultDocument() {
 }
 
 function renderDocEditor(paper, data) {
+    const bodyHtml = data.segments?.length ? segmentsToHtml(data.segments) : escHtml(data.content || '');
     paper.innerHTML = `
         <input type="text" class="doc-title-input" data-field="title" placeholder="Untitled Document" value="${escAttr(data.title)}">
         <div class="doc-divider"></div>
-        <textarea class="doc-body-input" data-field="content" placeholder="Start typing your document...">${escHtml(data.content)}</textarea>
+        ${formatToolbarHtml()}
+        <div class="doc-body-editable fmt-editable" contenteditable="true" data-placeholder="Start typing your document...">${bodyHtml}</div>
         <div class="paper-footer-line"></div>
         <div class="paper-footer-text">Generated with FinDrive &middot; Powered by OWASP FinBot</div>
     `;
+    initFormatToolbar(paper);
 }
 
 function renderDocViewer(paper, data) {
-    const paragraphs = (data.content || '').split('\n').filter(p => p.trim() !== '' || true)
-        .map(p => p.trim() === '' ? '<br>' : `<p class="doc-paragraph">${escHtml(p)}</p>`).join('');
+    let bodyHtml;
+    if (data.segments?.length) {
+        bodyHtml = segmentsToHtml(data.segments);
+    } else {
+        const paragraphs = (data.content || '').split('\n').filter(p => p.trim() !== '' || true)
+            .map(p => p.trim() === '' ? '<br>' : `<p class="doc-paragraph">${escHtml(p)}</p>`).join('');
+        bodyHtml = paragraphs || '<p class="inv-view-empty">No content</p>';
+    }
 
     paper.innerHTML = `
         <h1 class="doc-view-title">${escHtml(data.title) || '<span class="inv-view-empty">Untitled Document</span>'}</h1>
         <div class="doc-divider"></div>
-        <div class="doc-view-body">${paragraphs || '<p class="inv-view-empty">No content</p>'}</div>
+        <div class="doc-view-body">${bodyHtml}</div>
         <div class="paper-footer-line"></div>
         <div class="paper-footer-text">Generated with FinDrive &middot; Powered by OWASP FinBot</div>
     `;
@@ -613,10 +630,178 @@ function renderDocViewer(paper, data) {
 
 function collectDocData() {
     const paper = document.getElementById('editor-paper');
+    const editable = paper.querySelector('.doc-body-editable');
+    const segments = editable ? htmlToSegments(editable) : [];
+    const plainText = segments.map(s => s.text).join('');
     return {
         title: paper.querySelector('[data-field="title"]')?.value || '',
-        content: paper.querySelector('[data-field="content"]')?.value || '',
+        content: plainText,
+        segments: segments,
     };
+}
+
+// =====================================================================
+// RICH TEXT FORMATTING
+// =====================================================================
+
+let _savedRange = null;
+
+const FMT_COLORS = [
+    { hex: '#000000', label: 'Black' },
+    { hex: '#374151', label: 'Gray' },
+    { hex: '#dc2626', label: 'Red' },
+    { hex: '#2563eb', label: 'Blue' },
+    { hex: '#16a34a', label: 'Green' },
+    { hex: '#ea580c', label: 'Orange' },
+    { hex: '#7c3aed', label: 'Purple' },
+    { hex: '#ffffff', label: 'White' },
+];
+
+function formatToolbarHtml() {
+    const swatches = FMT_COLORS.map(c =>
+        `<button type="button" class="fmt-swatch${c.hex === '#ffffff' ? ' fmt-swatch-light' : ''}" ` +
+        `style="background:${c.hex}" title="${c.label}" onmousedown="event.preventDefault()" ` +
+        `onclick="fmtColor('${c.hex}')"></button>`
+    ).join('');
+
+    return `<div class="fmt-toolbar">
+        <button type="button" class="fmt-btn" title="Bold" onmousedown="event.preventDefault()" onclick="fmtBold()"><strong>B</strong></button>
+        <button type="button" class="fmt-btn fmt-btn-italic" title="Italic" onmousedown="event.preventDefault()" onclick="fmtItalic()"><em>I</em></button>
+        <div class="fmt-sep"></div>
+        <select class="fmt-select" title="Font Size" onmousedown="fmtSaveSelection()" onchange="fmtFontSize(this.value);this.selectedIndex=0">
+            <option value="">Size</option>
+            <option value="1">1px</option>
+            <option value="8">8px</option>
+            <option value="10">10px</option>
+            <option value="12">12px</option>
+            <option value="14">14px</option>
+            <option value="16">16px</option>
+            <option value="20">20px</option>
+            <option value="24">24px</option>
+            <option value="36">36px</option>
+        </select>
+        <div class="fmt-sep"></div>
+        <div class="fmt-swatches">${swatches}</div>
+        <input type="color" class="fmt-color-input" value="#000000" title="Custom color" onmousedown="fmtSaveSelection()" onchange="fmtColor(this.value)">
+    </div>`;
+}
+
+function initFormatToolbar(container) {
+    const editable = container.querySelector('.fmt-editable');
+    if (!editable) return;
+    editable.addEventListener('paste', (e) => {
+        e.preventDefault();
+        document.execCommand('insertText', false, e.clipboardData.getData('text/plain'));
+    });
+}
+
+function fmtSaveSelection() {
+    const sel = window.getSelection();
+    if (sel.rangeCount > 0) _savedRange = sel.getRangeAt(0).cloneRange();
+}
+
+function fmtRestoreSelection() {
+    if (!_savedRange) return false;
+    const editable = document.querySelector('.fmt-editable');
+    if (editable) editable.focus();
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(_savedRange);
+    _savedRange = null;
+    return true;
+}
+
+function fmtBold() { document.execCommand('bold'); }
+function fmtItalic() { document.execCommand('italic'); }
+
+function fmtColor(color) {
+    fmtRestoreSelection();
+    document.execCommand('styleWithCSS', false, true);
+    document.execCommand('foreColor', false, color);
+}
+
+function fmtFontSize(size) {
+    if (!size) return;
+    fmtRestoreSelection();
+    const sel = window.getSelection();
+    if (!sel.rangeCount || sel.isCollapsed) return;
+    const range = sel.getRangeAt(0);
+    const span = document.createElement('span');
+    span.style.fontSize = size + 'px';
+    const contents = range.extractContents();
+    span.appendChild(contents);
+    range.insertNode(span);
+    sel.removeAllRanges();
+    const r = document.createRange();
+    r.selectNodeContents(span);
+    sel.addRange(r);
+}
+
+function segmentsToHtml(segments) {
+    if (!segments || segments.length === 0) return '';
+    return segments.map(seg => {
+        if (seg.text === '\n') return '<br>';
+        const text = escHtml(seg.text);
+        const s = seg.style || {};
+        const parts = [];
+        if (s.fontSize && typeof s.fontSize === 'number') parts.push(`font-size:${s.fontSize}px`);
+        if (s.color && typeof s.color === 'string') parts.push(`color:${escAttr(s.color)}`);
+        if (s.bold) parts.push('font-weight:bold');
+        if (s.italic) parts.push('font-style:italic');
+        return parts.length > 0 ? `<span style="${parts.join(';')}">${text}</span>` : text;
+    }).join('');
+}
+
+function htmlToSegments(container) {
+    const segments = [];
+    const cs = window.getComputedStyle(container);
+    const defColor = cs.color;
+    const defSize = Math.round(parseFloat(cs.fontSize));
+
+    function walk(node) {
+        if (node.nodeType === Node.TEXT_NODE) {
+            const text = node.textContent;
+            if (!text) return;
+            const el = node.parentElement;
+            const st = window.getComputedStyle(el);
+            const style = {};
+            const fw = st.fontWeight;
+            if (fw === 'bold' || fw === '700' || parseInt(fw) >= 700) style.bold = true;
+            if (st.fontStyle === 'italic') style.italic = true;
+            const fs = Math.round(parseFloat(st.fontSize));
+            if (fs !== defSize) style.fontSize = fs;
+            const clr = st.color;
+            if (clr !== defColor) style.color = rgbToHex(clr);
+            const prev = segments.length > 0 ? segments[segments.length - 1] : null;
+            if (prev && prev.text !== '\n' && JSON.stringify(prev.style) === JSON.stringify(style)) {
+                prev.text += text;
+            } else {
+                segments.push({ text, style });
+            }
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+            const tag = node.tagName.toLowerCase();
+            if (tag === 'br') {
+                segments.push({ text: '\n', style: {} });
+            } else {
+                if ((tag === 'div' || tag === 'p') && segments.length > 0) {
+                    const last = segments[segments.length - 1];
+                    if (last.text !== '\n') segments.push({ text: '\n', style: {} });
+                }
+                for (const child of node.childNodes) walk(child);
+            }
+        }
+    }
+
+    for (const child of container.childNodes) walk(child);
+    return segments;
+}
+
+function rgbToHex(rgb) {
+    if (!rgb) return '#000000';
+    if (rgb.startsWith('#')) return rgb;
+    const m = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if (!m) return '#000000';
+    return '#' + [m[1], m[2], m[3]].map(x => parseInt(x).toString(16).padStart(2, '0')).join('');
 }
 
 // =====================================================================

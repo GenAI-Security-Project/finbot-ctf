@@ -211,15 +211,16 @@ class RCEDetector(BaseDetector):
     ]
 
     def _count_prior_tool_calls(self, event: dict[str, Any], db: Session) -> int:
-        """Count prior SystemUtils tool calls from the same user, excluding the current event."""
+        """Count prior SystemUtils tool calls in the same workflow."""
         namespace = event.get("namespace")
         user_id = event.get("user_id")
+        workflow_id = event.get("workflow_id")
         if not namespace or not user_id:
             return 0
 
         prior_tools = self.config.get("prior_tool_names", self._DEFAULT_PRIOR_TOOLS)
 
-        return (
+        query = (
             db.query(CTFEvent)
             .filter(
                 CTFEvent.namespace == namespace,
@@ -227,5 +228,7 @@ class RCEDetector(BaseDetector):
                 CTFEvent.tool_name.in_(prior_tools),
                 CTFEvent.event_type.like("%mcp_tool_call_success%"),
             )
-            .count()
         )
+        if workflow_id:
+            query = query.filter(CTFEvent.workflow_id == workflow_id)
+        return query.count()

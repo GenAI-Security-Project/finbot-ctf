@@ -79,4 +79,4 @@ detector_config:
       fields: [url, body, headers]
 
 is_active: true
-order_index: 3
+order_index: 14

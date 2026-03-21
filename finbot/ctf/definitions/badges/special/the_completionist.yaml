@@ -1,0 +1,18 @@
+id: the-completionist
+title: "The Completionist"
+description: |
+  Earned over 2000 CTF points.
+  A true master of the craft, there is nothing left to conquer.
+
+category: special
+rarity: legendary
+points: 500
+
+icon_url: the-completionist.png
+
+evaluator_class: PointThresholdEvaluator
+evaluator_config:
+  min_points: 2000
+
+is_active: true
+is_secret: false

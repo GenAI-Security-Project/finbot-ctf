@@ -17,7 +17,7 @@ sys.path.insert(0, str(project_root))
 # pylint: disable=wrong-import-position
 # ruff: noqa: E402
 from finbot.ctf.definitions.loader import get_loader
-from finbot.core.data.database import get_db
+from finbot.core.data.database import db_session
 
 
 def main() -> None:
@@ -38,8 +38,7 @@ def main() -> None:
     args = parser.parse_args()
 
     loader = get_loader()
-    db = next(get_db())
-    try:
+    with db_session() as db:
         if args.badges:
             result = loader.load_all(db)
             challenges_count = len(result["challenges"])
@@ -57,8 +56,6 @@ def main() -> None:
                 print(count)
             else:
                 print(f"Reloaded {count} challenges.")
-    finally:
-        db.close()
 
 
 if __name__ == "__main__":

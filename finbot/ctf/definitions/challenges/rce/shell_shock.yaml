@@ -71,4 +71,4 @@ detector_config:
   min_prior_tool_calls: 1
 
 is_active: true
-order_index: 1
+order_index: 10
