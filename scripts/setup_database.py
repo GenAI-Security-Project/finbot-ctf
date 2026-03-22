@@ -4,8 +4,28 @@ Setup the database for the FinBot platform
 
 import argparse
 import os
+import subprocess
 import sys
 from pathlib import Path
+
+# Parse args BEFORE importing settings so we can set env vars
+parser = argparse.ArgumentParser(description="Setup the FinBot database")
+parser.add_argument(
+    "--db-type",
+    choices=["sqlite", "postgresql"],
+    help="Database type to use (overrides DATABASE_TYPE env var)",
+)
+parser.add_argument(
+    "--install-method",
+    choices=["docker", "local"],
+    default="docker",
+    help="Installation method for PostgreSQL (docker or local). Default: docker",
+)
+args = parser.parse_args()
+
+# Set environment variable BEFORE importing settings
+if args.db_type:
+    os.environ["DATABASE_TYPE"] = args.db_type
 
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
@@ -25,8 +45,33 @@ from finbot.core.data.database import (
 
 def setup_postgresql() -> bool:
     """Setup the PostgreSQL database"""
+    if args.install_method == "local":
+        return setup_postgresql_local()
+    else:
+        return setup_postgresql_docker()
 
-    print("Setting up PostgreSQL database...")
+
+def setup_postgresql_docker() -> bool:
+    """Setup PostgreSQL using Docker"""
+    print("Setting up PostgreSQL database via Docker...")
+
+    # Start PostgreSQL service if not running
+    print("Ensuring PostgreSQL service is running...")
+    try:
+        result = subprocess.run(
+            ["docker", "compose", "--profile", "postgres", "up", "-d", "postgres"],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        if "done" in result.stdout.lower() or "started" in result.stdout.lower():
+            print("✅ PostgreSQL service started")
+        else:
+            print("ℹ️  PostgreSQL service already running")
+    except subprocess.CalledProcessError as e:
+        print(f"⚠️  Could not start PostgreSQL service: {e.stderr}")
+        print("Assuming it's already running...")
 
     try:
         # pylint: disable=import-outside-toplevel
@@ -70,6 +115,50 @@ def setup_postgresql() -> bool:
         print("   2. Wait a few seconds for it to start")
         print("   3. Re-run this script")
         return False
+
+
+def setup_postgresql_local() -> bool:
+    """Setup PostgreSQL using local installation"""
+    import platform
+
+    print("Setting up PostgreSQL database via local installation...")
+
+    os_name = platform.system().lower()
+    print(f"Detected OS: {os_name}")
+
+    if os_name == "linux":
+        print("Assuming Ubuntu/Debian-based Linux...")
+        print("To install PostgreSQL locally, run the following commands:")
+        print("sudo apt update")
+        print("sudo apt install postgresql postgresql-contrib")
+        print("sudo systemctl start postgresql")
+        print("sudo systemctl enable postgresql")
+        print("sudo -u postgres createuser --createdb --superuser $USER")
+        print("createdb finbot")
+        print("After installing and starting PostgreSQL, re-run this script.")
+    elif os_name == "darwin":  # macOS
+        print("Assuming macOS...")
+        print("To install PostgreSQL locally, install via Homebrew:")
+        print("brew install postgresql")
+        print("brew services start postgresql")
+        print("createdb finbot")
+        print("After installing and starting PostgreSQL, re-run this script.")
+    elif os_name == "windows":
+        print("Assuming Windows...")
+        print("To install PostgreSQL locally:")
+        print("1. Download and install from: https://www.postgresql.org/download/windows/")
+        print("2. During installation, set password for 'postgres' user")
+        print("3. Add PostgreSQL bin directory to PATH")
+        print("4. Open command prompt as Administrator and run:")
+        print('   createuser --createdb --superuser "%USERNAME%"')
+        print("   createdb finbot")
+        print("After installing and starting PostgreSQL, re-run this script.")
+    else:
+        print(f"Unsupported OS: {os_name}")
+        print("Please install PostgreSQL manually and ensure it's running.")
+        print("Then re-run this script.")
+
+    return False  # Indicate manual setup needed
 
 
 def setup_sqlite() -> bool:
