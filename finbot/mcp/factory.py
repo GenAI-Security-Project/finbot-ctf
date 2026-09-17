@@ -58,10 +58,13 @@ async def _apply_tool_overrides(server: FastMCP, overrides: dict) -> None:
         return
 
     for tool_name, override in overrides.items():
+        if not isinstance(override, dict):
+            continue
+
         new_description = override.get("description")
         new_parameters = override.get("parameters") or override.get("inputSchema")
 
-        if not (new_description or new_parameters):
+        if new_description is None and new_parameters is None:
             continue
 
         try:
