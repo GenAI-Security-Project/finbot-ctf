@@ -81,42 +81,84 @@ async def request_magic_link(
         db.close()
 
 
+def _token_error(magic_token: MagicLinkToken | None) -> dict | None:
+    """Return error page context for an unusable token, or None if it can be used."""
+    if not magic_token:
+        return {
+            "error": "Invalid link",
+            "message": "This sign-in link is invalid or has already been used.",
+        }
+    if not magic_token.is_valid():
+        return {
+            "error": "Link expired",
+            "message": "This sign-in link has expired. Please request a new one.",
+        }
+    return None
+
+
+def _release_token(db, token: str) -> None:
+    """Make a claimed token usable again after a sign-in that did not complete."""
+    db.query(MagicLinkToken).filter(MagicLinkToken.token == token).update(
+        {MagicLinkToken.used_at: None}, synchronize_session=False
+    )
+    db.commit()
+
+
 @router.get("/verify")
-async def verify_magic_link(request: Request, token: str):
-    """Verify magic link token and upgrade session to permanent"""
+async def confirm_magic_link(request: Request, token: str):
+    """Show a confirmation page for a magic link.
+
+    Opening the link must not use up the token or sign anyone in. Mail scanners,
+    click trackers and link previews fetch links automatically, so sign-in happens
+    only when the confirmation form is submitted.
+    """
     if _is_authenticated(request):
         return RedirectResponse(url="/portals", status_code=303)
 
     db = SessionLocal()
     try:
+        magic_token = (
+            db.query(MagicLinkToken).filter(MagicLinkToken.token == token).first()
+        )
+        error = _token_error(magic_token)
+        if error:
+            return template_response(request, "auth-error.html", error)
+
+        return template_response(request, "auth-confirm.html", {"token": token})
+    finally:
+        db.close()
+
+
+@router.post("/verify")
+async def verify_magic_link(request: Request, token: str = Form(...)):
+    """Verify magic link token and upgrade session to permanent"""
+    if _is_authenticated(request):
+        return RedirectResponse(url="/portals", status_code=303)
+
+    db = SessionLocal()
+    claimed = False
+    try:
         # Find token
         magic_token = (
             db.query(MagicLinkToken).filter(MagicLinkToken.token == token).first()
         )
+        error = _token_error(magic_token)
+        if error:
+            return template_response(request, "auth-error.html", error)
 
-        if not magic_token:
-            return template_response(
-                request,
-                "auth-error.html",
-                {
-                    "error": "Invalid link",
-                    "message": "This sign-in link is invalid or has already been used.",
-                },
+        # Claim the token with a conditional update, so two submissions of the
+        # same link cannot both sign in. The claim is released if sign-in fails.
+        claimed = bool(
+            db.query(MagicLinkToken)
+            .filter(MagicLinkToken.token == token, MagicLinkToken.used_at.is_(None))
+            .update(
+                {MagicLinkToken.used_at: datetime.now(UTC)},
+                synchronize_session=False,
             )
-
-        if not magic_token.is_valid():
-            return template_response(
-                request,
-                "auth-error.html",
-                {
-                    "error": "Link expired",
-                    "message": "This sign-in link has expired. Please request a new one.",
-                },
-            )
-
-        # Mark token as used
-        magic_token.used_at = datetime.now(UTC)
+        )
         db.commit()
+        if not claimed:
+            return template_response(request, "auth-error.html", _token_error(None))
 
         # Determine which session to upgrade:
         # 1. Prefer the current browser's session (the one clicking the link)
@@ -162,6 +204,8 @@ async def verify_magic_link(request: Request, token: str):
                 accept_encoding=request.headers.get("accept-encoding"),
             )
         if not new_session:
+            _release_token(db, token)
+            claimed = False
             return template_response(
                 request,
                 "auth-error.html",
@@ -186,6 +230,12 @@ async def verify_magic_link(request: Request, token: str):
 
     except Exception as e:  # pylint: disable=broad-exception-caught
         db.rollback()
+        if claimed:
+            try:
+                _release_token(db, token)
+            except Exception:  # pylint: disable=broad-exception-caught
+                # Keep the error page below rather than raising a second error.
+                db.rollback()
         return template_response(
             request,
             "auth-error.html",

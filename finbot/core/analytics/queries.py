@@ -142,18 +142,19 @@ def get_auth_funnel(db: Session, days: int = 7) -> dict:
     """Track portals → magic-link → verify conversion"""
     since = datetime.now(UTC) - timedelta(days=days)
 
-    def count_path(path_prefix: str) -> int:
-        return (
-            db.query(func.count(PageView.id))
-            .filter(PageView.timestamp >= since, PageView.path.like(f"{path_prefix}%"))
-            .scalar()
-            or 0
+    def count_path(path_prefix: str, method: str | None = None) -> int:
+        query = db.query(func.count(PageView.id)).filter(
+            PageView.timestamp >= since, PageView.path.like(f"{path_prefix}%")
         )
+        if method:
+            query = query.filter(PageView.method == method)
+        return query.scalar() or 0
 
     return {
         "portals_visits": count_path("/portals"),
         "magic_link_requests": count_path("/auth/magic-link"),
-        "verifications": count_path("/auth/verify"),
+        # Opening a link is a GET; completing sign-in is a POST.
+        "verifications": count_path("/auth/verify", method="POST"),
     }
 
 
