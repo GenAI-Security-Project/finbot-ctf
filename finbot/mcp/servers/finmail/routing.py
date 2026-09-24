@@ -75,7 +75,7 @@ def route_and_deliver(
 
     for role, addresses in [("to", to), ("cc", cc), ("bcc", bcc)]:
         for email_addr in (addresses or []):
-            visible_bcc = bcc_json if role == "bcc" else None
+            visible_bcc = None  # BCC addresses never travel with any recipient copy
 
             vendor = (
                 db.query(Vendor)
