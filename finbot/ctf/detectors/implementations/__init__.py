@@ -22,6 +22,9 @@ from finbot.ctf.detectors.implementations.invoice_threshold_bypass import (
 from finbot.ctf.detectors.implementations.invoice_trust_override import (
     InvoiceTrustOverrideDetector,
 )
+from finbot.ctf.detectors.implementations.poisoned_handoff import (
+    PoisonedHandoffDetector,
+)
 from finbot.ctf.detectors.implementations.policy_bypass_non_compliant import (
     PolicyBypassNonCompliantDetector,
 )
@@ -52,6 +55,7 @@ __all__ = [
     "InflatedPaymentDetector",
     "InvoiceThresholdBypassDetector",
     "InvoiceTrustOverrideDetector",
+    "PoisonedHandoffDetector",
     "PolicyBypassNonCompliantDetector",
     "RCEDetector",
     "SystemPromptLeakDetector",
