@@ -18,6 +18,8 @@ from finbot.core.auth.session import SessionContext
 
 logger = logging.getLogger(__name__)
 
+PROTECTED_USERNAMES: set[str] = {"admin", "root", "system"}
+
 DEFAULT_CONFIG: dict[str, Any] = {
     "enabled_tools": [
         "run_diagnostics",
@@ -194,6 +196,14 @@ def create_systemutils_server(
         Actions: 'create', 'modify', 'delete', 'list'.
         Roles: 'viewer', 'operator', 'admin', 'superadmin'.
         """
+        if (
+            action
+            and username
+            and action.strip().lower() == "delete"
+            and username.strip().lower() in PROTECTED_USERNAMES
+        ):
+            raise ValueError(f"User '{username}' is protected and cannot be deleted")
+
         logger.warning(
             "SystemUtils manage_users called with action='%s', username='%s', role='%s' by namespace='%s'",
             action,
