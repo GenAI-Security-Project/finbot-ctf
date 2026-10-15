@@ -58,9 +58,54 @@ class ToolCallDetector(BaseDetector):
           require_success: true
     """
 
+    SUPPORTED_OPERATORS: set[str] = {
+        "equals",
+        "eq",
+        "gt",
+        "gte",
+        "lt",
+        "lte",
+        "in",
+        "not_in",
+        "contains",
+        "exists",
+        "matches",
+    }
+
     def _validate_config(self) -> None:
         if "tool_name" not in self.config:
             raise ValueError("ToolCallDetector requires 'tool_name' config")
+
+        tool_name = self.config["tool_name"]
+        if not isinstance(tool_name, str) or not tool_name.strip():
+            raise ValueError("tool_name must be a non-empty string")
+
+        if "parameters" in self.config and self.config["parameters"] is not None:
+            params = self.config["parameters"]
+            if not isinstance(params, dict):
+                raise ValueError("parameters must be a dict")
+            for param_name, condition in params.items():
+                if isinstance(condition, dict):
+                    for operator in condition.keys():
+                        if (
+                            not isinstance(operator, str)
+                            or operator.lower() not in self.SUPPORTED_OPERATORS
+                        ):
+                            raise ValueError(
+                                f"Unsupported operator '{operator}' for parameter '{param_name}'. "
+                                f"Supported operators: {sorted(self.SUPPORTED_OPERATORS)}"
+                            )
+
+        if "require_success" in self.config and self.config["require_success"] is not None:
+            if not isinstance(self.config["require_success"], bool):
+                raise ValueError("require_success must be a boolean")
+
+        if "event_types" in self.config and self.config["event_types"] is not None:
+            event_types = self.config["event_types"]
+            if not isinstance(event_types, list) or not all(
+                isinstance(et, str) for et in event_types
+            ):
+                raise ValueError("event_types must be a list of strings")
 
     def get_relevant_event_types(self) -> list[str]:
         """Listen to both native and MCP tool call events."""
@@ -164,6 +209,25 @@ class ToolCallDetector(BaseDetector):
             "match_ratio": len(matched) / total if total > 0 else 1.0,
         }
 
+    @staticmethod
+    def _compare_numeric(actual: Any, expected: Any, op: str) -> bool:
+        """Safely compare numeric values for gt, gte, lt, lte operators."""
+        try:
+            act_num = float(actual)
+            exp_num = float(expected)
+        except (ValueError, TypeError):
+            return False
+
+        if op == "gt":
+            return act_num > exp_num
+        if op == "gte":
+            return act_num >= exp_num
+        if op == "lt":
+            return act_num < exp_num
+        if op == "lte":
+            return act_num <= exp_num
+        return False
+
     def _check_condition(self, actual: Any, condition: Any) -> bool:
         """Check if actual value matches condition."""
         # Direct value comparison
@@ -175,28 +239,41 @@ class ToolCallDetector(BaseDetector):
             op = operator.lower()
 
             if op == "exists":
-                return (actual is not None) == expected
+                if (actual is not None) != bool(expected):
+                    return False
+                continue
 
             if actual is None:
                 return False
 
             if op in ("equals", "eq"):
-                return actual == expected
-            if op == "in":
-                return actual in expected
-            if op == "not_in":
-                return actual not in expected
-            if op == "contains":
-                return expected in str(actual).lower()
-            if op == "gt":
-                return float(actual) > float(expected)
-            if op == "gte":
-                return float(actual) >= float(expected)
-            if op == "lt":
-                return float(actual) < float(expected)
-            if op == "lte":
-                return float(actual) <= float(expected)
-            if op == "matches":
-                return bool(re.search(expected, str(actual), re.IGNORECASE))
+                if actual != expected:
+                    return False
+            elif op == "in":
+                try:
+                    if actual not in expected:
+                        return False
+                except TypeError:
+                    return False
+            elif op == "not_in":
+                try:
+                    if actual in expected:
+                        return False
+                except TypeError:
+                    return False
+            elif op == "contains":
+                if str(expected).lower() not in str(actual).lower():
+                    return False
+            elif op in ("gt", "gte", "lt", "lte"):
+                if not self._compare_numeric(actual, expected, op):
+                    return False
+            elif op == "matches":
+                try:
+                    if not bool(re.search(str(expected), str(actual), re.IGNORECASE)):
+                        return False
+                except re.error:
+                    return False
+            else:
+                return False
 
-        return False
+        return True
