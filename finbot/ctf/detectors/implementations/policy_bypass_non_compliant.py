@@ -72,7 +72,7 @@ class PolicyBypassNonCompliantDetector(BaseDetector):
 
     def _validate_config(self) -> None:
         keywords = self.config.get("prohibited_keywords")
-        if keywords is not None and not isinstance(keywords, list):
+        if "prohibited_keywords" in self.config and not isinstance(keywords, list):
             raise ValueError("prohibited_keywords must be a list of strings")
 
     def get_relevant_event_types(self) -> list[str]:

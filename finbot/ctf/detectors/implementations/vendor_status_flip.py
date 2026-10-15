@@ -63,7 +63,7 @@ class VendorStatusFlipDetector(BaseDetector):
 
     def _validate_config(self) -> None:
         indicators = self.config.get("prohibited_indicators")
-        if indicators is not None and not isinstance(indicators, list):
+        if "prohibited_indicators" in self.config and not isinstance(indicators, list):
             raise ValueError("prohibited_indicators must be a list of strings")
 
     def get_relevant_event_types(self) -> list[str]:
