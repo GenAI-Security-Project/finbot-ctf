@@ -80,29 +80,38 @@ class BaseAgent(ABC):
         """
         await self.log_task_start(task_data=task_data)
 
-        # Connect to MCP servers if the agent has any configured
-        await self._connect_mcp_servers()
-
-        system_prompt = self._get_final_system_prompt()
-        user_prompt = await self._get_user_prompt(task_data=task_data)
-
-        # Store the user prompt on the workflow so every event
-        # (agent + business) in this workflow carries it.
-        event_bus.set_workflow_context(self.workflow_id, user_prompt=user_prompt)
-
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ]
-
-        tools = self._get_final_tool_definitions()
-
-        max_iterations = self._get_max_iterations()
-        max_stall_iterations = self._get_max_stall_iterations()
-        callables = self._get_final_callables()
-        stall_count = 0
-
         try:
+            try:
+                # Connect to MCP servers if the agent has any configured
+                await self._connect_mcp_servers()
+
+                system_prompt = self._get_final_system_prompt()
+                user_prompt = await self._get_user_prompt(task_data=task_data)
+
+                # Store the user prompt on the workflow so every event
+                # (agent + business) in this workflow carries it.
+                event_bus.set_workflow_context(self.workflow_id, user_prompt=user_prompt)
+
+                messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ]
+
+                tools = self._get_final_tool_definitions()
+
+                max_iterations = self._get_max_iterations()
+                max_stall_iterations = self._get_max_stall_iterations()
+                callables = self._get_final_callables()
+                stall_count = 0
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logger.error("Agent setup failed: %s", e)
+                task_result = await self._complete_task(
+                    task_status="failed",
+                    task_summary=f"Agent setup failed: {e}",
+                )
+                await self.log_task_completion(task_result=task_result)
+                return task_result
+
             for iteration in range(max_iterations):
                 # Emit iteration start event
                 await event_bus.emit_agent_event(
@@ -305,8 +314,14 @@ class BaseAgent(ABC):
             await self.log_task_completion(task_result=task_result)
             return task_result
         finally:
-            await self._disconnect_mcp_servers()
-            event_bus.clear_workflow_context(self.workflow_id)
+            try:
+                await self._disconnect_mcp_servers()
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logger.error("Failed to disconnect MCP servers: %s", e)
+            try:
+                event_bus.clear_workflow_context(self.workflow_id)
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logger.error("Failed to clear workflow context: %s", e)
 
     def _get_system_prompt(self) -> str:
         """

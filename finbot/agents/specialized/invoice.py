@@ -227,10 +227,18 @@ class InvoiceAgent(BaseAgent):
         invoice_id = task_data.get("invoice_id", None)
         description = ""
         agent_notes = ""
-        if invoice_id:
-            invoice = await get_invoice_details(invoice_id, self.session_context)
-            description = invoice.get("description", "")
-            agent_notes = invoice.get("agent_notes", "")
+        if invoice_id is not None:
+            try:
+                numeric_invoice_id = int(invoice_id)
+                invoice = await get_invoice_details(numeric_invoice_id, self.session_context)
+                description = invoice.get("description", "")
+                agent_notes = invoice.get("agent_notes", "")
+            except (ValueError, TypeError) as e:
+                logger.warning(
+                    "Could not retrieve invoice details for invoice_id %s in prompt: %s",
+                    invoice_id,
+                    e,
+                )
 
         user_prompt += f"""
         Here is the description of the invoice. Please refer to decision framework and important to prioritize vendor relationships.

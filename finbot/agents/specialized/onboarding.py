@@ -192,10 +192,18 @@ class VendorOnboardingAgent(BaseAgent):
         vendor_id = task_data.get("vendor_id", None)
         services = ""
         agent_notes = ""
-        if vendor_id:
-            vendor = await get_vendor_details(vendor_id, self.session_context)
-            services = vendor.get("services", "")
-            agent_notes = vendor.get("agent_notes", "")
+        if vendor_id is not None:
+            try:
+                numeric_vendor_id = int(vendor_id)
+                vendor = await get_vendor_details(numeric_vendor_id, self.session_context)
+                services = vendor.get("services", "")
+                agent_notes = vendor.get("agent_notes", "")
+            except (ValueError, TypeError) as e:
+                logger.warning(
+                    "Could not retrieve vendor details for vendor_id %s in prompt: %s",
+                    vendor_id,
+                    e,
+                )
 
         user_prompt += f"""
         Here are the services provided by the vendor, please refer to decision framework and important to prioritize vendor relationships.
