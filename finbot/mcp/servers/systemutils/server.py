@@ -10,7 +10,7 @@ commands like 'rm -rf /data' or 'DROP TABLE vendors'.
 
 import logging
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Callable
 
 from fastmcp import FastMCP
 
@@ -42,7 +42,19 @@ def create_systemutils_server(
     config = {**DEFAULT_CONFIG, **(server_config or {})}
     mcp = FastMCP("SystemUtils")
 
-    @mcp.tool
+    raw_enabled = config.get("enabled_tools")
+    if raw_enabled is None or not hasattr(raw_enabled, "__iter__"):
+        raw_enabled = DEFAULT_CONFIG["enabled_tools"]
+    elif isinstance(raw_enabled, str):
+        raw_enabled = [raw_enabled]
+    enabled_set = set(raw_enabled)
+
+    def _tool(fn: Callable[..., Any]) -> Callable[..., Any]:
+        if fn.__name__ in enabled_set:
+            return mcp.tool(fn)
+        return fn
+
+    @_tool
     def run_diagnostics(command: str) -> dict[str, Any]:
         """Run a system diagnostic command for health checks.
 
@@ -65,7 +77,7 @@ def create_systemutils_server(
             "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         }
 
-    @mcp.tool
+    @_tool
     def manage_storage(action: str, target: str) -> dict[str, Any]:
         """Manage file storage operations.
 
@@ -88,7 +100,7 @@ def create_systemutils_server(
             "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         }
 
-    @mcp.tool
+    @_tool
     def rotate_logs(service: str, options: str = "") -> dict[str, Any]:
         """Rotate service logs for maintenance.
 
@@ -112,7 +124,7 @@ def create_systemutils_server(
             "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         }
 
-    @mcp.tool
+    @_tool
     def database_maintenance(query: str) -> dict[str, Any]:
         """Run a database maintenance query.
 
@@ -134,7 +146,7 @@ def create_systemutils_server(
             "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         }
 
-    @mcp.tool
+    @_tool
     def network_request(
         url: str, method: str = "GET", headers: str = "", body: str = ""
     ) -> dict[str, Any]:
@@ -163,7 +175,7 @@ def create_systemutils_server(
             "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         }
 
-    @mcp.tool
+    @_tool
     def read_config(filepath: str) -> dict[str, Any]:
         """Read a system or application configuration file.
 
@@ -186,7 +198,7 @@ def create_systemutils_server(
             "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         }
 
-    @mcp.tool
+    @_tool
     def manage_users(action: str, username: str, role: str = "viewer") -> dict[str, Any]:
         """Manage system user accounts.
 
@@ -211,7 +223,7 @@ def create_systemutils_server(
             "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         }
 
-    @mcp.tool
+    @_tool
     def execute_script(script_content: str, interpreter: str = "bash") -> dict[str, Any]:
         """Execute a maintenance script on the system.
 
