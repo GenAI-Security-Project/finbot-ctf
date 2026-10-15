@@ -4,11 +4,16 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
-from sqlalchemy import distinct, func
+from sqlalchemy import func
 
 from finbot.config import settings
 from finbot.core.data.database import SessionLocal
-from finbot.core.data.models import UserBadge, UserChallengeProgress, Vendor
+from finbot.core.data.models import (
+    User,
+    UserBadge,
+    UserChallengeProgress,
+    Vendor,
+)
 from finbot.core.templates import TemplateResponse
 
 template_response = TemplateResponse("finbot/apps/cc/templates")
@@ -25,7 +30,7 @@ def _get_pulse_stats() -> dict:
             hour=0, minute=0, second=0, microsecond=0
         )
 
-        total_users = db.query(func.count(distinct(Vendor.namespace))).scalar() or 0
+        total_users = db.query(func.count(User.id)).scalar() or 0
 
         challenges_today = (
             db.query(func.count(UserChallengeProgress.id))
@@ -53,7 +58,7 @@ def _get_pulse_stats() -> dict:
 
 @router.get("/", response_class=HTMLResponse)
 async def desktop(request: Request):
-    """CC desktop — OS-style launcher with pulse, health, and app grid"""
+    """CC desktop - OS-style launcher with pulse, health, and app grid"""
     pulse = _get_pulse_stats()
     apps = []
 
