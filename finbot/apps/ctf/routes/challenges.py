@@ -218,10 +218,10 @@ def check_challenge(
     Returns current progress status from the database. Detection happens
     in real-time through the event pipeline — this endpoint just reflects
     what has already been detected.
-    """
-    if not session_context:
-        raise HTTPException(status_code=401, detail="Authentication required")
 
+    Open to temporary sessions too, since the CTF can be played without
+    signing up.
+    """
     challenge_repo = ChallengeRepository(db)
     challenge = challenge_repo.get_challenge(challenge_id)
 
@@ -264,10 +264,10 @@ def use_hint(
     session_context: SessionContext = Depends(get_session_context),
     db: Session = Depends(get_db),
 ):
-    """Use the next available hint"""
-    if not session_context:
-        raise HTTPException(status_code=401, detail="Authentication required")
+    """Use the next available hint.
 
+    Open to temporary sessions too, since hints are meant for all players.
+    """
     challenge_repo = ChallengeRepository(db)
     challenge = challenge_repo.get_challenge(challenge_id)
 
