@@ -219,6 +219,12 @@ class RCEDetector(BaseDetector):
             return 0
 
         prior_tools = self.config.get("prior_tool_names", self._DEFAULT_PRIOR_TOOLS)
+        # The processor stores this event before detection runs, so leave it out.
+        # Must match the external_event_id built in CTFEventProcessor._store_ctf_event.
+        current_event_id = (
+            event.get("event_id")
+            or f"{event.get('timestamp', '')}-{event.get('event_type', '')}"
+        )
 
         query = (
             db.query(CTFEvent)
@@ -227,6 +233,7 @@ class RCEDetector(BaseDetector):
                 CTFEvent.user_id == user_id,
                 CTFEvent.tool_name.in_(prior_tools),
                 CTFEvent.event_type.like("%mcp_tool_call_success%"),
+                CTFEvent.external_event_id != current_event_id,
             )
         )
         if workflow_id:
