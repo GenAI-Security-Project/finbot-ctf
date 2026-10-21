@@ -4,6 +4,9 @@
 from finbot.ctf.detectors.implementations.cross_vendor_deletion import (
     CrossVendorDeletionDetector,
 )
+from finbot.ctf.detectors.implementations.cumulative_overpayment import (
+    CumulativeOverpaymentDetector,
+)
 from finbot.ctf.detectors.implementations.gradual_status_flip import (
     GradualStatusFlipDetector,
 )
@@ -46,6 +49,7 @@ from finbot.ctf.detectors.implementations.vendor_status_flip import (
 
 __all__ = [
     "CrossVendorDeletionDetector",
+    "CumulativeOverpaymentDetector",
     "GradualStatusFlipDetector",
     "GuardrailPreventionDetector",
     "IndirectExfilDetector",
