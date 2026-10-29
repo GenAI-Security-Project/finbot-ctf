@@ -78,5 +78,21 @@ python scripts/verify_change.py --base origin/main --coverage  # plus changed li
 test and which ones don't (for example `67/75; not run: 76, 82-84`).
 Below `--min-coverage` (default 80%) the verdict is NEEDS TESTS.
 
-Exit codes: 0 cleared (or not run), 1 blocked, 2 changed source has no
-tests or too little of it runs under test.
+What the verdicts do and don't promise:
+
+- **CLEARED** means the tests that import the changed code pass. Code that
+  only reaches a change indirectly (a caller of a changed helper) isn't run.
+- **Coverage** counts only those tests, so a line another test happens to
+  run can still show as "not run". Treat 80% as a starting point to tune.
+- **NO TESTS APPLY** means nothing changed that a unit or integration test
+  covers: docs, config or templates only.
+
+Exit codes: 0 cleared, no tests apply or not run; 1 blocked; 2 changed
+source has no tests or too little of it runs under test.
+
+## Reviewing someone else's pull request with Claude Code
+
+The `.claude/` folder and `AGENTS.md` are instructions an agent follows,
+and a pull request can change them. Before running Claude Code on a
+checked-out PR, read its diff to `.claude/` and `AGENTS.md`, or review it
+from a checkout of `main` instead.

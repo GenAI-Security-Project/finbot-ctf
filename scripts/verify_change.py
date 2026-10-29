@@ -55,16 +55,18 @@ def git(*args: str) -> list[str]:
     return [line for line in out.splitlines() if line]
 
 
-def changed_files(base: str) -> tuple[list[Path], str, set[str]]:
+def changed_files(base: str) -> tuple[list[Path], list[Path], str, set[str]]:
     """Committed, staged, unstaged and untracked changes since `base`.
 
-    Returns the files, the merge base, and the untracked subset.
+    Returns the files that exist, the files that were deleted, the merge base,
+    and the untracked subset.
     """
     merge_base = git("merge-base", base, "HEAD")[0]
     untracked = set(git("ls-files", "--others", "--exclude-standard"))
-    names = set(git("diff", "--name-only", merge_base)) | untracked
-    files = sorted(project_root / n for n in names if (project_root / n).is_file())
-    return files, merge_base, untracked
+    paths = sorted(project_root / n for n in set(git("diff", "--name-only", merge_base)) | untracked)
+    files = [p for p in paths if p.is_file()]
+    deleted = [p for p in paths if not p.exists()]
+    return files, deleted, merge_base, untracked
 
 
 def changed_lines(path: Path, merge_base: str, untracked: set[str]) -> set[int]:
@@ -118,10 +120,11 @@ def find_tests(path: Path, test_files: dict[Path, str]) -> list[Path]:
     package, _, leaf = dotted.rpartition(".")
     patterns = [
         rf"\b{re.escape(dotted)}\b",
-        rf"from {re.escape(package)} import [^\n]*\b{leaf}\b",
+        rf"from {re.escape(package)} import [^\n]*\b{re.escape(leaf)}\b",
     ]
     # Detectors are created by registered name from YAML, not imported
-    for name in re.findall(r'@register_detector\("(\w+)"\)', path.read_text()):
+    source = path.read_text() if path.exists() else ""
+    for name in re.findall(r'@register_detector\("(\w+)"\)', source):
         patterns.append(rf"\b{name}\b")
     return [t for t, text in test_files.items() if any(re.search(p, text) for p in patterns)]
 
@@ -205,8 +208,13 @@ class Changes:
         elif {"templates", "static"} & set(path.relative_to(project_root).parts):
             self.ui_changed = True
 
+    def add_deleted_file(self, path: Path, test_files: dict[Path, str]) -> None:
+        """A removed module: run the tests that still import it, so they fail loudly."""
+        if path.suffix == ".py" and path.relative_to(project_root).parts[0] == "finbot":
+            self.affected.update(find_tests(path, test_files))
 
-def classify(files: list[Path], test_files: dict[Path, str]) -> Changes:
+
+def classify(files: list[Path], deleted: list[Path], test_files: dict[Path, str]) -> Changes:
     changes = Changes()
     for path in files:
         top = path.relative_to(project_root).parts[0]
@@ -214,6 +222,9 @@ def classify(files: list[Path], test_files: dict[Path, str]) -> Changes:
             changes.add_test_file(path, test_files)
         elif top == "finbot":
             changes.add_source_file(path, test_files)
+    for path in deleted:
+        changes.add_deleted_file(path, test_files)
+    changes.affected = {t for t in changes.affected if t.exists()}
     return changes
 
 
@@ -246,8 +257,18 @@ CI runs with no model key: the tests mock the model. Write them locally, then pu
 """
 
 
+# File names and error messages come from the pull request, which may be from
+# anyone. Paths outside this pattern never go into a prompt.
+SAFE_PATH = re.compile(r"[\w./-]+")
+
+
 def rel(path: Path) -> str:
     return str(path.relative_to(project_root))
+
+
+def md_safe(text: str) -> str:
+    """One line of PR-supplied text that can't break a code span, fence or table."""
+    return " ".join(str(text).split()).replace("`", "'").replace("|", "/")[:300]
 
 
 def guide_for(path: Path) -> str:
@@ -260,6 +281,8 @@ def guide_for(path: Path) -> str:
 
 def fix_prompt(path: Path, not_run: str | None = None) -> str:
     """A prompt any AI assistant can act on to close one gap."""
+    if not SAFE_PATH.fullmatch(rel(path)):
+        return "Unusual file name: review this file by hand before giving it to an AI assistant."
     target = f"lines {not_run} of {rel(path)} run" if not_run else f"{rel(path)} is tested"
     return (
         f"Write pytest tests so that {target}. Follow {guide_for(path)}. "
@@ -287,10 +310,10 @@ def write_summary(path: str, report: dict) -> None:
     lines = [f"## verify_change: {report['verdict']}", "", report["detail"], ""]
     if report["definition_errors"]:
         lines += ["### Challenge definition problems", ""]
-        lines += [f"- {e}" for e in report["definition_errors"]] + [""]
+        lines += [f"- `{md_safe(e)}`" for e in report["definition_errors"]] + [""]
     if report["gaps"]:
         lines += ["### Test gaps", "", "| File | Lines not run | Guide |", "|---|---|---|"]
-        lines += [f"| `{g['file']}` | {g['not_run']} | {g['guide']} |" for g in report["gaps"]]
+        lines += [f"| `{md_safe(g['file'])}` | {g['not_run']} | {g['guide']} |" for g in report["gaps"]]
         lines += ["", NEXT_STEPS, "<details><summary>Prompts, one per gap</summary>", ""]
         lines += [f"```\n{g['prompt']}\n```" for g in report["gaps"]]
         lines += ["", "</details>"]
@@ -335,7 +358,7 @@ def check_definitions(challenges: list[Path]) -> list[str]:
     return errors
 
 
-def decide(failed: list[str], reasons: list[str], ran: bool) -> tuple[int, str, str]:
+def decide(failed: list[str], reasons: list[str], ran: bool, tests_ran: bool) -> tuple[int, str, str]:
     """Exit code, verdict and detail."""
     if failed:
         return 1, "BLOCKED", "; ".join(failed)
@@ -343,16 +366,20 @@ def decide(failed: list[str], reasons: list[str], ran: bool) -> tuple[int, str, 
         return 2, "NEEDS TESTS", "; ".join(reasons)
     if not ran:
         return 0, "NOT RUN", "nothing blocking found; rerun with --run for a verdict"
-    return 0, "CLEARED", "affected tests pass and definitions are valid"
+    if not tests_ran:
+        return 0, "NO TESTS APPLY", "0 tests ran: no changed file is app code or a test"
+    return 0, "CLEARED", "the tests that import the changed code pass, and definitions are valid"
 
 
 def main() -> int:
     args = parse_args()
-    files, merge_base, untracked = changed_files(args.base)
-    changes = classify(files, {p: p.read_text() for p in TESTS_DIR.rglob("test_*.py")})
+    files, deleted, merge_base, untracked = changed_files(args.base)
+    test_files = {p: p.read_text() for p in TESTS_DIR.rglob("test_*.py")}
+    changes = classify(files, deleted, test_files)
     browser = sorted(p for p in changes.affected if E2E_DIR in p.parents)
     unit = sorted(changes.affected - set(browser))
-    needs_e2e = E2E_DIR.is_dir() and (bool(browser) or changes.ui_changed)
+    has_e2e_suite = any(E2E_DIR.glob("test_*.py"))
+    needs_e2e = has_e2e_suite and (bool(browser) or changes.ui_changed)
 
     print(f"Changed files vs {args.base}: {len(files)}")
     section("Affected unit/integration tests", unit)
@@ -377,7 +404,7 @@ def main() -> int:
     failed += ["challenge definitions invalid"] * bool(definition_errors)
     reasons = [f"{len(changes.untested)} changed source file(s) have no tests"] * bool(changes.untested)
     reasons += [low_coverage] * bool(low_coverage)
-    code, label, detail = decide(failed, reasons, args.run)
+    code, label, detail = decide(failed, reasons, args.run, tests_ran=bool(unit) or (needs_e2e and args.e2e))
     print(f"\n[{label}] {detail}")
     write_reports(args.json, {
         "base": args.base,

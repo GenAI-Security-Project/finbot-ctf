@@ -13,7 +13,7 @@ deterministic work. Your job is to read the result and close the gaps.
 1. **Run the gate.**
 
    ```bash
-   .venv/bin/python scripts/verify_change.py --coverage
+   uv run python scripts/verify_change.py --coverage
    ```
 
    `--coverage` runs the affected tests and lists, per changed file, the
@@ -33,7 +33,8 @@ deterministic work. Your job is to read the result and close the gaps.
    |---|---|---|
    | `[BLOCKED]` | A test failed or a challenge definition is broken | Step 3 |
    | `[NEEDS TESTS]` | Changed files have no tests, or under 80% of changed lines run under test | Step 4 |
-   | `[CLEARED]` | Affected tests pass, definitions valid | Step 5 |
+   | `[NO TESTS APPLY]` | No changed file is app code or a test (docs, config, templates only) | Say so; nothing to fix |
+   | `[CLEARED]` | The tests that import the changed code pass, definitions valid | Step 5 |
 
 3. **Blocked.** For each failure, find the cause in the code (not the test)
    and say which file and line. Common definition failures:

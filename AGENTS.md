@@ -24,7 +24,8 @@ challenge definitions you touched, and lists changed lines no test runs.
 |---|---|
 | `BLOCKED` | A test failed or a challenge definition is broken. Fix the cause in the code. |
 | `NEEDS TESTS` | Write tests for the files and line ranges it lists, then run it again. |
-| `CLEARED` | Done. |
+| `NO TESTS APPLY` | Nothing you changed is app code or a test. Done. |
+| `CLEARED` | The tests that import your changed code pass. Done. |
 
 CI runs the same check with no model key. Add `--json gaps.json` for a
 machine-readable list of gaps, each with a ready-made prompt.
