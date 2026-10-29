@@ -51,7 +51,9 @@ def call(name, **arguments):
 
 @pytest.fixture(autouse=True)
 def mock_event_bus():
+    # Three modules import event_bus; @agent_tool emits through agents.utils
     with patch("finbot.agents.base.event_bus") as bus, \
+         patch("finbot.agents.utils.event_bus", bus), \
          patch("finbot.core.llm.contextual_client.event_bus", bus):
         bus.emit_agent_event = AsyncMock()
         bus.emit_business_event = AsyncMock()
@@ -67,6 +69,31 @@ def model():
     ) as chat:
         yield chat
 ```
+
+## Other things to stub
+
+- **MCP servers.** Agents that override `_get_mcp_servers` build real servers
+  unless you patch `create_mcp_server` where the agent looks it up. The
+  specialized agents import it at module level, so patch
+  `finbot.agents.specialized.<module>.create_mcp_server`; `chat.py` imports
+  it inside a function, so patch `finbot.mcp.factory.create_mcp_server`.
+- **The session.** Build a `SessionContext` directly; no database needed:
+
+  ```python
+  from datetime import UTC, datetime, timedelta
+  from finbot.core.auth.session import SessionContext
+
+  def session_for(name):
+      now = datetime.now(UTC)
+      return SessionContext(
+          session_id=f"sess_{name}", user_id=f"user_{name}",
+          email=f"{name}@example.test", namespace=f"user_{name}",
+          is_temporary=False, created_at=now, expires_at=now + timedelta(hours=24),
+      )
+  ```
+- **Data helpers.** If a tool calls module-level helpers (for example
+  `get_vendor_details`), patching them in the agent's module is simpler than
+  seeding a database.
 
 ## Tests to write
 
@@ -90,5 +117,13 @@ instructions sent after a failed payment.
   repositories.
 - Assert on behaviour (status returned, tool invoked, event emitted), not on
   prompt wording.
+- Assert the whole result, not a sample. Compare a tool's returned dict with
+  `==`: a test that checks 2 of 9 fields lets the other 7 break unnoticed.
+- Make each assertion specific to its branch. If two branches produce
+  similar text, assert on the part that differs; `"compose and send" in
+  prompt` passes for both of `communication.py`'s default prompts.
 - A test that exposes a real bug goes in a `TestQAFindings` class, marked
-  `xfail(strict=True)` with the reason, and gets a ticket via `qa-ticket`.
+  `xfail(strict=True)` with the reason, and gets a ticket via
+  `.claude/skills/qa-ticket/SKILL.md`.
+- To confirm which copy of `finbot` your tests import (useful in a second
+  checkout): `uv run python -c "import finbot; print(finbot.__file__)"`.

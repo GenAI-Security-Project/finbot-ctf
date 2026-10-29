@@ -78,7 +78,9 @@ This is how the path traversal "single-shot" bug was found.
 - LLM-judge detectors: patch the judge call and test both verdicts plus the
   confidence threshold. Never call a real model.
 - Assert on `result.detected` and include `result.message` in the assert, so
-  a failure says which branch fired.
+  a failure says which branch fired. For detections, also assert the
+  evidence that proves it (the matched pattern, the target path), not just
+  that something was detected.
 - If a test fails because the detector is wrong, keep it, mark it
   `@pytest.mark.xfail(strict=True, reason="<bug>")`, and report it. Never
   weaken an assertion to make it pass.

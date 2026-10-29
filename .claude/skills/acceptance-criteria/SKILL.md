@@ -11,13 +11,21 @@ the point where the requirement is written.
 
 ## Steps
 
-1. **Get the requirement.** For an issue: `gh issue view <n> --repo
-   GenAI-Security-Project/finbot-ctf --comments`. Read linked issues too.
+1. **Get the requirement.** For an issue, either:
+
+   ```bash
+   gh issue view <n> --repo GenAI-Security-Project/finbot-ctf --comments
+   # without gh: the public API needs no login
+   curl -s https://api.github.com/repos/GenAI-Security-Project/finbot-ctf/issues/<n>
+   curl -s https://api.github.com/repos/GenAI-Security-Project/finbot-ctf/issues/<n>/comments
+   ```
+
+   Read linked issues too. If you can't fetch the issue at all, stop and say
+   so rather than reconstructing it from other sources.
 
 2. **Find the code it touches.** Name the modules, routes, agents, tools, or
-   detectors involved, with paths. If the issue names a file that doesn't
-   exist, say so. (Issue #132 points at `finbot/apps/web/auth.py`, but the
-   routes live in `finbot/apps/finbot/auth.py`.)
+   detectors involved, with paths. Issues go stale: if one names a file that
+   doesn't exist, say so and give the path the code lives at now.
 
 3. **Flag what can't be tested yet.**
    - Vague words: "fast", "secure", "handles errors", "works on mobile".

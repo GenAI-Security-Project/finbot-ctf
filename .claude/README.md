@@ -70,6 +70,16 @@ Each agent sets its model in its header with `model:`. The options are
 conversation is on). The agent uses that model no matter which one you've
 picked for the conversation; change the line to trade cost against depth.
 
+## How we know the tests are any good
+
+Passing tests and full coverage only show that code ran, not that anything
+was checked. So `test-writer` plants three small bugs in the code it tested
+and confirms the tests catch each one (mutation testing). When this library
+was built, a 100%-coverage suite written by an agent caught only 7 of 10
+planted bugs. Every miss traced to a test that checked 2 of 9 returned
+fields, or a substring that matched both branches. The guides now forbid
+both. A person still reviews the tests before they're committed.
+
 ## The gate script
 
 `scripts/verify_change.py` works without Claude, including in CI:
