@@ -17,6 +17,12 @@ Usage:
     python scripts/verify_change.py --coverage       # run them and find changed lines no test runs
     python scripts/verify_change.py --run --e2e      # also run the mobile browser suite
     python scripts/verify_change.py --base origin/main --coverage
+    python scripts/verify_change.py --coverage --json gaps.json  # machine-readable gap report
+
+In GitHub Actions it also writes the verdict, the test gaps and a ready-made
+prompt per gap to the job summary. The prompts work in any AI assistant, so
+tests can be written locally with whatever tool a contributor has; CI itself
+never needs a model key.
 
 Exit codes: 0 cleared (or not run), 1 blocked, 2 changed code has no tests
 or too little of it runs under test.
@@ -223,6 +229,82 @@ def report_coverage(rows: list[tuple[Path, int, int, str]], minimum: float) -> s
     return f"only {percent:.0f}% of changed lines run under test" if percent < minimum else None
 
 
+GUIDES = {
+    "finbot/ctf/detectors/": ".claude/skills/detector-tests/SKILL.md",
+    "finbot/ctf/definitions/": ".claude/skills/detector-tests/SKILL.md",
+    "finbot/agents/": ".claude/skills/agent-tests/SKILL.md",
+}
+
+NEXT_STEPS = """\
+### How to close the gaps
+
+CI runs with no model key: the tests mock the model. Write them locally, then push.
+
+- **Claude Code:** run `claude`, then `/verify-change`.
+- **Any other AI assistant:** paste the prompt for each file below. `AGENTS.md` points it at the same guides.
+- **By hand:** follow the guide listed for each file.
+"""
+
+
+def rel(path: Path) -> str:
+    return str(path.relative_to(project_root))
+
+
+def guide_for(path: Path) -> str:
+    """The testing guide for a source file. Plain markdown, for any agent or person."""
+    return next(
+        (guide for prefix, guide in GUIDES.items() if rel(path).startswith(prefix)),
+        "the nearest existing test file under tests/unit/",
+    )
+
+
+def fix_prompt(path: Path, not_run: str | None = None) -> str:
+    """A prompt any AI assistant can act on to close one gap."""
+    target = f"lines {not_run} of {rel(path)} run" if not_run else f"{rel(path)} is tested"
+    return (
+        f"Write pytest tests so that {target}. Follow {guide_for(path)}. "
+        "Mock any model call and don't change code under finbot/. "
+        "Run the tests and report the result."
+    )
+
+
+def collect_gaps(changes: Changes, coverage_rows: list[tuple[Path, int, int, str]]) -> list[dict]:
+    """Untested files and uncovered changed lines, each with a guide and a prompt."""
+    gaps = [
+        {"file": rel(p), "not_run": "all", "guide": guide_for(p), "prompt": fix_prompt(p)}
+        for p in changes.untested
+    ]
+    gaps += [
+        {"file": rel(p), "run": f"{ran}/{total}", "not_run": not_run,
+         "guide": guide_for(p), "prompt": fix_prompt(p, not_run)}
+        for p, ran, total, not_run in coverage_rows if not_run
+    ]
+    return gaps
+
+
+def write_summary(path: str, report: dict) -> None:
+    """Append the verdict and the test gaps to the GitHub Actions job summary."""
+    lines = [f"## verify_change: {report['verdict']}", "", report["detail"], ""]
+    if report["definition_errors"]:
+        lines += ["### Challenge definition problems", ""]
+        lines += [f"- {e}" for e in report["definition_errors"]] + [""]
+    if report["gaps"]:
+        lines += ["### Test gaps", "", "| File | Lines not run | Guide |", "|---|---|---|"]
+        lines += [f"| `{g['file']}` | {g['not_run']} | {g['guide']} |" for g in report["gaps"]]
+        lines += ["", NEXT_STEPS, "<details><summary>Prompts, one per gap</summary>", ""]
+        lines += [f"```\n{g['prompt']}\n```" for g in report["gaps"]]
+        lines += ["", "</details>"]
+    with open(path, "a", encoding="utf-8") as summary:
+        summary.write("\n".join(lines) + "\n")
+
+
+def write_reports(json_path: str | None, report: dict) -> None:
+    if json_path:
+        Path(json_path).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    if summary_path := os.environ.get("GITHUB_STEP_SUMMARY"):
+        write_summary(summary_path, report)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Verify a branch before merge.")
     parser.add_argument("--base", default="main", help="branch to compare against (default: main)")
@@ -236,6 +318,7 @@ def parse_args() -> argparse.Namespace:
         "--min-coverage", type=float, default=80, metavar="PCT",
         help="share of changed lines that must run under test (default: 80)",
     )
+    parser.add_argument("--json", metavar="PATH", help="also write the verdict and test gaps as JSON")
     args = parser.parse_args()
     args.run = args.run or args.coverage
     return args
@@ -252,18 +335,15 @@ def check_definitions(challenges: list[Path]) -> list[str]:
     return errors
 
 
-def verdict(failed: list[str], reasons: list[str], ran: bool) -> int:
+def decide(failed: list[str], reasons: list[str], ran: bool) -> tuple[int, str, str]:
+    """Exit code, verdict and detail."""
     if failed:
-        print(f"\n[BLOCKED] {'; '.join(failed)}")
-        return 1
+        return 1, "BLOCKED", "; ".join(failed)
     if reasons:
-        print(f"\n[NEEDS TESTS] {'; '.join(reasons)}")
-        return 2
+        return 2, "NEEDS TESTS", "; ".join(reasons)
     if not ran:
-        print("\n[NOT RUN] nothing blocking found; rerun with --run for a verdict")
-        return 0
-    print("\n[CLEARED] affected tests pass and definitions are valid")
-    return 0
+        return 0, "NOT RUN", "nothing blocking found; rerun with --run for a verdict"
+    return 0, "CLEARED", "affected tests pass and definitions are valid"
 
 
 def main() -> int:
@@ -297,7 +377,18 @@ def main() -> int:
     failed += ["challenge definitions invalid"] * bool(definition_errors)
     reasons = [f"{len(changes.untested)} changed source file(s) have no tests"] * bool(changes.untested)
     reasons += [low_coverage] * bool(low_coverage)
-    return verdict(failed, reasons, args.run)
+    code, label, detail = decide(failed, reasons, args.run)
+    print(f"\n[{label}] {detail}")
+    write_reports(args.json, {
+        "base": args.base,
+        "verdict": label,
+        "detail": detail,
+        "failed": failed,
+        "definition_errors": definition_errors,
+        "affected_tests": [rel(p) for p in unit],
+        "gaps": collect_gaps(changes, coverage_rows),
+    })
+    return code
 
 
 if __name__ == "__main__":

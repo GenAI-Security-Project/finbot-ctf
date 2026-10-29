@@ -5,6 +5,25 @@ already does by hand: same fixtures, same test IDs, same ticket format.
 They cover the path from a requirement, through a feature (written by an
 agent or a person), to a merge decision.
 
+## Getting started (contributors)
+
+**Tests are written locally; CI only checks them.** CI runs
+`scripts/verify_change.py` with no model key, because every test mocks the
+model. If it reports `NEEDS TESTS`, the job summary lists the files and line
+ranges to cover, the guide for each, and a ready-made prompt.
+
+1. Set up: `uv sync`.
+2. Write the missing tests with whatever you have:
+   - **Claude Code**, signed in with a Claude subscription (`/login`) or your
+     own `ANTHROPIC_API_KEY`: run `claude`, then `/verify-change`.
+   - **Another AI assistant** (Codex, Copilot, Cursor, Gemini CLI): paste the
+     prompt from the job summary. `AGENTS.md` points it at the same guides.
+   - **By hand:** follow the guide for the file.
+3. Check locally until it says `CLEARED`, then push:
+   `uv run python scripts/verify_change.py --base origin/main --coverage`
+
+No key is ever stored in this repository or its CI.
+
 ```
 issue ──► requirements-reviewer ──► acceptance criteria + test map
                                           │
