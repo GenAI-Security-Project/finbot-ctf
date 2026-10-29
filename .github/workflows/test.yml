@@ -58,7 +58,11 @@ jobs:
 
   verify-change:
     name: Changed code is tested (no model key)
+    # Pull requests only: on a push there is no base branch to compare with.
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     # Non-blocking for now: three tests in test_specialized_agents.py fail on
     # main (_get_user_prompt became async). Flip this to false once they pass
     # so untested changes start failing the build.
@@ -87,7 +91,7 @@ jobs:
       run: python scripts/db.py migrate
 
     - name: Find untested changes
-      run: python scripts/verify_change.py --base origin/main --coverage --json verify-change.json
+      run: python scripts/verify_change.py --base "origin/${{ github.base_ref }}" --coverage --json verify-change.json
 
     - name: Upload gap report
       if: always()

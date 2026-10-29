@@ -20,7 +20,9 @@ is detected is half a suite.
 
 ## Tests to write
 
-One file per detector: `tests/unit/ctf/test_<module>_detector.py`.
+One file per detector: `tests/unit/ctf/test_<module>_detector.py`. If the
+detector already has tests elsewhere (the Labs guardrail detector's live in
+`tests/unit/labs/`), add to that file instead.
 Give every test an ID like `CTF-<SHORT>-NNN` in its docstring, matching the
 house style in `tests/unit/agents/test_specialized_agents.py`.
 
@@ -84,5 +86,5 @@ This is how the path traversal "single-shot" bug was found.
 ## Run
 
 ```bash
-.venv/bin/python -m pytest tests/unit/ctf/test_<module>_detector.py -v
+uv run python -m pytest tests/unit/ctf/test_<module>_detector.py -v
 ```

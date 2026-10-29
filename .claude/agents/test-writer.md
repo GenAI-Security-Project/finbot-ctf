@@ -24,11 +24,11 @@ You write tests for finbot-ctf. You never change code under `finbot/`.
 
 3. **Write the tests** in the location and style the skill gives.
 
-4. **Run them** with `.venv/bin/python -m pytest <file> -q`. If you were
+4. **Run them** with `uv run python -m pytest <file> -q`. If you were
    given line ranges, confirm they now run:
 
    ```bash
-   .venv/bin/python -m pytest <test file> -q --cov=<source file's directory> --cov-report=term-missing
+   uv run python -m pytest <test file> -q --cov=<source file's directory> --cov-report=term-missing
    ```
 
    The source file's `Missing` column must no longer list them. If a line
