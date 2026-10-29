@@ -22,6 +22,11 @@ deterministic work. Your job is to read the result and close the gaps.
    output says templates or CSS changed (needs `playwright install chromium`).
    For a PR that isn't checked out: `gh pr checkout <n>` first.
 
+   If CI already ran, you can start from its report instead:
+   `gh run download <run-id> -n verify-change-report` gives
+   `verify-change.json`, with each gap's file, line ranges, guide and prompt.
+   Still rerun the gate at the end to confirm.
+
 2. **Read the verdict.**
 
    | Verdict | Meaning | What to do |

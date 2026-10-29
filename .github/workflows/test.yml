@@ -55,3 +55,44 @@ jobs:
     
     - name: Run redis message stream tests
       run: pytest tests/unit/agents/test_redis_message_streams.py $GS_FLAG
+
+  verify-change:
+    name: Changed code is tested (no model key)
+    runs-on: ubuntu-latest
+    # Non-blocking for now: three tests in test_specialized_agents.py fail on
+    # main (_get_user_prompt became async). Flip this to false once they pass
+    # so untested changes start failing the build.
+    continue-on-error: true
+    env:
+      LLM_PROVIDER: mock
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0   # verify_change.py diffs against the merge base
+
+    - name: Set up Python 3.13
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+        pip install pytest pytest-asyncio pytest-cov
+
+    - name: Setup database
+      run: python scripts/db.py migrate
+
+    - name: Find untested changes
+      run: python scripts/verify_change.py --base origin/main --coverage --json verify-change.json
+
+    - name: Upload gap report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: verify-change-report
+        path: verify-change.json
+        if-no-files-found: ignore
