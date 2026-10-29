@@ -83,11 +83,15 @@ def changed_lines(path: Path, merge_base: str, untracked: set[str]) -> set[int]:
     return lines
 
 
-def line_ranges(lines: list[int], executed: set[int]) -> str:
-    """Compress line numbers into ranges, bridging gaps that hold no executed code."""
+def line_ranges(lines: list[int], executable: set[int]) -> str:
+    """Compress line numbers into ranges, bridging only gaps with no code at all.
+
+    A gap of blank lines or comments joins two ranges; a gap holding any
+    executable line, run or not, keeps them apart.
+    """
     spans: list[list[int]] = []
     for n in lines:
-        if spans and not executed.intersection(range(spans[-1][1] + 1, n)):
+        if spans and not executable.intersection(range(spans[-1][1] + 1, n)):
             spans[-1][1] = n
         else:
             spans.append([n, n])
@@ -104,12 +108,12 @@ def coverage_of_changes(
         data = measured.get(str(path.relative_to(project_root)))
         if not data:
             continue
-        executed, missing = set(data["executed_lines"]), set(data["missing_lines"])
-        changed = changed_lines(path, merge_base, untracked) & (executed | missing)
+        executable = set(data["executed_lines"]) | set(data["missing_lines"])
+        changed = changed_lines(path, merge_base, untracked) & executable
         if changed:
-            not_run = sorted(changed & missing)
+            not_run = sorted(changed & set(data["missing_lines"]))
             results.append(
-                (path, len(changed) - len(not_run), len(changed), line_ranges(not_run, executed))
+                (path, len(changed) - len(not_run), len(changed), line_ranges(not_run, executable))
             )
     return results
 
@@ -118,12 +122,14 @@ def find_tests(path: Path, test_files: dict[Path, str]) -> list[Path]:
     """Test files that import, patch, or (for detectors) look up this module."""
     dotted = ".".join(path.relative_to(project_root).with_suffix("").parts)
     package, _, leaf = dotted.rpartition(".")
-    patterns = [
-        rf"\b{re.escape(dotted)}\b",
-        rf"from {re.escape(package)} import [^\n]*\b{re.escape(leaf)}\b",
-    ]
-    # Detectors are created by registered name from YAML, not imported
+    # "from pkg import x" on one line, or "from pkg import (\n x,\n)"
+    from_package = rf"from {re.escape(package)} import (?:\([^)]*|[^\n]*)"
+    patterns = [rf"\b{re.escape(dotted)}\b", rf"{from_package}\b{re.escape(leaf)}\b"]
     source = path.read_text() if path.exists() else ""
+    # Classes and functions the package's __init__ may re-export
+    for name in re.findall(r"^(?:class|def) (\w+)", source, re.M):
+        patterns.append(rf"{from_package}\b{name}\b")
+    # Detectors are created by registered name from YAML, not imported
     for name in re.findall(r'@register_detector\("(\w+)"\)', source):
         patterns.append(rf"\b{name}\b")
     return [t for t, text in test_files.items() if any(re.search(p, text) for p in patterns)]
@@ -160,7 +166,10 @@ def check_challenges(paths: list[Path]) -> list[str]:
                     challenge_id=challenge.id, config=challenge.detector_config
                 )
             except Exception as e:  # noqa: BLE001
-                errors.append(f"{rel}: {challenge.detector_class} rejects detector_config: {e}")
+                errors.append(
+                    f"{rel}: {challenge.detector_class} could not be created with its "
+                    f"detector_config ({type(e).__name__}: {e})"
+                )
         for prereq in sorted(set(challenge.prerequisites) - known_ids):
             errors.append(f"{rel}: prerequisite {prereq} does not exist")
     return errors
