@@ -23,6 +23,10 @@ Start with these. Each one has already happened in this repo:
   `.claude/skills/detector-tests/SKILL.md`).
 - **Detectors written but never registered.** The module is missing from
   `finbot/ctf/detectors/implementations/__init__.py`.
+- **`if result:` on a `DetectionResult`.** Its `__bool__` returns `detected`,
+  so a not-detected result that carries evidence reads as falsy.
+- **A challenge solvable without the skill it teaches.** For example, a
+  guardrail challenge completed by a webhook that blocks everything.
 - **GET handlers that change state.** For example, magic-link verify burns
   the token (issue #582).
 - **Untrusted text reaching a prompt or a tool argument** without a boundary.

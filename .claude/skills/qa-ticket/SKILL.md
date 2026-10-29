@@ -19,7 +19,7 @@ straight into GitHub as issues. Tickets are collected per area in
    output for the Expected/Actual lines:
 
    ```bash
-   pytest <path>::<Class>::<test_name> -v
+   pytest <path>::<Class>::<test_name> -v --runxfail   # shows the failure even if the test is marked xfail
    ```
 
    If the finding came from code review and no test exists, say so in the
@@ -31,36 +31,42 @@ straight into GitHub as issues. Tickets are collected per area in
 
    ```bash
    gh issue list --repo GenAI-Security-Project/finbot-ctf --state all --search "<keywords>"
+   # without gh: the public API needs no login (join keywords with +)
+   curl -s "https://api.github.com/search/issues?q=repo:GenAI-Security-Project/finbot-ctf+is:issue+<keywords>"
    ```
 
    For a set of two or more tickets, add a "Dedup status" table under the
    file header with one row per finding: existing issue (or "none") and
    whether to file it, comment on an existing issue, or skip it.
 
-4. **Pick the number.** `Bug_NNN` is global across all ticket files. Take the
-   highest number in use and add one:
+4. **Pick the number.** `Bug_NNN` continues from the last bug filed on
+   GitHub by the person filing it. Ask for their GitHub login, then:
 
    ```bash
-   grep -ho 'Bug_[0-9]*' docs/tickets_*.md 2>/dev/null | sort -t_ -k2 -n | tail -1
-   gh issue list --repo GenAI-Security-Project/finbot-ctf --state all --search "Bug_ in:title" --limit 20
+   curl -s "https://api.github.com/repos/GenAI-Security-Project/finbot-ctf/issues?state=all&creator=<login>&sort=created&direction=desc&per_page=100" \
+     | python3 -c "import json,re,sys; print(max(int(m[1]) for i in json.load(sys.stdin) if (m:=re.match(r'Bug_(\d+)', i['title']))))"
    ```
 
-   The first command finds nothing until a ticket file exists; the GitHub
-   search is the source of truth.
+   Number the new tickets from that plus one. Unfiled drafts in
+   `docs/tickets_*.md` may already use those numbers; if so, tell the user
+   so they can renumber the drafts when they file them.
 
-   The area ID (`ORCH-QA-001`, `AUTH-QA-001`, `MOBILE-QA-001`) counts from 001
+   The area ID (`ORCH-QA-001`, `AUTH-QA-001`, `GRD-QA-001`) counts from 001
    within each file.
 
 5. **Pick the severity.**
    - `MUST_FIX`: security hole, auth bypass, data loss, or users blocked.
    - `EVALUATE`: wrong behaviour that needs a maintainer's judgement call.
+     A way to solve a CTF challenge without the skill it teaches goes here;
+     say so in the Impact.
 
 6. **Write the ticket** using [ticket-template.md](ticket-template.md).
    Append to `docs/tickets_<area>.md` if it exists. Otherwise create it with
    the file header from the template.
 
-7. **Print every ticket's raw markdown in the chat** so the user can paste
-   it into GitHub. Writing the file alone is not enough.
+7. **Print every ticket in the chat, ready to paste:** the title on its own,
+   then the body from `**Component:**` down, each in its own code block.
+   Writing the file alone is not enough.
 
 ## Rules
 
