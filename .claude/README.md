@@ -19,6 +19,14 @@ ranges to cover, the guide for each, and a ready-made prompt.
    - **Another AI assistant** (Codex, Copilot, Cursor, Gemini CLI): paste the
      prompt from the job summary. `AGENTS.md` points it at the same guides.
    - **By hand:** follow the guide for the file.
+
+   You don't need to pay for anything to contribute. Writing tests by hand
+   always works, several assistants have free tiers (for example Gemini CLI
+   and GitHub Copilot Free), and a local model through Ollama needs no
+   account at all. Free tiers have small limits: they suit one prompt per
+   gap, not long agent runs. Some use your prompts for training, which is
+   fine for this public code, but never paste secrets such as your `.env`
+   into any assistant.
 3. Check locally until it says `CLEARED`, then push:
    `uv run python scripts/verify_change.py --base origin/main --coverage`
 
