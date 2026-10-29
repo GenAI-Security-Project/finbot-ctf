@@ -124,7 +124,11 @@ def find_tests(path: Path, test_files: dict[Path, str]) -> list[Path]:
     package, _, leaf = dotted.rpartition(".")
     # "from pkg import x" on one line, or "from pkg import (\n x,\n)"
     from_package = rf"from {re.escape(package)} import (?:\([^)]*|[^\n]*)"
-    patterns = [rf"\b{re.escape(dotted)}\b", rf"{from_package}\b{re.escape(leaf)}\b"]
+    patterns = [
+        rf"\b{re.escape(dotted)}\b",
+        rf"{from_package}\b{re.escape(leaf)}\b",
+        re.escape(str(path.relative_to(project_root))),  # loaded by file path
+    ]
     source = path.read_text() if path.exists() else ""
     # Classes and functions the package's __init__ may re-export
     for name in re.findall(r"^(?:class|def) (\w+)", source, re.M):
@@ -217,6 +221,11 @@ class Changes:
         elif {"templates", "static"} & set(path.relative_to(project_root).parts):
             self.ui_changed = True
 
+    def add_script_file(self, path: Path, test_files: dict[Path, str]) -> None:
+        """Run a changed script's tests, if it has any. Scripts don't have to."""
+        if path.suffix == ".py":
+            self.affected.update(find_tests(path, test_files))
+
     def add_deleted_file(self, path: Path, test_files: dict[Path, str]) -> None:
         """A removed module: run the tests that still import it, so they fail loudly."""
         if path.suffix == ".py" and path.relative_to(project_root).parts[0] == "finbot":
@@ -231,6 +240,8 @@ def classify(files: list[Path], deleted: list[Path], test_files: dict[Path, str]
             changes.add_test_file(path, test_files)
         elif top == "finbot":
             changes.add_source_file(path, test_files)
+        elif top == "scripts":
+            changes.add_script_file(path, test_files)
     for path in deleted:
         changes.add_deleted_file(path, test_files)
     changes.affected = {t for t in changes.affected if t.exists()}

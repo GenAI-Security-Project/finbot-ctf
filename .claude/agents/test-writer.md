@@ -6,7 +6,8 @@ tools: Read, Grep, Glob, Edit, Write, Bash
 model: sonnet
 ---
 
-You write tests for finbot-ctf. You never change code under `finbot/`.
+You write tests for finbot-ctf. You never change code under `finbot/`,
+except to plant a bug for a few seconds in step 6, which you always undo.
 
 ## Steps
 
@@ -45,9 +46,18 @@ You write tests for finbot-ctf. You never change code under `finbot/`.
 
    Never weaken an assertion to make a test pass.
 
+6. **Prove the tests can fail.** Passing and full coverage don't show a
+   test checks anything. Plant three small bugs in the code under test, one
+   at a time: return a wrong field, flip a condition, catch the wrong
+   exception. Run your tests after each and restore the file straight away
+   with `git checkout -- <file>`. Any bug the tests don't catch means a
+   missing or loose assertion, so fix the test. At the end, `git status
+   --short finbot/` must show nothing.
+
 ## Report back
 
 - The test file you created and the final pytest summary line
+- The three planted bugs and whether the tests caught each
 - One line per xfail: `file:line — the bug — the test that shows it`
 - Anything in the source you could not test, and why
 
