@@ -19,16 +19,17 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.13'
-        cache: 'pip'
 
-    - name: Install dependencies
+    # Install exactly what uv.lock pins. An unpinned install picks up
+    # breaking releases (Starlette 1.x fails the vendor isolation tests).
+    # The lock file already includes pytest, gspread and google-auth.
+    - name: Install dependencies from the lock file
       run: |
-        python -m pip install --upgrade pip
-        pip install -e ".[dev]"
-        pip install pytest pytest-asyncio pytest-cov gspread google-auth google-auth-oauthlib
+        python -m pip install --upgrade pip uv
+        uv sync --frozen
 
     - name: Setup database
-      run: python scripts/db.py migrate
+      run: uv run python scripts/db.py migrate
 
     - name: Setup Google credentials
       env:
@@ -45,13 +46,13 @@ jobs:
         fi
 
     - name: Run vendor isolation tests
-      run: pytest tests/unit/vendor/test_vendor_isolation.py $GS_FLAG
+      run: uv run pytest tests/unit/vendor/test_vendor_isolation.py $GS_FLAG
 
     - name: Run session management tests
-      run: pytest tests/unit/auth/test_secure_session_management.py $GS_FLAG
+      run: uv run pytest tests/unit/auth/test_secure_session_management.py $GS_FLAG
 
     - name: Run complete user isolation tests
-      run: pytest tests/unit/isolation/test_complete_user_isolation.py $GS_FLAG
+      run: uv run pytest tests/unit/isolation/test_complete_user_isolation.py $GS_FLAG
     
     - name: Run redis message stream tests
-      run: pytest tests/unit/agents/test_redis_message_streams.py $GS_FLAG
+      run: uv run pytest tests/unit/agents/test_redis_message_streams.py $GS_FLAG
