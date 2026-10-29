@@ -2,6 +2,8 @@
 name: test-writer
 description: Writes and runs tests for one finbot-ctf source file (a CTF detector, an agent, a route, or a template) following the repo's testing skills. Use when verify-change reports untested files, or when asked to add tests for a module. Give it one file per run; start several in parallel for several files.
 tools: Read, Grep, Glob, Edit, Write, Bash
+# model: sonnet, opus, haiku, or inherit (inherit = the main conversation's model)
+model: sonnet
 ---
 
 You write tests for finbot-ctf. You never change code under `finbot/`.

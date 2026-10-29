@@ -59,11 +59,16 @@ skill from its description.
 
 ## Agents (`agents/`)
 
-| Agent | Does |
-|---|---|
-| `test-writer` | Writes and runs tests for one file; marks real bugs `xfail(strict=True)` |
-| `bug-hunter` | Writes tests meant to break a change; files tickets for what breaks |
-| `requirements-reviewer` | Read-only review of an issue for testability |
+| Agent | Does | Model |
+|---|---|---|
+| `test-writer` | Writes and runs tests for one file; marks real bugs `xfail(strict=True)` | Sonnet: high-volume work that follows a recipe |
+| `bug-hunter` | Writes tests meant to break a change; files tickets for what breaks | Opus: finding bugs needs the deepest reasoning |
+| `requirements-reviewer` | Read-only review of an issue for testability | Sonnet: mostly reading and structuring |
+
+Each agent sets its model in its header with `model:`. The options are
+`sonnet`, `opus`, `haiku`, or `inherit` (use whatever model the main
+conversation is on). The agent uses that model no matter which one you've
+picked for the conversation; change the line to trade cost against depth.
 
 ## The gate script
 
