@@ -136,6 +136,9 @@ class Settings(BaseSettings):
     LABS_GUARDRAIL_DEFAULT_TIMEOUT: int = 5  # seconds
     LABS_GUARDRAIL_MAX_TIMEOUT: int = 30  # seconds
     LABS_GUARDRAIL_MAX_PAYLOAD_BYTES: int = 65536  # 64 KiB
+    # When true, a "block" verdict on a before_tool hook stops the tool call.
+    # Default false keeps Labs guardrails passive (observe-only).
+    LABS_GUARDRAIL_ENFORCE: bool = False
 
     # Email Config
     EMAIL_PROVIDER: str = "console"  # "console" | "resend"

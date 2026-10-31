@@ -177,6 +177,10 @@ class ChatAssistantBase:
             tool_source=source,
             tool_arguments=arguments,
         )
+        if self._guardrail_service.should_block():
+            return json.dumps(
+                {"error": f"Tool {name} was blocked by guardrail: {self._guardrail_service.last_reason}"}
+            )
 
         callable_fn = self._tool_callables.get(name)
         if not callable_fn:

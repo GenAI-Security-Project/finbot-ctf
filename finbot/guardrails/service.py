@@ -48,6 +48,12 @@ class GuardrailHookService:
         self._workflow_id = workflow_id or ""
         self._config: LabsGuardrailConfig | None = None
         self._config_loaded = False
+        self.last_verdict: str | None = None
+        self.last_reason: str | None = None
+
+    def should_block(self) -> bool:
+        """True if enforcement is enabled and the last hook returned "block"."""
+        return settings.LABS_GUARDRAIL_ENFORCE and self.last_verdict == "block"
 
     def _load_config(self) -> LabsGuardrailConfig | None:
         """Load and cache config from DB (once per session)."""
@@ -88,11 +94,14 @@ class GuardrailHookService:
         user_message: str | None = None,
         model_output: str | None = None,
     ) -> HookOutcome:
-        """Fire a passive guardrail hook.
+        """Fire a guardrail hook.
 
         Returns the outcome for informational purposes — callers must
-        NOT branch on the outcome (execution always proceeds).
+        NOT branch on the outcome. Execution proceeds unless
+        LABS_GUARDRAIL_ENFORCE is on and should_block() is true.
         """
+        self.last_verdict = None
+        self.last_reason = None
         if not self._is_hook_enabled(kind):
             return (
                 HookOutcome.no_config if not self._config else HookOutcome.hook_disabled
@@ -174,6 +183,8 @@ class GuardrailHookService:
             error_detail = str(exc)
 
         latency_ms = int((time.monotonic() - start) * 1000)
+        self.last_verdict = verdict_str
+        self.last_reason = reason
 
         logger.info(
             "guardrail hook=%s outcome=%s verdict=%s latency_ms=%d tool=%s user=%s",

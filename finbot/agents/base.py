@@ -156,6 +156,10 @@ class BaseAgent(ABC):
                                     tool_arguments=tool_call.get("arguments"),
                                 )
                                 try:
+                                    if self._guardrail_service.should_block():
+                                        raise PermissionError(
+                                            f"blocked by guardrail: {self._guardrail_service.last_reason}"
+                                        )
                                     logger.debug(
                                         "Calling callable %s with arguments %s",
                                         tool_call_name,
