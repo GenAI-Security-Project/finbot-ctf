@@ -173,10 +173,14 @@ class ChatAssistantBase:
 
         await self._guardrail_service.invoke(
             HookKind.before_tool,
+            agent_name=self.agent_name,
             tool_name=name,
             tool_source=source,
             tool_arguments=arguments,
         )
+        if self._guardrail_service.should_block():
+            reason = self._guardrail_service.last_reason or "blocked"
+            return json.dumps({"error": f"Tool {name} was blocked by guardrail: {reason}"})
 
         callable_fn = self._tool_callables.get(name)
         if not callable_fn:
@@ -193,6 +197,7 @@ class ChatAssistantBase:
 
         await self._guardrail_service.invoke(
             HookKind.after_tool,
+            agent_name=self.agent_name,
             tool_name=name,
             tool_source=source,
             tool_arguments=arguments,
@@ -363,6 +368,7 @@ class ChatAssistantBase:
 
             await self._guardrail_service.invoke(
                 HookKind.before_model,
+                agent_name=self.agent_name,
                 model=self._model,
                 user_message=user_message,
             )
@@ -388,6 +394,7 @@ class ChatAssistantBase:
 
             await self._guardrail_service.invoke(
                 HookKind.after_model,
+                agent_name=self.agent_name,
                 model=self._model,
                 user_message=user_message,
                 model_output=full_response,

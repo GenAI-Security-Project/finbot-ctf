@@ -26,6 +26,7 @@ class HookEnvelope(BaseModel):
     hook_kind: HookKind
     session_id: str
     workflow_id: str
+    agent_name: str | None = None
     tool_name: str | None = None
     tool_source: str | None = None  # "native" | "mcp"
     tool_arguments: dict[str, Any] | None = None

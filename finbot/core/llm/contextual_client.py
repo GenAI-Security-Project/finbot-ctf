@@ -152,6 +152,7 @@ class ContextualLLMClient:
 
         await self._guardrail_service.invoke(
             HookKind.before_model,
+            agent_name=self.agent_name,
             model=resolved_model,
             user_message=user_message_info.get("user_message"),
         )
@@ -166,6 +167,7 @@ class ContextualLLMClient:
 
             await self._guardrail_service.invoke(
                 HookKind.after_model,
+                agent_name=self.agent_name,
                 model=resolved_model,
                 user_message=user_message_info.get("user_message"),
                 model_output=response.content,
