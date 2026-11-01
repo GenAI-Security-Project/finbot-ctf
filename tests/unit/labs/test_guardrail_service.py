@@ -263,3 +263,180 @@ class TestWebhookInvocation:
         call_kwargs = mock_bus.emit_agent_event.call_args.kwargs
         assert "latency_ms" in call_kwargs["event_data"]
         assert isinstance(call_kwargs["event_data"]["latency_ms"], int)
+
+    @pytest.mark.asyncio
+    @patch("finbot.guardrails.service.event_bus")
+    async def test_envelope_includes_agent_name(self, mock_bus):
+        mock_bus.emit_agent_event = AsyncMock()
+        captured = {}
+
+        async def _post(*_args, **kwargs):
+            captured["body"] = json.loads(kwargs["content"])
+            return httpx.Response(200, json={"verdict": "allow"})
+
+        with patch("httpx.AsyncClient.post", new_callable=AsyncMock, side_effect=_post):
+            svc = self._make_service()
+            await svc.invoke(
+                HookKind.before_tool,
+                agent_name="chat_assistant",
+                tool_name="findrive__delete_file",
+            )
+
+        assert captured["body"]["agent_name"] == "chat_assistant"
+
+    @pytest.mark.asyncio
+    @patch("finbot.guardrails.service.event_bus")
+    async def test_envelope_agent_name_null_when_omitted(self, mock_bus):
+        mock_bus.emit_agent_event = AsyncMock()
+        captured = {}
+
+        async def _post(*_args, **kwargs):
+            captured["body"] = json.loads(kwargs["content"])
+            return httpx.Response(200, json={"verdict": "allow"})
+
+        with patch("httpx.AsyncClient.post", new_callable=AsyncMock, side_effect=_post):
+            svc = self._make_service()
+            await svc.invoke(HookKind.before_tool, tool_name="test")
+
+        assert "agent_name" in captured["body"]
+        assert captured["body"]["agent_name"] is None
+
+
+class TestEnforceFlag:
+    @pytest.fixture(autouse=True)
+    def _setup(self, db, session, config_repo):
+        self.session = session
+
+    def _make_service(self):
+        return GuardrailHookService(
+            session_context=self.session, workflow_id="wf_test"
+        )
+
+    def test_should_block_false_when_verdict_missing(self, monkeypatch):
+        from finbot.config import settings
+
+        monkeypatch.setattr(settings, "LABS_GUARDRAIL_ENFORCE", True)
+        svc = self._make_service()
+        assert svc.should_block() is False
+
+    def test_should_block_false_when_enforce_off(self, monkeypatch):
+        from finbot.config import settings
+
+        monkeypatch.setattr(settings, "LABS_GUARDRAIL_ENFORCE", False)
+        svc = self._make_service()
+        svc.last_verdict = "block"
+        assert svc.should_block() is False
+
+    def test_should_block_true_when_enforce_on(self, monkeypatch):
+        from finbot.config import settings
+
+        monkeypatch.setattr(settings, "LABS_GUARDRAIL_ENFORCE", True)
+        svc = self._make_service()
+        svc.last_verdict = "block"
+        assert svc.should_block() is True
+
+    def test_should_block_false_on_allow(self, monkeypatch):
+        from finbot.config import settings
+
+        monkeypatch.setattr(settings, "LABS_GUARDRAIL_ENFORCE", True)
+        svc = self._make_service()
+        svc.last_verdict = "allow"
+        assert svc.should_block() is False
+
+    @pytest.mark.asyncio
+    @patch("finbot.guardrails.service.event_bus")
+    async def test_invoke_block_enforced(self, mock_bus, monkeypatch):
+        from finbot.config import settings
+
+        monkeypatch.setattr(settings, "LABS_GUARDRAIL_ENFORCE", True)
+        mock_bus.emit_agent_event = AsyncMock()
+        resp = httpx.Response(200, json={"verdict": "block", "reason": "denied"})
+        with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=resp):
+            svc = self._make_service()
+            await svc.invoke(HookKind.before_tool, tool_name="findrive__delete_file")
+
+        assert svc.last_verdict == "block"
+        assert svc.last_reason == "denied"
+        assert svc.should_block() is True
+
+    @pytest.mark.asyncio
+    @patch("finbot.guardrails.service.event_bus")
+    async def test_invoke_block_observe_only_by_default(self, mock_bus, monkeypatch):
+        from finbot.config import settings
+
+        monkeypatch.setattr(settings, "LABS_GUARDRAIL_ENFORCE", False)
+        mock_bus.emit_agent_event = AsyncMock()
+        resp = httpx.Response(200, json={"verdict": "block"})
+        with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=resp):
+            svc = self._make_service()
+            await svc.invoke(HookKind.before_tool, tool_name="findrive__delete_file")
+
+        assert svc.last_verdict == "block"
+        assert svc.should_block() is False
+
+    @pytest.mark.asyncio
+    @patch("finbot.guardrails.service.event_bus")
+    async def test_timeout_fails_open(self, mock_bus, monkeypatch):
+        from finbot.config import settings
+
+        monkeypatch.setattr(settings, "LABS_GUARDRAIL_ENFORCE", True)
+        mock_bus.emit_agent_event = AsyncMock()
+        with patch(
+            "httpx.AsyncClient.post",
+            new_callable=AsyncMock,
+            side_effect=httpx.TimeoutException("timed out"),
+        ):
+            svc = self._make_service()
+            outcome = await svc.invoke(HookKind.before_tool, tool_name="test")
+
+        assert outcome == HookOutcome.timeout
+        assert svc.should_block() is False
+
+    @pytest.mark.asyncio
+    @patch("finbot.guardrails.service.event_bus")
+    async def test_http_error_fails_open(self, mock_bus, monkeypatch):
+        from finbot.config import settings
+
+        monkeypatch.setattr(settings, "LABS_GUARDRAIL_ENFORCE", True)
+        mock_bus.emit_agent_event = AsyncMock()
+        resp = httpx.Response(500, text="Internal Server Error")
+        with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=resp):
+            svc = self._make_service()
+            await svc.invoke(HookKind.before_tool, tool_name="test")
+
+        assert svc.should_block() is False
+
+    @pytest.mark.asyncio
+    @patch("finbot.guardrails.service.event_bus")
+    async def test_invalid_verdict_fails_open(self, mock_bus, monkeypatch):
+        from finbot.config import settings
+
+        monkeypatch.setattr(settings, "LABS_GUARDRAIL_ENFORCE", True)
+        mock_bus.emit_agent_event = AsyncMock()
+        resp = httpx.Response(200, json={"verdict": "maybe"})
+        with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=resp):
+            svc = self._make_service()
+            await svc.invoke(HookKind.before_tool, tool_name="test")
+
+        assert svc.should_block() is False
+
+    @pytest.mark.asyncio
+    async def test_disabled_hook_clears_stale_block(
+        self, db, session, config_repo, monkeypatch
+    ):
+        from finbot.config import settings
+
+        monkeypatch.setattr(settings, "LABS_GUARDRAIL_ENFORCE", True)
+        config_repo.upsert(
+            webhook_url="https://example.com/hook",
+            hooks={"before_tool": False, "after_tool": True,
+                   "before_model": True, "after_model": True},
+        )
+        svc = GuardrailHookService(session_context=session, workflow_id="wf_test")
+        svc.last_verdict = "block"
+
+        outcome = await svc.invoke(HookKind.before_tool, tool_name="test")
+
+        assert outcome == HookOutcome.hook_disabled
+        assert svc.last_verdict is None
+        assert svc.should_block() is False

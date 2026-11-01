@@ -1,8 +1,11 @@
-"""GuardrailHookService — passive webhook hook runner for FinBot Labs.
+"""GuardrailHookService — webhook hook runner for FinBot Labs.
 
 Loads config, calls user webhook (sync-wait up to deadline), parses verdict,
-emits events via emit_agent_event(agent_name="guardrail"). Never gates
-execution on the verdict.
+emits events via emit_agent_event(agent_name="guardrail").
+
+By default the verdict is observe-only (Labs challenges stay valid). When
+settings.LABS_GUARDRAIL_ENFORCE is true, callers skip the tool if
+should_block() is true after a before_tool hook.
 """
 
 import hashlib
@@ -32,11 +35,12 @@ logger = logging.getLogger(__name__)
 
 
 class GuardrailHookService:
-    """Passive guardrail hook runner.
+    """Guardrail hook runner.
 
     One instance per chat session (ChatAssistantBase). Caches the user's
     LabsGuardrailConfig for the session lifetime so we don't hit the DB
-    on every hook invocation.
+    on every hook invocation. Verdicts are observe-only unless
+    LABS_GUARDRAIL_ENFORCE is true.
     """
 
     def __init__(
@@ -52,7 +56,11 @@ class GuardrailHookService:
         self.last_reason: str | None = None
 
     def should_block(self) -> bool:
-        """True if enforcement is enabled and the last hook returned "block"."""
+        """True if enforcement is on and the last invoke returned "block".
+
+        Callers should check this only after a before_tool hook. Timeouts,
+        HTTP errors, and invalid verdicts fail open (this returns False).
+        """
         return settings.LABS_GUARDRAIL_ENFORCE and self.last_verdict == "block"
 
     def _load_config(self) -> LabsGuardrailConfig | None:
@@ -86,6 +94,7 @@ class GuardrailHookService:
         self,
         kind: HookKind,
         *,
+        agent_name: str | None = None,
         tool_name: str | None = None,
         tool_source: str | None = None,
         tool_arguments: dict[str, Any] | None = None,
@@ -96,16 +105,14 @@ class GuardrailHookService:
     ) -> HookOutcome:
         """Fire a guardrail hook.
 
-        Returns the outcome for informational purposes — callers must
-        NOT branch on the outcome. Execution proceeds unless
-        LABS_GUARDRAIL_ENFORCE is on and should_block() is true.
+        Returns the outcome for logging and Labs scoring. Callers must
+        not treat HookOutcome as a gate. After a before_tool hook, skip
+        the tool only when should_block() is true.
         """
         self.last_verdict = None
         self.last_reason = None
         if not self._is_hook_enabled(kind):
-            return (
-                HookOutcome.no_config if not self._config else HookOutcome.hook_disabled
-            )
+            return HookOutcome.no_config if not self._config else HookOutcome.hook_disabled
 
         config = self._config
         assert config is not None  # _is_hook_enabled guarantees this
@@ -115,6 +122,7 @@ class GuardrailHookService:
             hook_kind=kind,
             session_id=self._session_context.session_id,
             workflow_id=self._workflow_id,
+            agent_name=agent_name,
             tool_name=tool_name,
             tool_source=tool_source,
             tool_arguments=tool_arguments,

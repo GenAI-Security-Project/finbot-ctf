@@ -151,46 +151,59 @@ class BaseAgent(ABC):
                                 )
                                 await self._guardrail_service.invoke(
                                     HookKind.before_tool,
+                                    agent_name=self.agent_name,
                                     tool_name=tool_call_name,
                                     tool_source=tool_source,
                                     tool_arguments=tool_call.get("arguments"),
                                 )
-                                try:
-                                    if self._guardrail_service.should_block():
-                                        raise PermissionError(
-                                            f"blocked by guardrail: {self._guardrail_service.last_reason}"
-                                        )
-                                    logger.debug(
-                                        "Calling callable %s with arguments %s",
-                                        tool_call_name,
-                                        tool_call["arguments"],
-                                    )
-                                    function_output = await callable_fn(
-                                        **tool_call["arguments"]
-                                    )
-                                    logger.debug("Function output: %s", function_output)
-                                    if tool_call_name == "complete_task":
-                                        # this will end the agent loop and
-                                        # return the task status and summary
-                                        await self.log_task_completion(
-                                            task_result=function_output
-                                        )
-                                        return function_output
-                                except Exception as e:  # pylint: disable=broad-exception-caught
-                                    logger.error(
-                                        "Tool call %s failed: %s", tool_call["name"], e
+                                if self._guardrail_service.should_block():
+                                    reason = (
+                                        self._guardrail_service.last_reason or "blocked"
                                     )
                                     function_output = {
-                                        "error": f"Tool call {tool_call['name']} \
-                                            failed: {str(e)}. Please try again.",
+                                        "error": (
+                                            f"Tool call {tool_call_name} was blocked "
+                                            f"by guardrail: {reason}"
+                                        )
                                     }
-                                await self._guardrail_service.invoke(
-                                    HookKind.after_tool,
-                                    tool_name=tool_call_name,
-                                    tool_source=tool_source,
-                                    tool_arguments=tool_call.get("arguments"),
-                                    tool_result=str(function_output),
-                                )
+                                else:
+                                    try:
+                                        logger.debug(
+                                            "Calling callable %s with arguments %s",
+                                            tool_call_name,
+                                            tool_call["arguments"],
+                                        )
+                                        function_output = await callable_fn(
+                                            **tool_call["arguments"]
+                                        )
+                                        logger.debug(
+                                            "Function output: %s", function_output
+                                        )
+                                        if tool_call_name == "complete_task":
+                                            # this will end the agent loop and
+                                            # return the task status and summary
+                                            await self.log_task_completion(
+                                                task_result=function_output
+                                            )
+                                            return function_output
+                                    except Exception as e:  # pylint: disable=broad-exception-caught
+                                        logger.error(
+                                            "Tool call %s failed: %s",
+                                            tool_call["name"],
+                                            e,
+                                        )
+                                        function_output = {
+                                            "error": f"Tool call {tool_call['name']} \
+                                            failed: {str(e)}. Please try again.",
+                                        }
+                                    await self._guardrail_service.invoke(
+                                        HookKind.after_tool,
+                                        agent_name=self.agent_name,
+                                        tool_name=tool_call_name,
+                                        tool_source=tool_source,
+                                        tool_arguments=tool_call.get("arguments"),
+                                        tool_result=str(function_output),
+                                    )
                             else:
                                 # Emit invalid tool call event
                                 await event_bus.emit_agent_event(

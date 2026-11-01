@@ -138,6 +138,7 @@ async def test_webhook_delivery(
     )
     outcome = await svc.invoke(
         HookKind.before_tool,
+        agent_name="labs_test",
         tool_name="test_tool",
         tool_source="native",
         tool_arguments={"example_param": "hello_from_labs"},
