@@ -169,7 +169,7 @@ def test_sqlite_url_from_db_path():
     )
     url = s.get_database_url()
     assert url.startswith("sqlite:///")
-    assert url.endswith("data/test.db")
+    assert url.endswith(os.path.join("data", "test.db"))
 
 
 # ============================================================================
