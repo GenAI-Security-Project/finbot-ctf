@@ -90,7 +90,7 @@ class BaseAgent(ABC):
         5. Neutralizes raw chat-template escape delimiters (e.g. ChatML role boundaries)
            to prevent delimiter collision in local/tokenizer template expansions.
         6. Scans for direct prompt injection override markers and blocks suspicious output
-           by default (configurable via settings.AGENT_BLOCK_PROMPT_INJECTION and per-agent
+           when enabled (configurable via settings.AGENT_BLOCK_PROMPT_INJECTION and per-agent
            agent_config["block_prompt_injection"]). Emits redacted security telemetry warnings.
         """
         is_structured = isinstance(function_output, (dict, list))
