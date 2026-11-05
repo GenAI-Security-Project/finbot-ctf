@@ -1,9 +1,17 @@
 """Profile API Routes - Social features for authenticated users"""
 
+import asyncio
 import hashlib
+import ipaddress
 import logging
+import socket
+import typing
+from urllib.parse import urlparse
 
+import httpcore
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
+from httpcore._backends.anyio import AnyIOBackend
 from pydantic import BaseModel, Field, HttpUrl
 from sqlalchemy.orm import Session
 
@@ -20,6 +28,151 @@ from finbot.core.data.repositories import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/profile", tags=["profile"])
+
+# =============================================================================
+# SSRF Protection & Safe Network Transport
+# =============================================================================
+
+BLOCKED_NETWORKS = [
+    ipaddress.ip_network("127.0.0.0/8"),  # IPv4 loopback
+    ipaddress.ip_network("10.0.0.0/8"),  # RFC-1918 private
+    ipaddress.ip_network("172.16.0.0/12"),  # RFC-1918 private
+    ipaddress.ip_network("192.168.0.0/16"),  # RFC-1918 private
+    ipaddress.ip_network("169.254.0.0/16"),  # link-local / cloud metadata
+    ipaddress.ip_network("100.64.0.0/10"),  # Carrier-grade NAT
+    ipaddress.ip_network("0.0.0.0/8"),  # Current network
+    ipaddress.ip_network("::1/128"),  # IPv6 loopback
+    ipaddress.ip_network("fc00::/7"),  # IPv6 unique local (ULA)
+    ipaddress.ip_network("fe80::/10"),  # IPv6 link-local
+    ipaddress.ip_network("::/128"),  # IPv6 unspecified
+]
+
+
+def is_ip_allowed(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """Check if an IP address is a public, non-reserved, non-private address."""
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+        ip = ip.ipv4_mapped
+
+    if (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_reserved
+        or ip.is_unspecified
+    ):
+        return False
+
+    return not any(ip in net for net in BLOCKED_NETWORKS)
+
+
+async def validate_avatar_url(url: str) -> None:
+    """Validate that an avatar URL uses HTTPS and resolves exclusively to safe public IPs."""
+    try:
+        parsed = urlparse(url)
+        port = parsed.port or 443
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid avatar URL: Malformed URL or port")
+
+    if parsed.scheme != "https":
+        raise HTTPException(status_code=400, detail="Invalid avatar URL: Must use HTTPS")
+
+    host = parsed.hostname
+    if not host or parsed.username or parsed.password:
+        raise HTTPException(
+            status_code=400, detail="Invalid avatar URL: Malformed hostname or credentials"
+        )
+
+    try:
+        loop = asyncio.get_running_loop()
+        addr_info = await loop.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    except socket.gaierror:
+        raise HTTPException(
+            status_code=400, detail="Invalid avatar URL: Unable to resolve hostname"
+        )
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid avatar URL: Host resolution failed")
+
+    if not addr_info:
+        raise HTTPException(status_code=400, detail="Invalid avatar URL: No IP addresses resolved")
+
+    ips = {info[4][0] for info in addr_info}
+    for ip_str in ips:
+        try:
+            ip = ipaddress.ip_address(ip_str)
+        except ValueError:
+            raise HTTPException(
+                status_code=400, detail="Invalid avatar URL: Invalid IP address resolved"
+            )
+
+        if not is_ip_allowed(ip):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid avatar URL: Prohibited destination ({ip_str})",
+            )
+
+
+class SSRFProtectedBackend(AnyIOBackend):
+    """Network backend that enforces DNS resolution checks and IP pinning at connection time."""
+
+    async def connect_tcp(
+        self,
+        host: str,
+        port: int,
+        timeout: float | None = None,
+        local_address: str | None = None,
+        socket_options: typing.Any = None,
+    ) -> httpcore.AsyncNetworkStream:
+        loop = asyncio.get_running_loop()
+        try:
+            addr_info = await loop.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+        except Exception as exc:
+            raise httpcore.ConnectError(f"DNS resolution failed for {host}") from exc
+
+        # Collect distinct IPs preserving DNS resolution order
+        resolved_ips: list[str] = []
+        for info in addr_info:
+            ip_str = info[4][0]
+            if ip_str not in resolved_ips:
+                resolved_ips.append(ip_str)
+
+        if not resolved_ips:
+            raise httpcore.ConnectError(f"No addresses resolved for {host}")
+
+        # Fail closed immediately if ANY resolved IP is prohibited or malformed
+        for ip_str in resolved_ips:
+            try:
+                ip = ipaddress.ip_address(ip_str)
+            except ValueError as exc:
+                raise httpcore.ConnectError(f"Invalid IP address {ip_str}") from exc
+
+            if not is_ip_allowed(ip):
+                raise httpcore.ConnectError(f"Prohibited destination IP: {ip_str}")
+
+        # Connect to verified safe IPs in order (dual-stack fallback without DNS rebinding)
+        last_exc: Exception | None = None
+        for safe_ip in resolved_ips:
+            try:
+                return await super().connect_tcp(
+                    safe_ip,
+                    port,
+                    timeout=timeout,
+                    local_address=local_address,
+                    socket_options=socket_options,
+                )
+            except Exception as exc:
+                last_exc = exc
+
+        if last_exc:
+            raise last_exc
+        raise httpcore.ConnectError(f"Failed to connect to any resolved IP for {host}")
+
+
+def make_ssrf_safe_transport(**kwargs) -> httpx.AsyncHTTPTransport:
+    """Create an AsyncHTTPTransport wired to the SSRFProtectedBackend."""
+    transport = httpx.AsyncHTTPTransport(**kwargs)
+    transport._pool._network_backend = SSRFProtectedBackend()
+    return transport
 
 
 # =============================================================================
@@ -42,7 +195,7 @@ LEVEL_THRESHOLDS = [
 
 def calculate_level(points: int) -> tuple[int, str]:
     """Calculate level and title based on points.
-    
+
     Returns (level_number, level_title).
     """
     for threshold, level, title in LEVEL_THRESHOLDS:
@@ -308,6 +461,7 @@ async def get_own_profile(
     profile = profile_repo.get_or_create_for_current_user()
 
     from finbot.core.data.models import User
+
     user = db.query(User).filter(User.user_id == profile.user_id).first()
 
     return _build_profile_response(profile, user)
@@ -333,16 +487,24 @@ async def update_profile(
         ):
             raise HTTPException(status_code=400, detail="Username is already taken")
 
-        profile, error = profile_repo.claim_username(
-            session_context.user_id, request.username
-        )
+        profile, error = profile_repo.claim_username(session_context.user_id, request.username)
         if error:
             raise HTTPException(status_code=400, detail=error)
 
-    # Validate avatar_url if switching to url type
-    if request.avatar_type == "url" and request.avatar_url:
-        if not request.avatar_url.startswith("https://"):
-            raise HTTPException(status_code=400, detail="Avatar URL must use HTTPS")
+    # Fetch current profile to validate the state transition securely
+    profile = profile_repo.get_by_user_id(session_context.user_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+
+    effective_avatar_type = (
+        request.avatar_type if request.avatar_type is not None else profile.avatar_type
+    )
+    effective_avatar_url = (
+        request.avatar_url if request.avatar_url is not None else profile.avatar_url
+    )
+
+    if effective_avatar_type == "url" and effective_avatar_url:
+        await validate_avatar_url(effective_avatar_url)
 
     # Update other fields
     profile = profile_repo.update_profile(
@@ -361,6 +523,7 @@ async def update_profile(
     _update_social_links(profile, request, db)
 
     from finbot.core.data.models import User
+
     user = db.query(User).filter(User.user_id == profile.user_id).first()
 
     return _build_profile_response(profile, user)
@@ -387,6 +550,7 @@ async def set_featured_badges(
         raise HTTPException(status_code=404, detail="Profile not found")
 
     from finbot.core.data.models import User
+
     user = db.query(User).filter(User.user_id == profile.user_id).first()
 
     return _build_profile_response(profile, user)
@@ -442,7 +606,7 @@ async def get_public_profile(
     badge_repo = BadgeRepository(db)
 
     # Query completed challenges for this user
-    from finbot.core.data.models import UserChallengeProgress, UserBadge
+    from finbot.core.data.models import UserBadge, UserChallengeProgress
 
     completed_progress = (
         db.query(UserChallengeProgress)
@@ -476,9 +640,7 @@ async def get_public_profile(
 
     # Completion percentage
     completion_pct = (
-        int((len(completed_progress) / total_challenges) * 100)
-        if total_challenges > 0
-        else 0
+        int((len(completed_progress) / total_challenges) * 100) if total_challenges > 0 else 0
     )
 
     # Category progress
@@ -488,9 +650,7 @@ async def get_public_profile(
 
     category_progress = []
     for cat, total in category_counts.items():
-        completed_in_cat = sum(
-            1 for c in challenges if c.category == cat and c.id in completed_ids
-        )
+        completed_in_cat = sum(1 for c in challenges if c.category == cat and c.id in completed_ids)
         category_progress.append(
             CategoryProgress(
                 category=cat,
@@ -521,9 +681,7 @@ async def get_public_profile(
 
     # If no featured badges set, use recent earned badges
     if not featured_badges and earned_badges:
-        recent_badges = sorted(earned_badges, key=lambda b: b.earned_at, reverse=True)[
-            :6
-        ]
+        recent_badges = sorted(earned_badges, key=lambda b: b.earned_at, reverse=True)[:6]
         for ub in recent_badges:
             badge = badge_repo.get_badge(ub.badge_id)
             if badge:
@@ -547,9 +705,7 @@ async def get_public_profile(
     recent_achievements: list[RecentAchievement] = []
     if profile.show_activity:
         # Get recent badges (last 5)
-        recent_earned_badges = sorted(
-            earned_badges, key=lambda b: b.earned_at, reverse=True
-        )[:5]
+        recent_earned_badges = sorted(earned_badges, key=lambda b: b.earned_at, reverse=True)[:5]
         for ub in recent_earned_badges:
             badge = badge_repo.get_badge(ub.badge_id)
             if badge:
