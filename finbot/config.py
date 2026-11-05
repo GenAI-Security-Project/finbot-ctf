@@ -105,6 +105,12 @@ class Settings(BaseSettings):
 
     # Agent Config
     AGENT_MAX_ITERATIONS: int = 10
+    AGENT_MAX_TOOL_OUTPUT_LENGTH: int = (
+        25000  # Max character length for tool outputs in LLM context
+    )
+    AGENT_BLOCK_PROMPT_INJECTION: bool = (
+        False  # Allow prompt injection by default for CTF challenges; opt-in per agent (Issue #199)
+    )
 
     # OpenAI Config
     OPENAI_API_KEY: str = ""
@@ -143,9 +149,7 @@ class Settings(BaseSettings):
     EMAIL_FROM_ADDRESS: str = "noreply@owasp-finbot-ctf.org"
     EMAIL_FROM_NAME: str = "OWASP FinBot CTF"
 
-    model_config = ConfigDict(
-        env_file=".env", env_file_encoding="utf-8", case_sensitive=False
-    )
+    model_config = ConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=False)
 
     @model_validator(mode="after")
     def validate_model(self):
