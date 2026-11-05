@@ -56,6 +56,8 @@ _BADGE_IMAGES = (
 )
 _b64_cache: dict[str, str] = {}
 
+MAX_AVATAR_BYTES = 2 * 1024 * 1024
+
 
 def _get_image_b64(filename: str) -> str:
     """Load a static image as a base64 string (cached after first call)."""
@@ -106,20 +108,29 @@ async def _fetch_avatar_b64(url: str) -> str:
         original = httpx.URL(url)
         pinned_url = original.copy_with(host=safe_ip)
         async with httpx.AsyncClient(timeout=5.0, follow_redirects=False) as client:
-            resp = await client.get(
+            # Stream the body so an oversized response is dropped as soon as it
+            # passes the limit instead of being loaded into memory first.
+            async with client.stream(
+                "GET",
                 pinned_url,
                 headers={"Host": original.netloc.decode("ascii")},
                 extensions={"sni_hostname": original.raw_host.decode("ascii")},
-            )
-            if resp.status_code != 200:
-                return ""
-            content_type = resp.headers.get("content-type", "")
-            if not content_type.startswith("image/"):
-                return ""
-            if len(resp.content) > 2 * 1024 * 1024:
-                return ""
+            ) as resp:
+                if resp.status_code != 200:
+                    return ""
+                content_type = resp.headers.get("content-type", "")
+                if not content_type.startswith("image/"):
+                    return ""
+                declared = resp.headers.get("content-length", "")
+                if declared.isdigit() and int(declared) > MAX_AVATAR_BYTES:
+                    return ""
+                body = bytearray()
+                async for chunk in resp.aiter_bytes():
+                    body.extend(chunk)
+                    if len(body) > MAX_AVATAR_BYTES:
+                        return ""
             mime = content_type.split(";")[0].strip()
-            return f"data:{mime};base64,{base64.b64encode(resp.content).decode()}"
+            return f"data:{mime};base64,{base64.b64encode(bytes(body)).decode()}"
     except Exception:
         logger.debug("Failed to fetch avatar from %s", url, exc_info=True)
         return ""

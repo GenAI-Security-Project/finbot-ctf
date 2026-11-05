@@ -296,10 +296,28 @@ async def test_update_profile_avatar_url_bad_port_is_400(
     mock_profile_repo.update_profile.assert_not_called()
 
 
+def _avatar_response(chunks, status_code=200, headers=None):
+    """Fake streamed response that yields the given body chunks"""
+    response = MagicMock(status_code=status_code)
+    response.headers = {"content-type": "image/png", **(headers or {})}
+    response.chunks_read = 0
+
+    async def aiter_bytes():
+        for chunk in chunks:
+            response.chunks_read += 1
+            yield chunk
+
+    response.aiter_bytes = aiter_bytes
+    return response
+
+
 def _mock_async_client(monkeypatch, response):
     """Replace httpx.AsyncClient in share.py and return the mocks for inspection"""
     client = MagicMock()
-    client.get = AsyncMock(return_value=response)
+    stream_ctx = MagicMock()
+    stream_ctx.__aenter__ = AsyncMock(return_value=response)
+    stream_ctx.__aexit__ = AsyncMock(return_value=False)
+    client.stream = MagicMock(return_value=stream_ctx)
     client_cls = MagicMock()
     client_cls.return_value.__aenter__ = AsyncMock(return_value=client)
     client_cls.return_value.__aexit__ = AsyncMock(return_value=False)
@@ -310,8 +328,7 @@ def _mock_async_client(monkeypatch, response):
 @pytest.mark.asyncio
 async def test_fetch_avatar_pins_ip_and_keeps_tls_verification(monkeypatch):
     """The fetch connects to the validated IP, with redirects off and TLS still verified"""
-    response = MagicMock(status_code=200, content=b"png", headers={"content-type": "image/png"})
-    client_cls, client = _mock_async_client(monkeypatch, response)
+    client_cls, client = _mock_async_client(monkeypatch, _avatar_response([b"p", b"ng"]))
 
     result = await share._fetch_avatar_b64("https://example.com/me.png?s=64")
 
@@ -320,7 +337,8 @@ async def test_fetch_avatar_pins_ip_and_keeps_tls_verification(monkeypatch):
     assert client_kwargs["follow_redirects"] is False
     assert client_kwargs.get("verify", True) is True
 
-    (url,), get_kwargs = client.get.call_args
+    (method, url), get_kwargs = client.stream.call_args
+    assert method == "GET"
     assert str(url) == "https://93.184.215.14/me.png?s=64"
     assert get_kwargs["headers"] == {"Host": "example.com"}
     assert get_kwargs["extensions"] == {"sni_hostname": "example.com"}
@@ -333,3 +351,26 @@ async def test_fetch_avatar_skips_unsafe_url(monkeypatch):
 
     assert await share._fetch_avatar_b64("https://rebind.example.com/me.png") == ""
     client_cls.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_fetch_avatar_stops_reading_oversized_body(monkeypatch):
+    """A body over the size limit is dropped while streaming, not after a full download"""
+    chunk = b"x" * (1024 * 1024)
+    response = _avatar_response([chunk] * 10)
+    _mock_async_client(monkeypatch, response)
+
+    assert await share._fetch_avatar_b64("https://example.com/me.png") == ""
+    assert response.chunks_read == 3
+
+
+@pytest.mark.asyncio
+async def test_fetch_avatar_rejects_large_content_length(monkeypatch):
+    """A declared Content-Length over the limit is rejected before reading the body"""
+    response = _avatar_response(
+        [b"png"], headers={"content-length": str(share.MAX_AVATAR_BYTES + 1)}
+    )
+    _mock_async_client(monkeypatch, response)
+
+    assert await share._fetch_avatar_b64("https://example.com/me.png") == ""
+    assert response.chunks_read == 0
