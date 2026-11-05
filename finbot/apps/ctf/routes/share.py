@@ -56,6 +56,9 @@ _STATIC_IMAGES = Path(__file__).parent.parent.parent.parent / "static" / "images
 _BADGE_IMAGES = Path(__file__).parent.parent.parent.parent / "static" / "images" / "ctf" / "badges"
 _b64_cache: dict[str, str] = {}
 
+MAX_AVATAR_BYTES = 2 * 1024 * 1024  # 2 MiB
+AVATAR_CHUNK_SIZE = 64 * 1024  # 64 KiB
+
 
 def _get_image_b64(filename: str) -> str:
     """Load a static image as a base64 string (cached after first call)."""
@@ -103,16 +106,22 @@ async def _fetch_avatar_b64(url: str) -> str:
         async with httpx.AsyncClient(
             timeout=5.0, follow_redirects=False, transport=transport
         ) as client:
-            resp = await client.get(url)
-            if resp.status_code != 200:
-                return ""
-            content_type = resp.headers.get("content-type", "")
-            if not content_type.startswith("image/"):
-                return ""
-            if len(resp.content) > 2 * 1024 * 1024:
-                return ""
-            mime = content_type.split(";")[0].strip()
-            return f"data:{mime};base64,{base64.b64encode(resp.content).decode()}"
+            async with client.stream("GET", url) as resp:
+                if resp.status_code != 200:
+                    return ""
+                content_type = resp.headers.get("content-type", "")
+                if not content_type.startswith("image/"):
+                    return ""
+                content_length = resp.headers.get("content-length")
+                if content_length and content_length.isdigit() and int(content_length) > MAX_AVATAR_BYTES:
+                    return ""
+                buffer = bytearray()
+                async for chunk in resp.aiter_bytes(chunk_size=AVATAR_CHUNK_SIZE):
+                    buffer.extend(chunk)
+                    if len(buffer) > MAX_AVATAR_BYTES:
+                        return ""
+                mime = content_type.split(";")[0].strip()
+                return f"data:{mime};base64,{base64.b64encode(buffer).decode()}"
     except Exception:
         logger.debug("Failed to fetch avatar from %s", url, exc_info=True)
         return ""

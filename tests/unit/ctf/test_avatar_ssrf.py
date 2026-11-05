@@ -227,6 +227,10 @@ class TestAvatarSSRFRegression:
                 client.__aenter__.return_value = client
                 client.__aexit__.return_value = None
                 client.get = AsyncMock(return_value=redirect_response)
+                mock_stream_ctx = MagicMock()
+                mock_stream_ctx.__aenter__ = AsyncMock(return_value=redirect_response)
+                mock_stream_ctx.__aexit__ = AsyncMock(return_value=None)
+                client.stream.return_value = mock_stream_ctx
                 return client
 
             mock_client_cls.side_effect = fake_client_init
@@ -257,6 +261,115 @@ class TestAvatarSSRFRegression:
         with patch("socket.getaddrinfo", side_effect=rebinding_getaddrinfo):
             result = await _fetch_avatar_b64("https://rebound-domain.evil/avatar.png")
             assert result == ""
+
+    @pytest.mark.asyncio
+    async def test_share_card_fetch_aborts_on_oversized_stream(self):
+        """_fetch_avatar_b64 must abort streaming when body exceeds MAX_AVATAR_BYTES."""
+        chunk_size = 64 * 1024
+        chunks_yielded = 0
+
+        async def infinite_chunk_generator(*args, **kwargs):
+            nonlocal chunks_yielded
+            for _ in range(50):  # 50 * 64 KiB = 3.2 MiB (> 2 MiB limit)
+                chunks_yielded += 1
+                yield b"A" * chunk_size
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.headers = {"content-type": "image/png"}
+        mock_resp.aiter_bytes = infinite_chunk_generator
+
+        mock_stream_ctx = MagicMock()
+        mock_stream_ctx.__aenter__ = AsyncMock(return_value=mock_resp)
+        mock_stream_ctx.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("httpx.AsyncClient") as mock_client_cls:
+            client = MagicMock()
+            client.__aenter__.return_value = client
+            client.__aexit__.return_value = None
+            client.stream.return_value = mock_stream_ctx
+            mock_client_cls.return_value = client
+
+            with patch(
+                "socket.getaddrinfo",
+                return_value=[(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))],
+            ):
+                res = await _fetch_avatar_b64("https://public-avatar.com/oversized.png")
+
+            assert res == ""
+            # Exactly 33 chunks: 32 chunks * 64 KiB = 2 MiB, 33rd chunk exceeds 2 MiB and aborts
+            assert chunks_yielded == 33
+
+    @pytest.mark.asyncio
+    async def test_share_card_fetch_aborts_on_oversized_content_length(self):
+        """_fetch_avatar_b64 must fast-fail without consuming stream if Content-Length exceeds limit."""
+        chunks_yielded = 0
+
+        async def chunk_generator(*args, **kwargs):
+            nonlocal chunks_yielded
+            chunks_yielded += 1
+            yield b"data"
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.headers = {
+            "content-type": "image/png",
+            "content-length": str(5 * 1024 * 1024),  # 5 MiB
+        }
+        mock_resp.aiter_bytes = chunk_generator
+
+        mock_stream_ctx = MagicMock()
+        mock_stream_ctx.__aenter__ = AsyncMock(return_value=mock_resp)
+        mock_stream_ctx.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("httpx.AsyncClient") as mock_client_cls:
+            client = MagicMock()
+            client.__aenter__.return_value = client
+            client.__aexit__.return_value = None
+            client.stream.return_value = mock_stream_ctx
+            mock_client_cls.return_value = client
+
+            with patch(
+                "socket.getaddrinfo",
+                return_value=[(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))],
+            ):
+                res = await _fetch_avatar_b64("https://public-avatar.com/oversized-header.png")
+
+            assert res == ""
+            # Aborted before aiter_bytes was invoked
+            assert chunks_yielded == 0
+
+    @pytest.mark.asyncio
+    async def test_share_card_fetch_streaming_success(self):
+        """_fetch_avatar_b64 must stream, aggregate, and base64-encode valid images within limit."""
+        import base64
+        raw_image_data = b"\x89PNG\r\n\x1a\nfakeimagedata12345"
+
+        mock_resp = httpx.Response(
+            status_code=200,
+            headers={"content-type": "image/png; charset=utf-8", "content-length": str(len(raw_image_data))},
+            content=raw_image_data,
+        )
+
+        mock_stream_ctx = MagicMock()
+        mock_stream_ctx.__aenter__ = AsyncMock(return_value=mock_resp)
+        mock_stream_ctx.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("httpx.AsyncClient") as mock_client_cls:
+            client = MagicMock()
+            client.__aenter__.return_value = client
+            client.__aexit__.return_value = None
+            client.stream.return_value = mock_stream_ctx
+            mock_client_cls.return_value = client
+
+            with patch(
+                "socket.getaddrinfo",
+                return_value=[(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))],
+            ):
+                res = await _fetch_avatar_b64("https://public-avatar.com/valid.png")
+
+            expected = f"data:image/png;base64,{base64.b64encode(raw_image_data).decode()}"
+            assert res == expected
 
     @pytest.mark.asyncio
     async def test_valid_public_https_avatar_allowed(self, session_context, mock_db, mock_profile):
