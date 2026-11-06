@@ -5,6 +5,7 @@ OpenAI function-calling format used by BaseAgent, and creates async callables
 that wrap MCP client.call_tool() invocations.
 """
 
+import asyncio
 import json
 import logging
 import time
@@ -85,7 +86,7 @@ class MCPToolProvider:
                     len(tools),
                 )
 
-                self._log_activity(
+                await self._log_activity(
                     server_name,
                     "request",
                     "tools/list",
@@ -180,7 +181,7 @@ class MCPToolProvider:
             tool_description = self._tools.get(namespaced_name, {}).get("description", "")
 
             start = time.time()
-            self._log_activity(
+            await self._log_activity(
                 server_name,
                 "request",
                 "tools/call",
@@ -210,7 +211,7 @@ class MCPToolProvider:
 
                 output = result.data if result.data is not None else str(result.content)
 
-                self._log_activity(
+                await self._log_activity(
                     server_name,
                     "response",
                     "tools/call",
@@ -246,7 +247,7 @@ class MCPToolProvider:
 
             except Exception as e:  # pylint: disable=broad-exception-caught
                 duration_ms = (time.time() - start) * 1000
-                self._log_activity(
+                await self._log_activity(
                     server_name,
                     "response",
                     "tools/call",
@@ -278,7 +279,7 @@ class MCPToolProvider:
 
         return call_mcp_tool
 
-    def _log_activity(
+    async def _log_activity(
         self,
         server_name: str,
         direction: str,
@@ -287,7 +288,31 @@ class MCPToolProvider:
         payload: dict | None = None,
         duration_ms: float | None = None,
     ) -> None:
-        """Log MCP activity to the database for the admin portal."""
+        """Log MCP activity to the database for the admin portal.
+
+        The underlying SQLAlchemy write is dispatched to a thread-pool worker
+        via asyncio.to_thread so the event loop is never blocked.
+        """
+        await asyncio.to_thread(
+            self._log_activity_sync,
+            server_name,
+            direction,
+            method,
+            tool_name=tool_name,
+            payload=payload,
+            duration_ms=duration_ms,
+        )
+
+    def _log_activity_sync(
+        self,
+        server_name: str,
+        direction: str,
+        method: str,
+        tool_name: str | None = None,
+        payload: dict | None = None,
+        duration_ms: float | None = None,
+    ) -> None:
+        """Blocking DB write — always call via _log_activity (async wrapper)."""
         try:
             with db_session() as db:
                 repo = MCPActivityLogRepository(db, self._session_context)
