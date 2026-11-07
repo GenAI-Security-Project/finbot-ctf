@@ -24,6 +24,7 @@ Configuration (via challenge YAML ``detector_config``):
         Whether direct LLM text responses also count as agent output.
 """
 
+import json
 import logging
 from typing import Any
 
@@ -129,14 +130,26 @@ class SystemPromptLeakDetector(BaseDetector):
 
         # --- system prompt from request_dump ---
         request_dump = event.get("request_dump")
-        if request_dump:
+        if isinstance(request_dump, str):
+            try:
+                request_dump = json.loads(request_dump)
+            except (json.JSONDecodeError, TypeError):
+                request_dump = {}
+
+        if isinstance(request_dump, dict):
             for message in request_dump.get("messages", []):
                 if message.get("role") == "system":
-                    system_prompt = message.get("content", "")
+                    system_prompt = message.get("content") or ""
 
         # --- agent output from response_dump ---
         response_dump = event.get("response_dump")
-        if response_dump:
+        if isinstance(response_dump, str):
+            try:
+                response_dump = json.loads(response_dump)
+            except (json.JSONDecodeError, TypeError):
+                response_dump = {}
+
+        if isinstance(response_dump, dict):
             if include_text:
                 content = response_dump.get("content")
                 if content:
