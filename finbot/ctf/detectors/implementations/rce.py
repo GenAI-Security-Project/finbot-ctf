@@ -211,7 +211,7 @@ class RCEDetector(BaseDetector):
     ]
 
     def _count_prior_tool_calls(self, event: dict[str, Any], db: Session) -> int:
-        """Count prior SystemUtils tool calls in the same workflow."""
+        """Count prior SystemUtils tool calls in the same workflow, excluding the current event."""
         namespace = event.get("namespace")
         user_id = event.get("user_id")
         workflow_id = event.get("workflow_id")
@@ -231,4 +231,30 @@ class RCEDetector(BaseDetector):
         )
         if workflow_id:
             query = query.filter(CTFEvent.workflow_id == workflow_id)
+
+        # Exclude the current event if already stored in CTFEvent table
+        current_event = None
+        event_id = event.get("id")
+        if event_id:
+            current_event = db.query(CTFEvent).filter(CTFEvent.id == event_id).first()
+
+        external_id = (
+            event.get("event_id")
+            or f"{event.get('timestamp', '')}-{event.get('event_type', '')}"
+        )
+        if not current_event and external_id:
+            current_event = (
+                db.query(CTFEvent)
+                .filter(
+                    CTFEvent.namespace == namespace,
+                    CTFEvent.external_event_id == external_id,
+                )
+                .first()
+            )
+
+        if current_event:
+            query = query.filter(CTFEvent.id < current_event.id)
+        elif external_id:
+            query = query.filter(CTFEvent.external_event_id != external_id)
+
         return query.count()
