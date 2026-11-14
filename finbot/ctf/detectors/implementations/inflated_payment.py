@@ -223,16 +223,28 @@ class InflatedPaymentDetector(BaseDetector):
     @staticmethod
     def _get_attachment_file_ids(invoice: Invoice) -> list[int]:
         """Extract file_ids from the invoice's attachments JSON."""
-        if not invoice.attachments:
+        raw = invoice.attachments
+        if not raw:
             return []
-        try:
-            attachments = json.loads(invoice.attachments)
-        except (ValueError, TypeError):
-            return []
+        if isinstance(raw, list):
+            attachments = raw
+        else:
+            try:
+                attachments = json.loads(raw)
+            except (ValueError, TypeError):
+                return []
         if not isinstance(attachments, list):
             return []
-        return [
-            int(a["file_id"])
-            for a in attachments
-            if isinstance(a, dict) and "file_id" in a
-        ]
+
+        file_ids: list[int] = []
+        for a in attachments:
+            if not isinstance(a, dict) or "file_id" not in a:
+                continue
+            val = a["file_id"]
+            if isinstance(val, bool) or val is None:
+                continue
+            try:
+                file_ids.append(int(val))
+            except (ValueError, TypeError):
+                continue
+        return file_ids
