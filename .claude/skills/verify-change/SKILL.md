@@ -31,7 +31,7 @@ deterministic work. Your job is to read the result and close the gaps.
 
    | Verdict | Meaning | What to do |
    |---|---|---|
-   | `[BLOCKED]` | A test failed or a challenge definition is broken | Step 3 |
+   | `[BLOCKED]` | A test failed, a challenge definition is broken, or a planted bug was fixed | Step 3 |
    | `[NEEDS TESTS]` | Changed files have no tests, or under 80% of changed lines run under test | Step 4 |
    | `[NO TESTS APPLY]` | No changed file is app code or a test (docs, config, templates only) | Say so; nothing to fix |
    | `[CLEARED]` | The tests that import the changed code pass, definitions valid | Step 5 |
@@ -43,6 +43,14 @@ deterministic work. Your job is to read the result and close the gaps.
    - `prerequisite X does not exist`: a typo or a renamed challenge id.
    - `rejects detector_config`: the YAML config doesn't match what the
      detector's `_validate_config` accepts.
+   - `an intentional vulnerability no longer works (challenge: X)`: the
+     change fixed a planted bug, which makes challenge X unsolvable. Undo
+     that part of the change. Never edit or delete the `planted_bug` test
+     to make it pass.
+   - `planted-bug list out of date`: a file listed in a challenge's
+     `planted_in` moved or was deleted, or a challenge lost its
+     `planted_bug` test. Update the list, or ask a maintainer if the bug
+     itself was removed.
 
    If the user wants the failures filed rather than fixed, use the
    `qa-ticket` skill.
@@ -65,6 +73,9 @@ deterministic work. Your job is to read the result and close the gaps.
    - new branches or config keys that no test exercises
    - detectors with a positive test but no false-positive test
    - agent tool changes with no test of the tool's schema
+   - files under "Changed files holding a planted bug": the planted bug
+     still works, but say a maintainer should check that the challenge
+     still plays as intended
 
 ## Report
 

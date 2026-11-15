@@ -105,6 +105,26 @@ What the verdicts do and don't promise:
 Exit codes: 0 cleared, no tests apply or not run; 1 blocked; 2 changed
 source has no tests or too little of it runs under test.
 
+### Planted bugs
+
+FinBot's vulnerabilities are planted on purpose, and AI coding tools like
+to "fix" anything that looks unsafe. Each challenge can list the files that
+hold its bug under `planted_in`, and tests marked
+`@pytest.mark.planted_bug("<challenge id>")` in
+`tests/unit/ctf/test_planted_bugs.py` prove the bug still works.
+
+- Every run with `--run` or `--coverage` runs all of those tests, because a
+  fix can come from a file no `planted_in` lists. A failure is BLOCKED and
+  names the challenge.
+- A changed `planted_in` file whose bug still works is listed for a
+  maintainer to look at.
+- A `planted_in` path that no longer exists, or a challenge with no
+  `planted_bug` test, is BLOCKED, so the list can't go stale.
+- `planted_in` is never loaded into the database, so players don't see it.
+
+CI also runs `pytest -m planted_bug` as its own job, which blocks merging
+even while the verify-change job is advisory.
+
 ## Reviewing someone else's pull request with Claude Code
 
 The `.claude/` folder and `AGENTS.md` are instructions an agent follows,

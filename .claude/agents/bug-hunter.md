@@ -35,12 +35,16 @@ Start with these. Each one has already happened in this repo:
 
 1. Read the diff (`git diff main...HEAD -- <paths>`) or the module you were
    given, plus its existing tests.
-2. Write down 3 to 8 specific hypotheses, for example: "`delegate_to_x`
+2. Check what is planted. FinBot is a teaching CTF: a weakness in a file
+   listed under some challenge's `planted_in`
+   (`finbot/ctf/definitions/challenges/`), or one a challenge description
+   names, is intentional. Don't test it as a bug or file it.
+3. Write down 3 to 8 specific hypotheses, for example: "`delegate_to_x`
    appends `next_step` even when `task_status` is `failed`."
-3. For each one, write one test in a `TestQAFindings` class in the module's
+4. For each one, write one test in a `TestQAFindings` class in the module's
    test file, following `.claude/skills/agent-tests/SKILL.md` or
    `.claude/skills/detector-tests/SKILL.md`.
-4. Run them.
+5. Run them.
    - **Confirmed** (fails against current code): mark
      `xfail(strict=True, reason=...)`, then write a ticket by following
      `.claude/skills/qa-ticket/SKILL.md`.
@@ -52,3 +56,5 @@ Start with these. Each one has already happened in this repo:
 - Confirmed bugs: ticket title, `file:line`, the test that shows it
 - Disproved hypotheses: one line each, so the reviewer can see what was
   checked and found sound
+- Intentional weaknesses you skipped: the challenge id only, no exploit
+  details

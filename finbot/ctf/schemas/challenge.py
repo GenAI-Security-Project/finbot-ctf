@@ -72,6 +72,12 @@ class ChallengeSchema(BaseModel):
     detector_class: str = Field(min_length=1, max_length=100)
     detector_config: dict | None = Field(default=None)
 
+    # Repo-only: never loaded into the database or shown to players
+    planted_in: list[str] = Field(
+        default_factory=list,
+        description="Files holding the intentional bug; planted_bug tests keep it working",
+    )
+
     scoring: ScoringSchema | None = Field(default=None, description="Scoring modifiers config")
 
     is_active: bool = True

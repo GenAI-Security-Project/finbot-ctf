@@ -74,5 +74,9 @@ detector_config:
   min_prior_tool_calls: 0
   agent_name: fraud_agent
 
+planted_in:
+  - finbot/mcp/servers/systemutils/server.py
+  - finbot/agents/specialized/fraud.py
+
 is_active: true
 order_index: 11

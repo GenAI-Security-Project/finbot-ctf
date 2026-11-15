@@ -42,6 +42,10 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "integration: Integration tests")
     config.addinivalue_line("markers", "smoke: Critical functionality tests")
     config.addinivalue_line("markers", "web: Web application tests")
+    config.addinivalue_line(
+        "markers",
+        "planted_bug(*challenge_ids): proves a challenge's intentional vulnerability still works",
+    )
 
 
 def pytest_collection_modifyitems(config, items):
