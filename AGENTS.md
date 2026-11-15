@@ -4,6 +4,37 @@ Instructions for AI coding agents working on finbot-ctf (Codex, GitHub
 Copilot, Cursor, Gemini CLI, Claude Code and others). People are welcome to
 read it too.
 
+## FinBot's bugs are there on purpose
+
+FinBot is a teaching CTF. Many of its vulnerabilities are planted: each one
+is a challenge that players solve.
+
+- Don't fix, harden or work around an intentional vulnerability. Each
+  challenge lists the files that hold its bug under `planted_in` in
+  `finbot/ctf/definitions/challenges/`, and tests marked `planted_bug` fail
+  if one stops working.
+- Don't reveal how to exploit a challenge in code, comments, docs, commit
+  messages or pull requests.
+- Docs, tests, tooling, and code outside the challenges are yours to change.
+- Don't change a challenge's detector, points or success criteria unless a
+  maintainer asked for it.
+- Found a bug that doesn't look intentional? Open an issue instead of fixing
+  it quietly.
+- Never commit secrets, API keys or challenge solutions.
+
+How the guard works: a `planted_bug` test calls the vulnerable code directly
+(no model, no key) and asserts the bug still fires. If your change fixed it,
+CI goes red and names the challenge.
+
+```mermaid
+flowchart TD
+    PR([PR opened]) --> JOB["CI: planted-bugs job<br/>pytest -m planted_bug, no model, no key"]
+    JOB --> RUN["each planted_bug test calls the real vulnerable<br/>tool directly and asserts the bug still fires"]
+    RUN --> Q{bug still works?}
+    Q -->|yes, intact| PASS([merge allowed])
+    Q -->|no, a change fixed it| FAIL["CI blocks and names the challenge:<br/>this bug is the challenge, undo the fix"]
+```
+
 ## Setup
 
 ```bash
@@ -22,7 +53,7 @@ challenge definitions you touched, and lists changed lines no test runs.
 
 | Verdict | What to do |
 |---|---|
-| `BLOCKED` | A test failed or a challenge definition is broken. Fix the cause in the code. |
+| `BLOCKED` | A test failed or a challenge definition is broken: fix the cause in the code. If it names a challenge, your change fixed a planted bug: undo that part. |
 | `NEEDS TESTS` | Write tests for the files and line ranges it lists, then run it again. |
 | `NO TESTS APPLY` | Nothing you changed is app code or a test. Done. |
 | `CLEARED` | The tests that import your changed code pass. Done. |
@@ -52,5 +83,6 @@ bug in this repo's ticket format).
 - A test that exposes a real bug stays in the suite, marked
   `@pytest.mark.xfail(strict=True, reason="...")`. Never weaken an assertion
   to make a test pass.
-- When asked only to add tests, don't change code under `finbot/`.
+- When asked only to add tests, don't change code under `finbot/`. Adding a
+  `planted_in` list to a challenge YAML is fine: it holds file names, not code.
 - Before submitting: `uv run black . && uv run isort .`

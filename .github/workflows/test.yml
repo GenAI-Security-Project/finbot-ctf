@@ -100,3 +100,33 @@ jobs:
         name: verify-change-report
         path: verify-change.json
         if-no-files-found: ignore
+
+  planted-bugs:
+    name: Planted bugs still work (no model key)
+    # Blocking, unlike verify-change: a change that fixes one of FinBot's
+    # intentional vulnerabilities makes a CTF challenge unsolvable. Each
+    # failure names the challenge it breaks.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      LLM_PROVIDER: mock
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.13
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Install dependencies from the lock file
+      run: |
+        python -m pip install --upgrade pip uv
+        uv sync --frozen
+
+    - name: Setup database
+      run: uv run python scripts/db.py migrate
+
+    - name: Run the planted-bug tests
+      run: uv run pytest -m planted_bug tests/unit

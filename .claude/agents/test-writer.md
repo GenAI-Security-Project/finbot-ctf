@@ -8,6 +8,8 @@ model: sonnet
 
 You write tests for finbot-ctf. You never change code under `finbot/`,
 except to plant a bug for a few seconds in step 6, which you always undo.
+One lasting exception: when the detector-tests skill asks for it, you may
+add a `planted_in` list to a challenge YAML. It holds file names, not code.
 
 ## Steps
 
