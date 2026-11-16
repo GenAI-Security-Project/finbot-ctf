@@ -15,6 +15,8 @@
 #   - The job summary neutralises untrusted text; the JSON report is complete
 #   - End to end: docs-only, covered, untested, broken, uncovered and deleted
 #     changes each get the right verdict
+#   - Paths the check emits use "/" on every OS, and a coverage report keyed
+#     with Windows "\" separators is still matched to its file
 #
 # Test Categories:
 #   VC-001: Line Range Compression
@@ -22,6 +24,7 @@
 #   VC-003: Untrusted File Names
 #   VC-004: Verdicts and Exit Codes
 #   VC-005: Job Summary and JSON Report
+#   VC-007: Windows Path Separators
 #   VC-010 to VC-016: End-to-End Verdicts in a Throwaway Repository
 # ==============================================================================
 
@@ -158,6 +161,40 @@ def test_vc_005_summary_lists_gaps_and_neutralises_untrusted_text(tmp_path, monk
     assert "| `finbot/a'b/c.py` | all | g |" in text
     assert "- `bad 'yaml' / here`" in text
     assert json.loads((tmp_path / "report.json").read_text()) == report
+
+
+# =============================================================================
+# VC-007: Windows Path Separators
+# =============================================================================
+# CI runs only on Linux, where paths render with "/". On Windows, Path renders
+# "\", and coverage.py keys its report with "\" too, which made the check report
+# wrong results there. These simulate Windows on Linux (PureWindowsPath, a
+# backslash-keyed report) so the separator handling is covered on the one
+# platform CI actually runs.
+def test_vc_007_emitted_paths_use_forward_slashes_on_windows(monkeypatch):
+    """rel(), the guide lookup and the prompt all depend on "/"-based paths."""
+    from pathlib import PureWindowsPath
+
+    monkeypatch.setattr(vc, "project_root", PureWindowsPath(r"C:\repo"))
+    path = PureWindowsPath(r"C:\repo\finbot\ctf\detectors\implementations\x.py")
+
+    assert vc.rel(path) == "finbot/ctf/detectors/implementations/x.py"
+    assert vc.guide_for(path) == ".claude/skills/detector-tests/SKILL.md"
+    assert not vc.fix_prompt(path).startswith("Unusual file name")
+
+
+def test_vc_007_coverage_report_keyed_with_backslashes_still_matches(tmp_path, monkeypatch):
+    """coverage.py writes "\\" keys on Windows; the lookup must normalise them."""
+    path = REPO_ROOT / "finbot" / "calc.py"
+    report = tmp_path / "coverage.json"
+    report.write_text(json.dumps(
+        {"files": {"finbot\\calc.py": {"executed_lines": [1], "missing_lines": [2]}}}
+    ))
+    monkeypatch.setattr(vc, "changed_lines", lambda *a, **k: {1, 2})
+
+    rows = vc.coverage_of_changes([path], "merge-base", set(), report)
+
+    assert rows == [(path, 1, 2, "2")]
 
 
 # =============================================================================
