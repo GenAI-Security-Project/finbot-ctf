@@ -50,7 +50,8 @@ E2E_DIR = TESTS_DIR / "e2e"
 
 def git(*args: str) -> list[str]:
     out = subprocess.run(
-        ["git", *args], cwd=project_root, capture_output=True, text=True, check=True
+        ["git", *args], cwd=project_root, capture_output=True, text=True,
+        encoding="utf-8", errors="replace", check=True,
     ).stdout
     return [line for line in out.splitlines() if line]
 
@@ -71,9 +72,10 @@ def changed_files(base: str) -> tuple[list[Path], list[Path], str, set[str]]:
 
 def changed_lines(path: Path, merge_base: str, untracked: set[str]) -> set[int]:
     """Line numbers in the working copy of `path` that differ from the merge base."""
-    rel = str(path.relative_to(project_root))
+    # git uses "/" in both `ls-files` output (untracked) and pathspecs (below).
+    rel = path.relative_to(project_root).as_posix()
     if rel in untracked:
-        return set(range(1, len(path.read_text().splitlines()) + 1))
+        return set(range(1, len(path.read_text(encoding="utf-8").splitlines()) + 1))
     lines: set[int] = set()
     for line in git("diff", "-U0", merge_base, "--", rel):
         hunk = re.match(r"@@ -\S+ \+(\d+)(?:,(\d+))? @@", line)
@@ -102,10 +104,16 @@ def coverage_of_changes(
     paths: list[Path], merge_base: str, untracked: set[str], report: Path
 ) -> list[tuple[Path, int, int, str]]:
     """Per file: changed lines run, changed executable lines, ranges not run."""
-    measured = json.loads(report.read_text())["files"]
+    # coverage.py keys its files with the OS separator ("\" on Windows); normalise
+    # to "/" so the lookup matches the "/"-based paths used everywhere else. On
+    # Linux/macOS the keys are already "/"-based, so this is effectively a no-op
+    # (a literal backslash in a POSIX file name is already unreachable: the old
+    # lookup used the same relative path and SAFE_PATH rejects such names).
+    raw = json.loads(report.read_text(encoding="utf-8"))["files"]
+    measured = {key.replace("\\", "/"): value for key, value in raw.items()}
     results = []
     for path in paths:
-        data = measured.get(str(path.relative_to(project_root)))
+        data = measured.get(path.relative_to(project_root).as_posix())
         if not data:
             continue
         executable = set(data["executed_lines"]) | set(data["missing_lines"])
@@ -127,9 +135,9 @@ def find_tests(path: Path, test_files: dict[Path, str]) -> list[Path]:
     patterns = [
         rf"\b{re.escape(dotted)}\b",
         rf"{from_package}\b{re.escape(leaf)}\b",
-        re.escape(str(path.relative_to(project_root))),  # loaded by file path
+        re.escape(path.relative_to(project_root).as_posix()),  # loaded by file path (tests write "/")
     ]
-    source = path.read_text() if path.exists() else ""
+    source = path.read_text(encoding="utf-8") if path.exists() else ""
     # Classes and functions the package's __init__ may re-export
     for name in re.findall(r"^(?:class|def) (\w+)", source, re.M):
         patterns.append(rf"{from_package}\b{name}\b")
@@ -141,7 +149,7 @@ def find_tests(path: Path, test_files: dict[Path, str]) -> list[Path]:
 
 def _challenge_id(path: Path) -> str | None:
     try:
-        return (yaml.safe_load(path.read_text()) or {}).get("id")
+        return (yaml.safe_load(path.read_text(encoding="utf-8")) or {}).get("id")
     except yaml.YAMLError:
         return None
 
@@ -158,7 +166,7 @@ def check_challenges(paths: list[Path]) -> list[str]:
     for path in paths:
         rel = path.relative_to(project_root)
         try:
-            challenge = ChallengeSchema(**yaml.safe_load(path.read_text()))
+            challenge = ChallengeSchema(**yaml.safe_load(path.read_text(encoding="utf-8")))
         except Exception as e:  # noqa: BLE001 — report any schema or YAML failure
             errors.append(f"{rel}: invalid definition: {e}")
             continue
@@ -283,7 +291,12 @@ SAFE_PATH = re.compile(r"[\w./-]+")
 
 
 def rel(path: Path) -> str:
-    return str(path.relative_to(project_root))
+    # Forward slashes on every OS. The rest of the script matches this string
+    # against git output, coverage.py keys and the GUIDES prefixes, which are all
+    # "/"-based, so a native "\" on Windows would make all of those comparisons
+    # silently miss. .as_posix() equals str() on Linux/macOS, so this is a no-op
+    # on the platforms CI runs.
+    return path.relative_to(project_root).as_posix()
 
 
 def md_safe(text: str) -> str:
@@ -394,7 +407,7 @@ def decide(failed: list[str], reasons: list[str], ran: bool, tests_ran: bool) ->
 def main() -> int:
     args = parse_args()
     files, deleted, merge_base, untracked = changed_files(args.base)
-    test_files = {p: p.read_text() for p in TESTS_DIR.rglob("test_*.py")}
+    test_files = {p: p.read_text(encoding="utf-8") for p in TESTS_DIR.rglob("test_*.py")}
     changes = classify(files, deleted, test_files)
     browser = sorted(p for p in changes.affected if E2E_DIR in p.parents)
     unit = sorted(changes.affected - set(browser))
