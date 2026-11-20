@@ -90,14 +90,18 @@ class GuardrailPreventionDetector(BaseDetector):
                 raise ValueError("'exfil_tools' must be a non-empty list when provided")
 
     def get_relevant_event_types(self) -> list[str]:
-        return ["agent.guardrail.*"]
+        return ["agent.guardrail.*", "webhook_*"]
 
     async def check_event(
         self, event: dict[str, Any], db: Session
     ) -> DetectionResult:
         event_type = event.get("event_type", "")
+        agent_name = event.get("agent_name", "")
 
-        if not event_type.startswith("agent.guardrail."):
+        is_guardrail = event_type.startswith("agent.guardrail.") or (
+            event_type.startswith("webhook_") and agent_name in ("", "guardrail")
+        )
+        if not is_guardrail:
             return DetectionResult(detected=False, message="Not a guardrail event")
 
         hook_kind = event.get("hook_kind")
