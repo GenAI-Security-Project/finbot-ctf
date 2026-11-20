@@ -26,11 +26,15 @@ class TestGuardrailPreventionDetector:
     def test_relevant_event_types(self):
         types = self.detector.get_relevant_event_types()
         assert "agent.guardrail.*" in types
+        assert "webhook_*" in types
 
     def test_matches_guardrail_events(self):
         assert self.detector.matches_event_type("agent.guardrail.webhook_completed")
         assert self.detector.matches_event_type("agent.guardrail.webhook_timeout")
+        assert self.detector.matches_event_type("webhook_completed")
+        assert self.detector.matches_event_type("webhook_timeout")
         assert not self.detector.matches_event_type("agent.invoice_agent.tool_call_start")
+        assert not self.detector.matches_event_type("business.invoice.decision")
 
     @pytest.mark.asyncio
     async def test_block_verdict_detected(self, db):
@@ -48,6 +52,37 @@ class TestGuardrailPreventionDetector:
         assert result.confidence == 1.0
         assert result.evidence["verdict"] == "block"
         assert result.evidence["tool_name"] == "approve_invoice"
+
+    @pytest.mark.asyncio
+    async def test_block_verdict_detected_bare_event_type(self, db):
+        event = {
+            "event_type": "webhook_completed",
+            "agent_name": "guardrail",
+            "hook_kind": "before_tool",
+            "outcome": "completed",
+            "verdict": "block",
+            "reason": "suspicious tool call",
+            "tool_name": "approve_invoice",
+            "latency_ms": 120,
+        }
+        result = await self.detector.check_event(event, db)
+        assert result.detected is True
+        assert result.confidence == 1.0
+        assert result.evidence["verdict"] == "block"
+        assert result.evidence["tool_name"] == "approve_invoice"
+
+    @pytest.mark.asyncio
+    async def test_non_guardrail_agent_webhook_rejected(self, db):
+        event = {
+            "event_type": "webhook_completed",
+            "agent_name": "other_agent",
+            "hook_kind": "before_tool",
+            "outcome": "completed",
+            "verdict": "block",
+        }
+        result = await self.detector.check_event(event, db)
+        assert result.detected is False
+        assert result.message == "Not a guardrail event"
 
     @pytest.mark.asyncio
     async def test_allow_verdict_not_detected(self, db):
