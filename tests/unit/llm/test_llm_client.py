@@ -9,7 +9,7 @@
 #   1. Routes requests to correct backend based on LLM_PROVIDER setting
 #   2. Passes request through unchanged and returns response unchanged
 #   3. Returns success=False on provider error, never raises
-#   4. Documents import-time singleton risk at module load
+#   4. Builds the shared client lazily, never at module import
 #   5. Raises ValueError for unsupported provider values
 #
 # Test Categories:
@@ -20,13 +20,14 @@
 #   LLM-PROV-005: Provider Mismatch Warning
 #   LLM-PROV-006: Error Response on Provider Failure
 #   LLM-PROV-007: Successful Chat Through Provider
-#   LLM-PROV-008: Module-Level Singleton Documents Import-Time Risk
+#   LLM-PROV-008: Lazy Singleton Created On First get_llm_client() Call
 #   LLM-PROV-009: Bad Provider Raises ValueError At Instantiation
 #   LLM-PROV-010: Ollama Provider Initialization
 #   LLM-PROV-011: Ollama Provider Not Registered Raises ValueError
 #   LLM-PROV-012: No Warning When Provider Matches
 #   LLM-PROV-013: LLMClient Does Not Mutate Request Before Delegation
 #   LLM-PROV-014: Error Response Is Well-Formed
+#   LLM-PROV-015: Importing client.py Never Builds A Provider Client
 #   LLM-CLI-GSI-001: Google Sheets Integration Verification
 # ==============================================================================
 
@@ -390,38 +391,96 @@ async def test_successful_chat_through_provider(patched_settings):
 
 
 # ============================================================================
-# LLM-PROV-008: Module-Level Singleton Documents Import-Time Risk
+# LLM-PROV-008: Lazy Singleton Created On First get_llm_client() Call
 # ============================================================================
 @pytest.mark.unit
-def test_module_level_singleton_exists_and_is_returned_by_getter():
-    """LLM-PROV-008: Module-Level Singleton Documents Import-Time Risk
+def test_get_llm_client_creates_singleton_lazily(patched_settings):
+    """LLM-PROV-008: Lazy Singleton Created On First get_llm_client() Call
 
-    Verify that get_llm_client() returns the module-level singleton created
-    at import time.
+    Verify that get_llm_client() builds the shared LLMClient on its first call
+    and returns that same instance afterwards.
 
-    Documents the risk: llm_client = LLMClient() runs when client.py is
-    imported. If settings.LLM_PROVIDER is invalid at that moment, the import
-    raises ValueError and crashes any module that transitively imports client.py.
+    Previously llm_client = LLMClient() ran when client.py was imported, so a
+    missing OPENAI_API_KEY or an invalid LLM_PROVIDER crashed every module that
+    transitively imported client.py, including tests/conftest.py.
 
     Test Steps:
-    1. Import finbot.core.llm.client module
-    2. Verify module has a "llm_client" attribute
-    3. Verify get_llm_client() returns the same object (not a new instance)
+    1. Reset the cached client to None
+    2. Call get_llm_client() twice with LLM_PROVIDER = "mock"
+    3. Verify MockLLMClient was constructed once and both calls return one object
 
     Expected Results:
-    1. Module attribute "llm_client" exists
-    2. get_llm_client() is the same object as llm_client
-    3. Singleton pattern confirmed
+    1. No client exists before the first call
+    2. The provider client is constructed exactly once
+    3. Both calls return the same LLMClient instance
     """
     import finbot.core.llm.client as client_module
 
-    assert hasattr(client_module, "llm_client"), (
-        "Module-level singleton 'llm_client' not found. "
-        "get_llm_client() depends on this attribute."
+    patched_settings.LLM_PROVIDER = "mock"
+    patched_settings.LLM_DEFAULT_MODEL = "mock-model"
+    patched_settings.LLM_DEFAULT_TEMPERATURE = 0.5
+
+    with (
+        patch.object(client_module, "_llm_client", None),
+        patch("finbot.core.llm.mock_client.MockLLMClient") as mock_llm_client,
+    ):
+        # Nothing may be built before the first call, otherwise import-time crashes return
+        assert client_module._llm_client is None
+        first = client_module.get_llm_client()
+        second = client_module.get_llm_client()
+        # The getter must cache the instance, not build a new client per caller
+        assert first is second
+        mock_llm_client.assert_called_once()
+
+
+# ============================================================================
+# LLM-PROV-015: Importing client.py Never Builds A Provider Client
+# ============================================================================
+@pytest.mark.unit
+def test_import_does_not_build_provider_client():
+    """LLM-PROV-015: Importing client.py Never Builds A Provider Client
+
+    Regression test for the import-time crash: with an unsupported provider,
+    importing finbot.core.llm.client must succeed, and the ValueError must be
+    raised by the first get_llm_client() call instead.
+
+    Runs in a subprocess so the import happens under a fresh interpreter with
+    its own environment and does not disturb modules already imported here.
+
+    Test Steps:
+    1. Start a Python subprocess with LLM_PROVIDER = "does_not_exist"
+    2. Import finbot.core.llm.client
+    3. Call get_llm_client() and capture the exception
+
+    Expected Results:
+    1. The import succeeds
+    2. get_llm_client() raises ValueError naming the provider
+    """
+    import subprocess
+
+    script = (
+        "import finbot.core.llm.client as c\n"
+        "print('IMPORT_OK')\n"
+        "try:\n"
+        "    c.get_llm_client()\n"
+        "except ValueError as e:\n"
+        "    print('VALUE_ERROR', e)\n"
     )
-    assert client_module.llm_client is client_module.get_llm_client(), (
-        "get_llm_client() must return the module-level singleton, not a new instance."
+    env = {**os.environ, "LLM_PROVIDER": "does_not_exist", "PYTHONIOENCODING": "utf-8"}
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        env=env,
+        timeout=120,
+        check=False,
     )
+    # A non-zero exit here means the import itself crashed: the original bug
+    assert result.returncode == 0, result.stderr
+    assert "IMPORT_OK" in result.stdout
+    # The configuration error must still surface, just at first use instead of import
+    assert "VALUE_ERROR" in result.stdout and "does_not_exist" in result.stdout
 
 
 # ============================================================================

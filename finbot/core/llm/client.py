@@ -71,8 +71,13 @@ _llm_client: LLMClient | None = None
 
 
 def get_llm_client() -> LLMClient:
-    """Get the LLM client (lazy initialization)"""
-    global _llm_client
+    """Get the shared LLM client, creating it on first use.
+
+    The provider client is not built at import time, so importing this module
+    (and everything that imports it, such as finbot.main) works without
+    provider credentials. Configuration errors surface on the first call.
+    """
+    global _llm_client  # pylint: disable=global-statement
     if _llm_client is None:
         _llm_client = LLMClient()
     return _llm_client
