@@ -5,9 +5,8 @@
 # GSoC Week: 1
 # OWASP Category: ASI01 (Prompt Injection), ASI06 (Sandboxing)
 # ============================================================
-"""AEGIS Telemetry: structured audit event pipeline with HMAC chaining."""
+"""AEGIS Telemetry: structured audit event schema (HMAC chaining lands with the telemetry pipeline)."""
 
-from finbot.aegis.telemetry.chain import AuditChain
 from finbot.aegis.telemetry.schema import (
     AuditEvent,
     DelegationEvent,
@@ -24,5 +23,4 @@ __all__ = [
     "MemoryWriteEvent",
     "DelegationEvent",
     "PolicyDecisionEvent",
-    "AuditChain",
 ]

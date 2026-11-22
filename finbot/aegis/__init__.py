@@ -7,18 +7,9 @@
 # ============================================================
 """FinBot-AEGIS: runtime security layer for OWASP FinBot CTF."""
 
-from finbot.aegis.intent_gate import IntentGate
-from finbot.aegis.schemas import PolicyVerdict
-from finbot.aegis.sentinel import AuditEvent, SentinelStream
-from finbot.aegis.service import AegisEnforcementService
-from finbot.aegis.trust_mesh import AttestationResult, TrustMesh
+# Only the subpackages shipped in this change are imported here. The runtime
+# enforcement modules (IntentGate, SentinelStream, AegisEnforcementService, ...)
+# come with the AEGIS phase-1 work and are exported once they are on main.
+from finbot.aegis import harness, telemetry
 
-__all__ = [
-    "AegisEnforcementService",
-    "AttestationResult",
-    "AuditEvent",
-    "IntentGate",
-    "PolicyVerdict",
-    "SentinelStream",
-    "TrustMesh",
-]
+__all__ = ["harness", "telemetry"]
