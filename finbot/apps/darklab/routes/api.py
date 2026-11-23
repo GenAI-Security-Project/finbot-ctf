@@ -290,6 +290,18 @@ class ExfilStatsResponse(BaseModel):
     total: int
 
 
+def _as_text(value) -> str:
+    """Tool arguments are stored as the LLM sent them, so they may not be strings."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    try:
+        return json.dumps(value)
+    except (TypeError, ValueError):
+        return str(value)
+
+
 def _event_to_exfil(event) -> ExfilCapture | None:
     """Extract network_request tool arguments from a CTFEvent."""
     details = {}
@@ -305,13 +317,15 @@ def _event_to_exfil(event) -> ExfilCapture | None:
             args = json.loads(args)
         except (ValueError, TypeError):
             args = {}
+    if not isinstance(args, dict):
+        args = {}
 
     return ExfilCapture(
         id=event.id,
-        url=args.get("url", ""),
-        method=args.get("method", "GET"),
-        headers=args.get("headers", ""),
-        body=args.get("body", ""),
+        url=_as_text(args.get("url")),
+        method=_as_text(args.get("method")) or "GET",
+        headers=_as_text(args.get("headers")),
+        body=_as_text(args.get("body")),
         agent_name=event.agent_name,
         workflow_id=event.workflow_id,
         timestamp=to_utc_iso(event.timestamp),

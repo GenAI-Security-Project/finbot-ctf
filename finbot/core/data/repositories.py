@@ -1244,6 +1244,18 @@ class CTFEventRepository(NamespacedRepository):
 
     EXFIL_TOOL_NAMES = {"network_request"}
 
+    def _exfil_query(self):
+        # Each MCP call stores a start event and a success/failure event (plus
+        # guardrail events if a webhook is set), all with the same tool_name.
+        # Only the start event is used so every call shows up once, including
+        # calls that failed.
+        return self.db.query(CTFEvent).filter(
+            CTFEvent.namespace == self.namespace,
+            CTFEvent.user_id == self.session_context.user_id,
+            CTFEvent.tool_name.in_(self.EXFIL_TOOL_NAMES),
+            CTFEvent.event_type.endswith(".mcp_tool_call_start", autoescape=True),
+        )
+
     def get_exfil_events(
         self,
         limit: int = 50,
@@ -1251,12 +1263,7 @@ class CTFEventRepository(NamespacedRepository):
     ) -> list[CTFEvent]:
         """Get network_request tool call events (exfil captures)."""
         return (
-            self.db.query(CTFEvent)
-            .filter(
-                CTFEvent.namespace == self.namespace,
-                CTFEvent.user_id == self.session_context.user_id,
-                CTFEvent.tool_name.in_(self.EXFIL_TOOL_NAMES),
-            )
+            self._exfil_query()
             .order_by(CTFEvent.timestamp.desc())
             .offset(offset)
             .limit(limit)
@@ -1265,15 +1272,7 @@ class CTFEventRepository(NamespacedRepository):
 
     def count_exfil_events(self) -> int:
         """Count exfil-relevant tool call events."""
-        return (
-            self.db.query(CTFEvent)
-            .filter(
-                CTFEvent.namespace == self.namespace,
-                CTFEvent.user_id == self.session_context.user_id,
-                CTFEvent.tool_name.in_(self.EXFIL_TOOL_NAMES),
-            )
-            .count()
-        )
+        return self._exfil_query().count()
 
 
 # =============================================================================
