@@ -33,6 +33,21 @@ def engine():
     return engine
 
 
+class _PerRequestCookieClient(TestClient):
+    """TestClient where cookies passed to a request are the only ones sent.
+
+    The app sets a session cookie on every response and the client keeps it.
+    Without clearing it, a later request made "as" another session carries
+    both cookies, and which one the server reads depends on the Starlette
+    version.
+    """
+
+    def request(self, method, url, *args, **kwargs):
+        if kwargs.get("cookies") is not None:
+            self.cookies.clear()
+        return super().request(method, url, *args, **kwargs)
+
+
 @pytest.fixture
 def client():
     """Test client for unit tests.
@@ -42,7 +57,7 @@ def client():
     tasks during test teardown.
     """
     with patch("finbot.main.start_processor_task", return_value=None):
-        with TestClient(app) as test_client:
+        with _PerRequestCookieClient(app) as test_client:
             yield test_client
 
 
