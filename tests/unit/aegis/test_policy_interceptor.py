@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from finbot.aegis.policy.agent_profiles import AGENT_PROFILES, DataAnalystProfile
+from finbot.aegis.policy.agent_profiles import AGENT_PROFILES
 from finbot.aegis.policy.interceptor import MCPPolicyInterceptor
 from finbot.aegis.policy.memory import MemoryNamespaceManager
 

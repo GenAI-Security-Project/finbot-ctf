@@ -108,7 +108,11 @@ class MCPPolicyInterceptor:
 
         # Record intent in memory namespace for provenance
         if self.memory_manager:
-            await self.memory_manager.record_intent(intent_capsule)
+            await self.memory_manager.record_intent(
+                agent_name=self.agent_profile.name,
+                intent_capsule=intent_capsule,
+                workflow_id=self.agent_profile.current_workflow or "unknown",
+            )
 
         # Execute the tool
         try:
