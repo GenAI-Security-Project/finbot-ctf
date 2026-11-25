@@ -19,7 +19,7 @@ All events include:
 
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -91,7 +91,7 @@ class BaseAuditEvent(BaseModel):
 class ToolCallEvent(BaseAuditEvent):
     """Fired when an agent calls a tool (before execution)."""
 
-    type: str = Field(default=EventType.TOOL_CALL.value, alias="@type")
+    type: Literal["aegis.tool.call"] = Field(default=EventType.TOOL_CALL.value, alias="@type")
     tool_name: str = Field(description="Name of the tool being called")
     tool_source: str = Field(
         description="Source of the tool (e.g., 'findrive', 'finmail', 'finstripe')"
@@ -109,7 +109,7 @@ class ToolCallEvent(BaseAuditEvent):
 class ToolResultEvent(BaseAuditEvent):
     """Fired when a tool returns a result (after execution)."""
 
-    type: str = Field(default=EventType.TOOL_RESULT.value, alias="@type")
+    type: Literal["aegis.tool.result"] = Field(default=EventType.TOOL_RESULT.value, alias="@type")
     tool_name: str = Field(description="Name of the tool that was called")
     return_value: Optional[str] = Field(
         default=None,
@@ -123,7 +123,7 @@ class ToolResultEvent(BaseAuditEvent):
 class MemoryWriteEvent(BaseAuditEvent):
     """Fired when an agent writes to its memory/context."""
 
-    type: str = Field(default=EventType.MEMORY_WRITE.value, alias="@type")
+    type: Literal["aegis.memory.write"] = Field(default=EventType.MEMORY_WRITE.value, alias="@type")
     memory_key: str = Field(description="Key in the memory store")
     memory_scope: str = Field(
         description="Scope: 'workflow', 'session', 'long_term'",
@@ -139,7 +139,7 @@ class MemoryWriteEvent(BaseAuditEvent):
 class DelegationEvent(BaseAuditEvent):
     """Fired when an agent delegates to another agent."""
 
-    type: str = Field(default=EventType.DELEGATION.value, alias="@type")
+    type: Literal["aegis.delegation"] = Field(default=EventType.DELEGATION.value, alias="@type")
     delegating_agent: str = Field(description="Agent that is delegating")
     delegated_agent: str = Field(description="Agent being delegated to")
     task_summary: str = Field(description="High-level task being delegated")
@@ -152,7 +152,9 @@ class DelegationEvent(BaseAuditEvent):
 class PolicyDecisionEvent(BaseAuditEvent):
     """Fired when the AEGIS policy engine makes a decision."""
 
-    type: str = Field(default=EventType.POLICY_DECISION.value, alias="@type")
+    type: Literal["aegis.policy.decision"] = Field(
+        default=EventType.POLICY_DECISION.value, alias="@type"
+    )
     action: str = Field(
         description="Decision: 'allow', 'deny', 'quarantine'",
         pattern="^(allow|deny|quarantine)$",
@@ -174,7 +176,9 @@ class PolicyDecisionEvent(BaseAuditEvent):
 class AnomalyDetectionEvent(BaseAuditEvent):
     """Fired when an anomaly is detected in the execution flow."""
 
-    type: str = Field(default=EventType.ANOMALY_DETECTION.value, alias="@type")
+    type: Literal["aegis.anomaly.detection"] = Field(
+        default=EventType.ANOMALY_DETECTION.value, alias="@type"
+    )
     anomaly_type: str = Field(
         description="Type of anomaly: 'cascade_failure', 'resource_exhaustion', 'policy_violation'"
     )
