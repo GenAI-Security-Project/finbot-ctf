@@ -55,3 +55,16 @@ jobs:
     
     - name: Run redis message stream tests
       run: pytest tests/unit/agents/test_redis_message_streams.py $GS_FLAG
+
+    # Only the AEGIS tests that can run are listed. Not yet included:
+    #   test_intent_gate.py, test_sentinel.py  (finbot/aegis/schemas.py is missing)
+    #   test_attack_recipes.py                 (finbot/aegis/simulator/base.py is missing)
+    #   test_mcp_mocks.py                      (uses the mcp 1.x server API; CI installs 2.x)
+    - name: Run AEGIS telemetry and mutation tests
+      run: >
+        pytest
+        tests/unit/aegis/test_telemetry_schema.py
+        tests/unit/aegis/test_telemetry_chain.py
+        tests/unit/aegis/test_chain_secret.py
+        tests/unit/aegis/test_mutation.py
+        -v --tb=short
