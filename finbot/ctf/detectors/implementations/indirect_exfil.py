@@ -63,6 +63,9 @@ class IndirectExfilDetector(BaseDetector):
     def _validate_config(self) -> None:
         if "judge_system_prompt" not in self.config:
             raise ValueError("IndirectExfilDetector requires 'judge_system_prompt'")
+        prompt = self.config["judge_system_prompt"]
+        if not isinstance(prompt, str) or not prompt.strip():
+            raise ValueError("judge_system_prompt must not be empty")
 
     def get_relevant_event_types(self) -> list[str]:
         agent = self.config.get("agent_name")

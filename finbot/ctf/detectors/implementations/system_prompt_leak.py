@@ -46,6 +46,8 @@ class SystemPromptLeakDetector(BaseDetector):
             raise ValueError("judge_system_prompt is required")
         if not isinstance(self.config["judge_system_prompt"], str):
             raise ValueError("judge_system_prompt must be a string")
+        if not self.config["judge_system_prompt"].strip():
+            raise ValueError("judge_system_prompt must not be empty")
         if "agent_output_tool_names" not in self.config:
             raise ValueError("agent_output_tool_names is required")
         if not isinstance(self.config["agent_output_tool_names"], list):
@@ -130,9 +132,11 @@ class SystemPromptLeakDetector(BaseDetector):
         # --- system prompt from request_dump ---
         request_dump = event.get("request_dump")
         if request_dump:
-            for message in request_dump.get("messages", []):
-                if message.get("role") == "system":
-                    system_prompt = message.get("content", "")
+            system_prompt = "\n".join(
+                message.get("content") or ""
+                for message in request_dump.get("messages", [])
+                if message.get("role") == "system"
+            ).strip()
 
         # --- agent output from response_dump ---
         response_dump = event.get("response_dump")
