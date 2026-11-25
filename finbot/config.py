@@ -149,7 +149,7 @@ class Settings(BaseSettings):
 
     # AEGIS Telemetry Pipeline (Week 1-3)
     AEGIS_TELEMETRY_ENABLED: bool = True
-    AEGIS_CHAIN_SECRET: str = "default-telemetry-chain-secret"  # Change in production
+    AEGIS_CHAIN_SECRET: str = ""  # Required by AuditChain; no built-in default
     AEGIS_TELEMETRY_STREAM_NAME: str = "finbot:aegis:audit"
     AEGIS_TELEMETRY_RETENTION_DAYS: int = 7
 
