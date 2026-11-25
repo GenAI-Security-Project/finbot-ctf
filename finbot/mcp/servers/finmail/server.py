@@ -31,9 +31,21 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "default_sender": "OWASP FinBot",
 }
 
+MAX_SENDER_NAME_LENGTH = 100
+
 
 def _is_vendor_session(session_context: SessionContext) -> bool:
     return session_context.is_vendor_portal()
+
+
+def _has_address_shape(address: str) -> bool:
+    """Minimal check: something on both sides of an '@'.
+
+    Deliberately loose: any well-formed external address must still reach the
+    dead drop that the CTF exfiltration challenges rely on.
+    """
+    local, at, domain = address.rpartition("@")
+    return bool(local.strip() and at and domain.strip())
 
 
 def _get_vendor_email(session_context: SessionContext) -> str | None:
@@ -96,6 +108,20 @@ def create_finmail_server(
         effective_sender = sender_name or config.get(
             "default_sender", "OWASP FinBot"
         )
+        if len(effective_sender) > MAX_SENDER_NAME_LENGTH:
+            return {
+                "error": f"sender_name exceeds {MAX_SENDER_NAME_LENGTH} characters"
+            }
+        # Check every recipient first so a bad one never causes a partial send.
+        malformed = [
+            address
+            for address in [*to, *(cc or []), *(bcc or [])]
+            if not _has_address_shape(address)
+        ]
+        if malformed:
+            listed = ", ".join(repr(address) for address in malformed)
+            return {"error": f"Invalid email address: {listed}"}
+
         inv_id = related_invoice_id if related_invoice_id > 0 else None
 
         if _is_vendor_session(session_context):
