@@ -84,6 +84,12 @@ This is how the path traversal "single-shot" bug was found.
 - If a test fails because the detector is wrong, keep it, mark it
   `@pytest.mark.xfail(strict=True, reason="<bug>")`, and report it. Never
   weaken an assertion to make it pass.
+- New challenge whose bug lives in a tool or an agent: list those files
+  under `planted_in` in its YAML, and add a test marked
+  `@pytest.mark.planted_bug("<challenge id>")` to
+  `tests/unit/ctf/test_planted_bugs.py` that proves the bug still works.
+  Call the code directly (no model), and leave the exploit conversation out:
+  that is the puzzle.
 
 ## Run
 

@@ -15,6 +15,8 @@
 #   - The job summary neutralises untrusted text; the JSON report is complete
 #   - End to end: docs-only, covered, untested, broken, uncovered and deleted
 #     changes each get the right verdict
+#   - A change that fixes a planted bug, or drops the test guarding one, is
+#     blocked and named; a change that only touches one is flagged for review
 #   - Paths the check emits use "/" on every OS, and a coverage report keyed
 #     with Windows "\" separators is still matched to its file
 #
@@ -24,8 +26,9 @@
 #   VC-003: Untrusted File Names
 #   VC-004: Verdicts and Exit Codes
 #   VC-005: Job Summary and JSON Report
+#   VC-006: Planted Bugs
 #   VC-007: Windows Path Separators
-#   VC-010 to VC-016: End-to-End Verdicts in a Throwaway Repository
+#   VC-010 to VC-019: End-to-End Verdicts in a Throwaway Repository
 # ==============================================================================
 
 import importlib.util
@@ -164,6 +167,124 @@ def test_vc_005_summary_lists_gaps_and_neutralises_untrusted_text(tmp_path, monk
 
 
 # =============================================================================
+# VC-006: Planted Bugs
+# =============================================================================
+MARKED = '''
+import pytest
+
+@pytest.mark.planted_bug("c1", "c2")
+def test_function():
+    pass
+
+@pytest.mark.planted_bug("c3")
+class TestClass:
+    @pytest.mark.asyncio
+    async def test_method(self):
+        pass
+
+def test_unmarked():
+    pass
+'''
+
+
+def test_vc_006_finds_marked_tests_and_their_challenges():
+    """Marks on functions, async methods and whole classes all count."""
+    assert vc.planted_tests({A_TEST: MARKED}) == {
+        (A_TEST, "test_function"): {"c1", "c2"},
+        (A_TEST, "TestClass.test_method"): {"c3"},
+    }
+
+
+def test_vc_006_reports_lists_that_point_nowhere():
+    planted = {
+        "missing-file": ["finbot/does_not_exist.py"],
+        "outside-repo": ["../../etc/passwd"],
+        "no-test": ["scripts/verify_change.py"],
+    }
+    marked = {(A_TEST, "t"): {"missing-file", "outside-repo", "no-planted-in"}}
+
+    errors = vc.check_planted(planted, marked)
+
+    assert errors == [
+        "missing-file: planted_in file finbot/does_not_exist.py is not a file in this repository",
+        "outside-repo: planted_in file ../../etc/passwd is not a file in this repository",
+        'no-test: lists planted_in but no test is marked planted_bug("no-test")',
+        'planted_bug("no-planted-in") names a challenge with no planted_in',
+    ]
+
+
+def test_vc_006_touched_files_name_their_challenges():
+    planted = {"c1": ["finbot/a.py", "finbot/b.py"], "c2": ["finbot/a.py"]}
+
+    touched = vc.touched_planted([REPO_ROOT / "finbot/a.py", REPO_ROOT / "README.md"], planted)
+
+    assert touched == {"finbot/a.py": ["c1", "c2"]}
+
+
+def test_vc_006_planted_tests_count_as_testing_their_files():
+    """They often reach their code by name through a factory, so no import shows it."""
+    path = REPO_ROOT / "finbot/a.py"
+    changes = vc.Changes(untested=[path])
+    bugs = vc.PlantedBugs({"c1": ["finbot/a.py"]}, {(A_TEST, "t"): {"c1"}}, {}, [])
+
+    bugs.claim(changes)
+
+    assert (changes.untested, changes.tested, changes.affected) == ([], [path], {A_TEST})
+
+
+@pytest.mark.parametrize(
+    "broken,passed,expected",
+    [
+        ({"c1"}, False, ["an intentional vulnerability no longer works (challenge: c1)"]),
+        (set(), False, ["the planted-bug tests could not run"]),
+        (set(), True, []),
+    ],
+    ids=["names-the-challenge", "could-not-run", "passed"],
+)
+def test_vc_006_failure_names_the_broken_challenge(broken, passed, expected):
+    failures = vc.PlantedBugs({}, {}, {}, [], broken, passed).failures()
+
+    assert [f.split(";")[0] for f in failures] == expected
+
+
+def test_vc_006_summary_asks_to_undo_the_fix_and_points_to_issues(tmp_path, monkeypatch):
+    summary = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    report = {
+        "verdict": "BLOCKED", "detail": "d", "definition_errors": [], "gaps": [],
+        "planted": {
+            "touched": [{"file": "finbot/a.py", "challenges": ["c1"]}],
+            "broken": ["c`1"],
+            "errors": [],
+        },
+    }
+
+    vc.write_reports(None, report)
+
+    text = summary.read_text()
+    assert "### This change fixes an intentional vulnerability" in text
+    assert "open an issue" in text
+    assert "- `c'1`" in text
+
+
+def test_vc_006_summary_flags_touched_challenges_for_review(tmp_path, monkeypatch):
+    summary = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    report = {
+        "verdict": "CLEARED", "detail": "d", "definition_errors": [], "gaps": [],
+        "planted": {
+            "touched": [{"file": "finbot/a.py", "challenges": ["c1"]}],
+            "broken": [],
+            "errors": [],
+        },
+    }
+
+    vc.write_reports(None, report)
+
+    assert "| `finbot/a.py` | c1 |" in summary.read_text()
+
+
+# =============================================================================
 # VC-007: Windows Path Separators
 # =============================================================================
 # CI runs only on Linux, where paths render with "/". On Windows, Path renders
@@ -198,7 +319,7 @@ def test_vc_007_coverage_report_keyed_with_backslashes_still_matches(tmp_path, m
 
 
 # =============================================================================
-# VC-010 to VC-016: End-to-End Verdicts in a Throwaway Repository
+# VC-010 to VC-019: End-to-End Verdicts in a Throwaway Repository
 # =============================================================================
 CALC = "def add(a, b):\n    return a + b\n\n\ndef sub(a, b):\n    return a - b\n"
 TEST_CALC = "from finbot.calc import add\n\n\ndef test_add():\n    assert add(2, 3) == 5\n"
@@ -313,3 +434,54 @@ def test_vc_016_ui_change_without_a_mobile_suite_is_not_blocked(repo):
     assert code == 0, out
 
     assert "[NO TESTS APPLY]" in out, out
+
+
+CHALLENGE = "id: calc-strings\nplanted_in:\n  - finbot/calc.py\n"
+TEST_PLANTED = (
+    "import pytest\nfrom finbot.calc import add\n\n\n"
+    '@pytest.mark.planted_bug("calc-strings")\n'
+    'def test_add_still_joins_strings():\n    assert add("a", "b") == "ab"\n'
+)
+
+
+@pytest.fixture
+def planted_repo(repo):
+    """The same repository, where add() joining strings is a planted bug."""
+    (repo / "finbot/ctf/definitions/challenges").mkdir(parents=True)
+    (repo / "finbot/ctf/definitions/challenges/calc.yaml").write_text(CHALLENGE)
+    (repo / "tests/test_planted.py").write_text(TEST_PLANTED)
+    git(repo, "add", ".")
+    git(repo, "-c", "user.name=test", "-c", "user.email=test@example.test", "commit", "-qm", "plant")
+    return repo
+
+
+def test_vc_017_fixing_a_planted_bug_is_blocked_and_named(planted_repo, tmp_path):
+    reject_strings = "    if isinstance(a, str):\n        raise TypeError\n    return a + b"
+    fix = CALC.replace("    return a + b", reject_strings)
+    (planted_repo / "finbot/calc.py").write_text(fix)
+    report = tmp_path / "report.json"
+
+    code, out = verify(planted_repo, "--run", "--json", str(report))
+
+    assert code == 1, out
+    assert "intentional vulnerability no longer works (challenge: calc-strings)" in out, out
+    assert json.loads(report.read_text())["planted"]["broken"] == ["calc-strings"]
+
+
+def test_vc_018_touching_a_planted_bug_without_fixing_it_is_flagged(planted_repo):
+    (planted_repo / "finbot/calc.py").write_text(CALC.replace("return a + b", "return (a + b)"))
+
+    code, out = verify(planted_repo, "--run")
+
+    assert code == 0, out
+    assert "[CLEARED]" in out, out
+    assert "finbot/calc.py (challenge: calc-strings)" in out, out
+
+
+def test_vc_019_dropping_the_test_that_guards_a_planted_bug_is_blocked(planted_repo):
+    (planted_repo / "tests/test_planted.py").unlink()
+
+    code, out = verify(planted_repo)
+
+    assert code == 1, out
+    assert 'no test is marked planted_bug("calc-strings")' in out, out

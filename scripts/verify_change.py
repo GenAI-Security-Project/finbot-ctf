@@ -6,6 +6,13 @@ file, validates any CTF challenge definitions it touches, runs the
 affected tests, and prints a verdict. With --coverage it also lists the
 changed lines that no test runs.
 
+It also protects the planted bugs: the intentional vulnerabilities that
+make up the CTF challenges. Each challenge lists the files that hold its
+bug (planted_in), and tests marked planted_bug("<challenge id>") prove the
+bug still works. Those tests run on every check, because a fix can come
+from anywhere (a shared input filter, say); a failure blocks the change
+and names the challenge it would break.
+
 Built for reviewing AI-written changes, where the usual failure is not
 broken code but code that nothing tests.
 
@@ -29,12 +36,14 @@ or too little of it runs under test.
 """
 
 import argparse
+import ast
 import json
 import os
 import re
 import subprocess
 import sys
 import tempfile
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -46,6 +55,7 @@ sys.path.insert(0, str(project_root))
 CHALLENGES_DIR = project_root / "finbot" / "ctf" / "definitions" / "challenges"
 TESTS_DIR = project_root / "tests"
 E2E_DIR = TESTS_DIR / "e2e"
+PLANTED_MARK = "planted_bug"
 
 
 def git(*args: str) -> list[str]:
@@ -126,9 +136,14 @@ def coverage_of_changes(
     return results
 
 
+def dotted_name(path: Path) -> str:
+    """finbot/ctf/x.py -> finbot.ctf.x"""
+    return ".".join(path.relative_to(project_root).with_suffix("").parts)
+
+
 def find_tests(path: Path, test_files: dict[Path, str]) -> list[Path]:
     """Test files that import, patch, or (for detectors) look up this module."""
-    dotted = ".".join(path.relative_to(project_root).with_suffix("").parts)
+    dotted = dotted_name(path)
     package, _, leaf = dotted.rpartition(".")
     # "from pkg import x" on one line, or "from pkg import (\n x,\n)"
     from_package = rf"from {re.escape(package)} import (?:\([^)]*|[^\n]*)"
@@ -187,8 +202,181 @@ def check_challenges(paths: list[Path]) -> list[str]:
     return errors
 
 
-def run_pytest(paths: list[Path], coverage_report: Path | None = None) -> bool:
-    cmd = [sys.executable, "-m", "pytest", "-q", *(str(p.relative_to(project_root)) for p in paths)]
+def planted_files() -> dict[str, list[str]]:
+    """Challenge id -> the files holding its intentional vulnerability (planted_in)."""
+    planted = {}
+    for path in sorted(CHALLENGES_DIR.rglob("*.yaml")):
+        try:
+            data = yaml.safe_load(path.read_text()) or {}
+        except yaml.YAMLError:
+            continue  # check_challenges reports it when the file changes
+        if isinstance(data, dict) and isinstance(data.get("planted_in"), list):
+            planted[str(data.get("id") or rel(path))] = [str(name) for name in data["planted_in"]]
+    return planted
+
+
+def _planted_ids(node: ast.AST) -> set[str]:
+    """Challenge ids in a node's @pytest.mark.planted_bug(...) decorators."""
+    return {
+        arg.value
+        for dec in getattr(node, "decorator_list", [])
+        if isinstance(dec, ast.Call)
+        and isinstance(dec.func, ast.Attribute)
+        and dec.func.attr == PLANTED_MARK
+        for arg in dec.args
+        if isinstance(arg, ast.Constant) and isinstance(arg.value, str)
+    }
+
+
+def planted_tests(test_files: dict[Path, str]) -> dict[tuple[Path, str], set[str]]:
+    """(test file, "Class.test" or "test") -> the challenges whose bug it proves still works.
+
+    Read from the source rather than collected, so listing them costs nothing.
+    Marks go on test functions or classes.
+    """
+    marked = {}
+    for path, text in test_files.items():
+        if PLANTED_MARK not in text:
+            continue
+        try:
+            tree = ast.parse(text)
+        except SyntaxError:
+            continue
+        for node in tree.body:
+            inherited, prefix, defs = set(), "", [node]
+            if isinstance(node, ast.ClassDef):
+                inherited, prefix, defs = _planted_ids(node), f"{node.name}.", node.body
+            for fn in defs:
+                if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    continue
+                if ids := inherited | _planted_ids(fn):
+                    marked[(path, prefix + fn.name)] = ids
+    return marked
+
+
+def check_planted(
+    planted: dict[str, list[str]], marked: dict[tuple[Path, str], set[str]]
+) -> list[str]:
+    """planted_in entries that point nowhere, and challenges or tests missing their other half."""
+    guarded = set().union(*marked.values())
+    errors = [
+        f"{challenge}: planted_in file {name} is not a file in this repository"
+        for challenge, names in planted.items()
+        for name in names
+        if not (project_root / name).resolve().is_relative_to(project_root.resolve())
+        or not (project_root / name).is_file()
+    ]
+    errors += [
+        f'{c}: lists planted_in but no test is marked planted_bug("{c}")'
+        for c in sorted(set(planted) - guarded)
+    ]
+    errors += [
+        f'planted_bug("{c}") names a challenge with no planted_in'
+        for c in sorted(guarded - set(planted))
+    ]
+    return errors
+
+
+def touched_planted(paths: list[Path], planted: dict[str, list[str]]) -> dict[str, list[str]]:
+    """Changed file -> the challenges whose intentional vulnerability it holds."""
+    changed = {rel(p) for p in paths}
+    touched: dict[str, list[str]] = {}
+    for challenge, names in planted.items():
+        for name in sorted(set(names) & changed):
+            touched.setdefault(name, []).append(challenge)
+    return dict(sorted(touched.items()))
+
+
+def run_planted(marked: dict[tuple[Path, str], set[str]]) -> tuple[bool, set[str]]:
+    """Run the planted-bug tests: whether they passed, and the challenges whose tests failed."""
+    with tempfile.TemporaryDirectory() as tmp:
+        junit = Path(tmp) / "planted.xml"
+        passed = run_pytest(
+            sorted({path for path, _ in marked}),
+            extra=["-m", PLANTED_MARK, f"--junitxml={junit}", f"--rootdir={project_root}"],
+        )
+        if passed or not junit.exists():
+            return passed, set()
+        failed = {
+            f"{case.get('classname')}.{case.get('name', '').split('[')[0]}"
+            for case in ET.parse(junit).iter("testcase")
+            if case.find("failure") is not None or case.find("error") is not None
+        }
+    broken = set()
+    for (path, name), ids in marked.items():
+        if f"{dotted_name(path)}.{name}" in failed:
+            broken |= ids
+    return False, broken
+
+
+@dataclass
+class PlantedBugs:
+    """The intentional vulnerabilities: where they live, what guards them, if they still work."""
+
+    planted: dict[str, list[str]]  # challenge -> files holding its bug
+    marked: dict[tuple[Path, str], set[str]]  # planted-bug test -> challenges it guards
+    touched: dict[str, list[str]]  # changed file -> challenges whose bug it holds
+    errors: list[str]  # problems with the planted_in lists or the marks
+    broken: set[str] = field(default_factory=set)  # challenges whose tests failed
+    passed: bool = True
+
+    @classmethod
+    def load(cls, changed: list[Path], test_files: dict[Path, str]) -> "PlantedBugs":
+        planted = planted_files()
+        marked = planted_tests(test_files)
+        touched = touched_planted(changed, planted)
+        return cls(planted, marked, touched, check_planted(planted, marked))
+
+    def claim(self, changes: "Changes") -> None:
+        """A changed planted_in file is tested by the tests guarding its challenges.
+
+        Those tests often reach it by name through a factory rather than an
+        import, so discovery alone would call it untested.
+        """
+        for path in list(changes.untested):
+            challenges = {c for c, names in self.planted.items() if rel(path) in names}
+            guards = {test for (test, _), ids in self.marked.items() if ids & challenges}
+            if guards:
+                changes.untested.remove(path)
+                changes.tested.append(path)
+                changes.affected.update(guards)
+
+    def show(self) -> None:
+        section("Changed files holding a planted bug",
+                [f"{name} (challenge: {', '.join(ids)})" for name, ids in self.touched.items()])
+        if self.errors:
+            section("Planted-bug list problems", self.errors)
+
+    def run(self) -> None:
+        """Run every planted-bug test: a fix can come from a file no planted_in lists."""
+        if self.marked:
+            self.passed, self.broken = run_planted(self.marked)
+
+    def failures(self) -> list[str]:
+        failures = ["planted-bug list out of date"] * bool(self.errors)
+        if not self.passed and not self.broken:
+            failures.append("the planted-bug tests could not run")
+        elif not self.passed:
+            failures.append(
+                "an intentional vulnerability no longer works "
+                f"(challenge: {', '.join(sorted(self.broken))}); "
+                "it is a CTF challenge, so undo the change that fixed it"
+            )
+        return failures
+
+    def as_report(self) -> dict:
+        return {
+            "touched": [{"file": name, "challenges": ids} for name, ids in self.touched.items()],
+            "broken": sorted(self.broken),
+            "errors": self.errors,
+        }
+
+
+def run_pytest(
+    paths: list[Path], coverage_report: Path | None = None, extra: list[str] | None = None
+) -> bool:
+    cmd = [sys.executable, "-m", "pytest", "-q", *(extra or [])]
+    cmd += [str(p.relative_to(project_root)) for p in paths]
     env = dict(os.environ)
     if coverage_report:
         cmd += ["--cov=finbot", f"--cov-report=json:{coverage_report}"]
@@ -338,9 +526,38 @@ def collect_gaps(changes: Changes, coverage_rows: list[tuple[Path, int, int, str
     return gaps
 
 
+PLANTED_NOTE = """\
+FinBot is a teaching CTF: some bugs are there on purpose, and each one is a
+challenge. This change makes the challenges below unsolvable. Please undo the
+part that fixed them. If you found a different, unintended bug, open an issue
+instead."""
+
+
+def planted_summary(planted: dict) -> list[str]:
+    """Job-summary lines for planted bugs: broken ones, or touched ones to look at."""
+    lines = []
+    if planted.get("broken"):
+        lines += ["### This change fixes an intentional vulnerability", "", PLANTED_NOTE, ""]
+        lines += [f"- `{md_safe(c)}`" for c in planted["broken"]] + [""]
+    elif planted.get("touched"):
+        lines += ["### Changed code behind a challenge", "",
+                  "The planted bugs still work. A maintainer should check that these challenges "
+                  "still play as intended.", "", "| File | Challenge |", "|---|---|"]
+        lines += [
+            f"| `{md_safe(t['file'])}` | {md_safe(', '.join(t['challenges']))} |"
+            for t in planted["touched"]
+        ]
+        lines += [""]
+    if planted.get("errors"):
+        lines += ["### Planted-bug list problems", ""]
+        lines += [f"- `{md_safe(e)}`" for e in planted["errors"]] + [""]
+    return lines
+
+
 def write_summary(path: str, report: dict) -> None:
     """Append the verdict and the test gaps to the GitHub Actions job summary."""
     lines = [f"## verify_change: {report['verdict']}", "", report["detail"], ""]
+    lines += planted_summary(report.get("planted") or {})
     if report["definition_errors"]:
         lines += ["### Challenge definition problems", ""]
         lines += [f"- `{md_safe(e)}`" for e in report["definition_errors"]] + [""]
@@ -409,6 +626,8 @@ def main() -> int:
     files, deleted, merge_base, untracked = changed_files(args.base)
     test_files = {p: p.read_text(encoding="utf-8") for p in TESTS_DIR.rglob("test_*.py")}
     changes = classify(files, deleted, test_files)
+    planted = PlantedBugs.load(files + deleted, test_files)
+    planted.claim(changes)
     browser = sorted(p for p in changes.affected if E2E_DIR in p.parents)
     unit = sorted(changes.affected - set(browser))
     has_e2e_suite = any(E2E_DIR.glob("test_*.py"))
@@ -417,11 +636,14 @@ def main() -> int:
     print(f"Changed files vs {args.base}: {len(files)}")
     section("Affected unit/integration tests", unit)
     section("Changed source files with no tests", changes.untested)
+    planted.show()
     definition_errors = check_definitions(changes.challenges)
     if needs_e2e:
         print("\nTemplates, CSS or browser tests changed: the mobile suite applies"
               + ("" if args.e2e else " (run with --e2e)"))
 
+    if args.run:
+        planted.run()
     failed = []
     coverage_rows = []
     with tempfile.TemporaryDirectory() as tmp:
@@ -434,6 +656,7 @@ def main() -> int:
         failed.append("mobile browser tests failed")
     low_coverage = report_coverage(coverage_rows, args.min_coverage) if coverage_rows else None
 
+    failed = planted.failures() + failed
     failed += ["challenge definitions invalid"] * bool(definition_errors)
     reasons = [f"{len(changes.untested)} changed source file(s) have no tests"] * bool(changes.untested)
     reasons += [low_coverage] * bool(low_coverage)
@@ -445,6 +668,7 @@ def main() -> int:
         "detail": detail,
         "failed": failed,
         "definition_errors": definition_errors,
+        "planted": planted.as_report(),
         "affected_tests": [rel(p) for p in unit],
         "gaps": collect_gaps(changes, coverage_rows),
     })

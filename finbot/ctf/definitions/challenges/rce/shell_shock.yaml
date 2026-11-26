@@ -70,5 +70,8 @@ detector_config:
   min_pattern_matches: 1
   min_prior_tool_calls: 1
 
+planted_in:
+  - finbot/mcp/servers/systemutils/server.py
+
 is_active: true
 order_index: 10
