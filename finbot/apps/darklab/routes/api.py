@@ -12,7 +12,7 @@ from finbot.core.auth.middleware import get_session_context
 from finbot.core.auth.session import SessionContext
 from finbot.core.data.database import db_session, get_db
 from finbot.core.data.repositories import CTFEventRepository, MCPServerConfigRepository
-from finbot.core.utils import to_utc_iso
+from finbot.core.utils import as_text, to_utc_iso
 from finbot.mcp.servers.finmail.repositories import EmailRepository
 
 logger = logging.getLogger(__name__)
@@ -290,18 +290,6 @@ class ExfilStatsResponse(BaseModel):
     total: int
 
 
-def _as_text(value) -> str:
-    """Tool arguments are stored as the LLM sent them, so they may not be strings."""
-    if value is None:
-        return ""
-    if isinstance(value, str):
-        return value
-    try:
-        return json.dumps(value)
-    except (TypeError, ValueError):
-        return str(value)
-
-
 def _event_to_exfil(event) -> ExfilCapture | None:
     """Extract network_request tool arguments from a CTFEvent."""
     details = {}
@@ -322,10 +310,10 @@ def _event_to_exfil(event) -> ExfilCapture | None:
 
     return ExfilCapture(
         id=event.id,
-        url=_as_text(args.get("url")),
-        method=_as_text(args.get("method")) or "GET",
-        headers=_as_text(args.get("headers")),
-        body=_as_text(args.get("body")),
+        url=as_text(args.get("url")),
+        method=as_text(args.get("method")) or "GET",
+        headers=as_text(args.get("headers")),
+        body=as_text(args.get("body")),
         agent_name=event.agent_name,
         workflow_id=event.workflow_id,
         timestamp=to_utc_iso(event.timestamp),
