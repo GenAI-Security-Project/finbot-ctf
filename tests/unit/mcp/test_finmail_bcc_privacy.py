@@ -1,9 +1,9 @@
 """Unit tests for BCC privacy fix in finbot/mcp/servers/finmail/routing.py
 
 Covers the fix for #585:
-  1. BCC addresses must never appear on any recipient's email row (bcc_addresses=None always)
+  1. Each BCC recipient sees only their own address (never other BCC recipients)
   2. TO and CC recipients correctly get bcc_addresses=None (regression guard)
-  3. A vendor BCC'd recipient also gets bcc_addresses=None
+  3. Sending without BCC is unaffected
 """
 
 import json
@@ -57,14 +57,14 @@ def _make_repo():
 
 
 class TestBCCPrivacyFix:
-    """BCC addresses must never be stored on any recipient's email row."""
+    """BCC recipients must never see other BCC recipients' addresses."""
 
-    def test_bcc_recipient_gets_null_bcc_addresses(self):
-        """Fix #585: BCC row must have bcc_addresses=None, not the full BCC list."""
+    def test_bcc_recipient_sees_only_own_address(self):
+        """Fix #585: Each BCC row has only that recipient's address, not the full BCC list."""
         db = _make_db()
         repo = _make_repo()
 
-        route_and_deliver(
+        result = route_and_deliver(
             db=db,
             repo=repo,
             namespace="testns",
@@ -84,10 +84,11 @@ class TestBCCPrivacyFix:
         ]
 
         assert len(bcc_calls) == 2, "Expected two BCC delivery rows"
-        for call in bcc_calls:
-            assert call.kwargs["bcc_addresses"] is None, (
-                f"BCC recipient got bcc_addresses={call.kwargs['bcc_addresses']!r}, expected None. "
-                "BCC addresses must not be visible to any recipient."
+        bcc_deliveries = [d for d in result["deliveries"] if d["role"] == "bcc"]
+        for delivery, call in zip(bcc_deliveries, bcc_calls, strict=True):
+            assert call.kwargs["bcc_addresses"] == json.dumps([delivery["email"]]), (
+                f"BCC recipient {delivery['email']} got bcc_addresses={call.kwargs['bcc_addresses']!r}, "
+                "expected only their own address."
             )
 
     def test_to_recipient_gets_null_bcc_addresses(self):

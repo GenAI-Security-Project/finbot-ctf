@@ -69,13 +69,13 @@ def route_and_deliver(
     """
     to_json = json.dumps(to) if to else None
     cc_json = json.dumps(cc) if cc else None
-    bcc_json = json.dumps(bcc) if bcc else None
 
     deliveries: list[dict] = []
 
     for role, addresses in [("to", to), ("cc", cc), ("bcc", bcc)]:
         for email_addr in (addresses or []):
-            visible_bcc = None  # BCC addresses never travel with any recipient copy
+            # Each BCC recipient sees only their own address, never other BCC addresses
+            visible_bcc = json.dumps([email_addr]) if role == "bcc" else None
 
             vendor = (
                 db.query(Vendor)
