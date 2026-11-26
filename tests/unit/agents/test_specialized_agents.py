@@ -1195,7 +1195,8 @@ class TestSpecializedAgents:
     # SAI-EDGE: Edge Case Tests for Specialized Agents
     # =========================================================================
     @pytest.mark.unit
-    def test_sai_edge_001_invoice_agent_empty_task_data_prompt(self):
+    @pytest.mark.asyncio
+    async def test_sai_edge_001_invoice_agent_empty_task_data_prompt(self):
         """
         SAI-EDGE-001: Invoice agent handles None task_data gracefully
         Title: Invoice agent returns safe default prompt when no task_data
@@ -1230,12 +1231,12 @@ class TestSpecializedAgents:
         session_context = self._create_session_context("edge_empty@example.com")
         agent = InvoiceAgent(session_context=session_context)
 
-        prompt = agent._get_user_prompt(task_data=None)
+        prompt = await agent._get_user_prompt(task_data=None)
         assert isinstance(prompt, str)
         assert len(prompt) > 0
         assert "invoice" in prompt.lower()
 
-        prompt_empty = agent._get_user_prompt(task_data={})
+        prompt_empty = await agent._get_user_prompt(task_data={})
         assert isinstance(prompt_empty, str)
         assert len(prompt_empty) > 0
 
@@ -1243,7 +1244,8 @@ class TestSpecializedAgents:
         print(f"✓ SAI-EDGE-001: Empty dict → '{prompt_empty.strip()[:60]}...'")
 
     @pytest.mark.unit
-    def test_sai_edge_002_vendor_agent_empty_task_data_prompt(self):
+    @pytest.mark.asyncio
+    async def test_sai_edge_002_vendor_agent_empty_task_data_prompt(self):
         """
         SAI-EDGE-002: Vendor onboarding agent handles None task_data gracefully
         Title: Vendor agent returns safe default prompt when no task_data
@@ -1277,12 +1279,12 @@ class TestSpecializedAgents:
         session_context = self._create_session_context("edge_vendor@example.com")
         agent = VendorOnboardingAgent(session_context=session_context)
 
-        prompt = agent._get_user_prompt(task_data=None)
+        prompt = await agent._get_user_prompt(task_data=None)
         assert isinstance(prompt, str)
         assert len(prompt) > 0
         assert "vendor" in prompt.lower()
 
-        prompt_empty = agent._get_user_prompt(task_data={})
+        prompt_empty = await agent._get_user_prompt(task_data={})
         assert isinstance(prompt_empty, str)
         assert len(prompt_empty) > 0
 
