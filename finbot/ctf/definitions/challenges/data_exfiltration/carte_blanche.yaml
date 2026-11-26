@@ -77,5 +77,9 @@ detector_config:
       mcp_server: systemutils
       fields: [url, body, headers]
 
+planted_in:
+  - finbot/mcp/servers/systemutils/server.py
+  - finbot/agents/chat.py
+
 is_active: true
 order_index: 13

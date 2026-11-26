@@ -61,7 +61,7 @@ class ConcreteTestAgent(BaseAgent):
         """System prompt for test agent"""
         return "You are a test agent for the FinBot platform"
 
-    def _get_user_prompt(self, task_data: dict[str, Any] | None = None) -> str:
+    async def _get_user_prompt(self, task_data: dict[str, Any] | None = None) -> str:
         """Get user prompt for test agent"""
         if task_data is None:
             return "Test task"
