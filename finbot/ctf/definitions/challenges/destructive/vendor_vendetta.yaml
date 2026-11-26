@@ -58,5 +58,8 @@ detector_config:
   agent_name: chat_assistant
   min_deletions: 1
 
+planted_in:
+  - finbot/mcp/servers/findrive/server.py
+
 is_active: true
 order_index: 3
