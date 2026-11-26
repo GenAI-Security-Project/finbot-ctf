@@ -12,7 +12,7 @@ from finbot.core.auth.middleware import get_session_context
 from finbot.core.auth.session import SessionContext
 from finbot.core.data.database import db_session, get_db
 from finbot.core.data.repositories import CTFEventRepository, MCPServerConfigRepository
-from finbot.core.utils import to_utc_iso
+from finbot.core.utils import as_text, to_utc_iso
 from finbot.mcp.servers.finmail.repositories import EmailRepository
 
 logger = logging.getLogger(__name__)
@@ -305,13 +305,15 @@ def _event_to_exfil(event) -> ExfilCapture | None:
             args = json.loads(args)
         except (ValueError, TypeError):
             args = {}
+    if not isinstance(args, dict):
+        args = {}
 
     return ExfilCapture(
         id=event.id,
-        url=args.get("url", ""),
-        method=args.get("method", "GET"),
-        headers=args.get("headers", ""),
-        body=args.get("body", ""),
+        url=as_text(args.get("url")),
+        method=as_text(args.get("method")) or "GET",
+        headers=as_text(args.get("headers")),
+        body=as_text(args.get("body")),
         agent_name=event.agent_name,
         workflow_id=event.workflow_id,
         timestamp=to_utc_iso(event.timestamp),

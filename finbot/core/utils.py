@@ -1,9 +1,23 @@
 """Core utils"""
 
+import json
 import re
 from datetime import UTC, datetime
+from typing import Any
 
 from finbot.config import settings
+
+
+def as_text(value: Any) -> str:
+    """Convert a value to a string, serializing structured values as JSON."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    try:
+        return json.dumps(value)
+    except (TypeError, ValueError):
+        return str(value)
 
 
 def to_utc_iso(dt: datetime | None) -> str | None:
