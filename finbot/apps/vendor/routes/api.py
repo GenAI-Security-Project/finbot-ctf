@@ -24,8 +24,8 @@ from finbot.mcp.servers.finmail.repositories import EmailRepository
 # Create API router
 router = APIRouter(prefix="/api/v1", tags=["vendor-api"])
 
-# Approved and paid invoices are locked; rejected ones can be fixed and re-processed
-EDITABLE_INVOICE_STATUSES = ("submitted", "processing", "rejected")
+# Processing, approved, and paid invoices are locked; rejected ones can be fixed and re-processed
+EDITABLE_INVOICE_STATUSES = ("submitted", "rejected")
 
 
 class VendorRegistrationRequest(BaseModel):
@@ -671,7 +671,7 @@ async def update_invoice(
         if invoice.vendor_id != session_context.current_vendor_id:
             raise HTTPException(status_code=403, detail="Access denied")
 
-        # Approved/paid invoices are locked so the amount can't change after review
+        # Processing/approved/paid invoices are locked so the amount can't change during or after review
         if invoice.status not in EDITABLE_INVOICE_STATUSES:
             raise HTTPException(
                 status_code=409,
