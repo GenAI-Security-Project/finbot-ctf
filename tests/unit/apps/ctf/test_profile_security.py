@@ -258,6 +258,7 @@ async def test_update_profile_avatar_url_ssrf_blocked(
         "https://[::1]/a.png",                       # IPv6 loopback
         "https://[::ffff:127.0.0.1]/a.png",          # IPv4-mapped loopback
         "https://[fd00::1]/a.png",                   # IPv6 ULA
+        "https://[fec0::1]/a.png",                  # IPv6 site-local (deprecated)
         "https://rebind.example.com/a.png",          # one public, one private answer
         "https://user:pass@example.com/a.png",       # embedded credentials
         "https://example.com:99999/a.png",           # out-of-range port
@@ -286,6 +287,76 @@ async def test_update_profile_avatar_url_bad_port_is_400(
     mock_profile_repo.get_by_user_id.return_value = existing_profile
 
     request = ProfileUpdateRequest(avatar_url="https://example.com:99999/a.png")
+
+    with pytest.raises(HTTPException) as exc_info:
+        await update_profile(
+            request=request, session_context=mock_session_context, db=mock_db
+        )
+
+    assert exc_info.value.status_code == 400
+    mock_profile_repo.update_profile.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_update_profile_allows_bio_save_with_dead_unchanged_avatar_url(
+    mock_session_context, mock_db, mock_profile_repo, patch_dependencies
+):
+    """Settings page resends unchanged avatar_type/avatar_url; dead saved URLs shouldn't block bio edits"""
+    existing_profile = MagicMock()
+    existing_profile.avatar_type = "url"
+    existing_profile.avatar_url = "https://unknown.invalid/dead.png"
+    existing_profile.user_id = "test_user_id"
+    mock_profile_repo.get_by_user_id.return_value = existing_profile
+    mock_profile_repo.update_profile.return_value = MagicMock()
+
+    request = ProfileUpdateRequest(
+        bio="Updated bio",
+        avatar_type="url",
+        avatar_url="https://unknown.invalid/dead.png",
+    )
+
+    response = await update_profile(
+        request=request, session_context=mock_session_context, db=mock_db
+    )
+
+    assert response is not None
+    mock_profile_repo.update_profile.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_update_profile_allows_partial_save_with_dead_saved_avatar_url(
+    mock_session_context, mock_db, mock_profile_repo, patch_dependencies
+):
+    """Omitting avatar fields on update should not re-validate an unchanged saved URL"""
+    existing_profile = MagicMock()
+    existing_profile.avatar_type = "url"
+    existing_profile.avatar_url = "https://unknown.invalid/dead.png"
+    existing_profile.user_id = "test_user_id"
+    mock_profile_repo.get_by_user_id.return_value = existing_profile
+    mock_profile_repo.update_profile.return_value = MagicMock()
+
+    request = ProfileUpdateRequest(bio="Updated bio")
+
+    response = await update_profile(
+        request=request, session_context=mock_session_context, db=mock_db
+    )
+
+    assert response is not None
+    mock_profile_repo.update_profile.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_update_profile_validates_when_switching_to_url_with_existing_url(
+    mock_session_context, mock_db, mock_profile_repo, patch_dependencies
+):
+    """Switching avatar_type to 'url' without sending avatar_url validates the stored URL"""
+    existing_profile = MagicMock()
+    existing_profile.avatar_type = "emoji"
+    existing_profile.avatar_url = "http://127.0.0.1/old.png"
+    existing_profile.user_id = "test_user_id"
+    mock_profile_repo.get_by_user_id.return_value = existing_profile
+
+    request = ProfileUpdateRequest(avatar_type="url")
 
     with pytest.raises(HTTPException) as exc_info:
         await update_profile(

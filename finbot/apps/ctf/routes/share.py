@@ -3,6 +3,7 @@
 import base64
 import hashlib
 import io
+import json
 import logging
 from pathlib import Path
 
@@ -90,6 +91,28 @@ def _get_badge_image_b64(filename: str) -> str:
 def get_cache_path(cache_key: str) -> Path:
     """Get cache file path for a given key."""
     return CACHE_DIR / f"{cache_key}.png"
+
+
+def _build_profile_card_cache_key(
+    template_context: dict,
+    *,
+    avatar_type: str | None = None,
+    avatar_url: str | None = None,
+    profile_link: str = "",
+) -> str:
+    """Build a SHA-256 cache key from all rendered profile card inputs."""
+    payload = {
+        **{
+            k: v
+            for k, v in template_context.items()
+            if k not in ("avatar_image_b64", "qr_data_uri", "logo_b64", "owasp_logo_b64")
+        },
+        "avatar_type": avatar_type or "",
+        "avatar_url": avatar_url or "",
+        "profile_link": profile_link,
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
 
 
 async def _fetch_avatar_b64(url: str) -> str:
@@ -276,19 +299,13 @@ async def get_profile_card(
 
     bio = profile.bio or "AI Security Enthusiast"
 
-    # Resolve avatar image for the card
-    avatar_image_b64 = ""
     avatar_url = resolve_avatar_url(profile, user)
-    if avatar_url:
-        avatar_image_b64 = await _fetch_avatar_b64(avatar_url)
-
     profile_link = _profile_url(request, profile.username)
-    qr_data_uri = _make_qr_data_uri(profile_link)
 
     template_context = {
         "username": profile.username,
         "avatar_emoji": profile.avatar_emoji or "",
-        "avatar_image_b64": avatar_image_b64,
+        "avatar_image_b64": "",
         "bio": bio,
         "level": level,
         "level_title": level_title,
@@ -302,24 +319,31 @@ async def get_profile_card(
         "rarity_colors": RARITY_COLORS_HEX,
         "logo_b64": _get_image_b64("finbot.png"),
         "owasp_logo_b64": _get_image_b64("GenAI_OWASP_Logo.png"),
-        "qr_data_uri": qr_data_uri,
+        "qr_data_uri": "",
     }
 
-    if html and settings.DEBUG:
-        return HTMLResponse(_render_html("profile_card.html", template_context))
-
-    cache_data = (
-        f"{username}:{total_points}:{len(earned_badges)}:{len(completed_progress)}"
+    cache_key = _build_profile_card_cache_key(
+        template_context,
+        avatar_type=profile.avatar_type,
+        avatar_url=avatar_url,
+        profile_link=profile_link,
     )
-    cache_key = hashlib.md5(cache_data.encode()).hexdigest()
     cache_path = get_cache_path(cache_key)
 
-    if cache_path.exists():
+    if not (html and settings.DEBUG) and cache_path.exists():
         return Response(
             content=cache_path.read_bytes(),
             media_type="image/png",
             headers={"Cache-Control": "public, max-age=300"},
         )
+
+    # Resolve avatar image and QR code only on a cache miss or HTML debug view
+    if avatar_url:
+        template_context["avatar_image_b64"] = await _fetch_avatar_b64(avatar_url)
+    template_context["qr_data_uri"] = _make_qr_data_uri(profile_link)
+
+    if html and settings.DEBUG:
+        return HTMLResponse(_render_html("profile_card.html", template_context))
 
     image_bytes = await _render_card("profile_card.html", template_context)
 

@@ -37,6 +37,7 @@ BLOCKED_NETWORKS = [
     ipaddress.ip_network("::1/128"),        # IPv6 loopback
     ipaddress.ip_network("fc00::/7"),       # IPv6 ULA
     ipaddress.ip_network("fe80::/10"),      # IPv6 link-local
+    ipaddress.ip_network("fec0::/10"),      # IPv6 site-local (deprecated)
 ]
 
 
@@ -414,10 +415,15 @@ async def update_profile(
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found")
 
-    # Validate avatar_url if switching to/retaining url type
+    # Validate avatar_url only when avatar_type or avatar_url changes so users
+    # with an old or dead saved URL can still update other fields like bio.
     effective_avatar_type = request.avatar_type if request.avatar_type is not None else profile.avatar_type
     effective_avatar_url = request.avatar_url if request.avatar_url is not None else profile.avatar_url
-    if effective_avatar_type == "url" and effective_avatar_url:
+    avatar_changed = (
+        effective_avatar_type != profile.avatar_type
+        or effective_avatar_url != profile.avatar_url
+    )
+    if avatar_changed and effective_avatar_type == "url" and effective_avatar_url:
         if await resolve_safe_ip(effective_avatar_url) is None:
             raise HTTPException(status_code=400, detail="Invalid Avatar URL: Only public HTTPS URLs are allowed")
 
