@@ -9,7 +9,7 @@ manager falls back to local-only delivery (single-instance mode).
 import asyncio
 import json
 import logging
-import os
+import uuid
 from collections import defaultdict
 from dataclasses import dataclass, field
 
@@ -63,7 +63,7 @@ class WebSocketManager:
         self._redis = None
         self._pubsub = None
         self._subscriber_task: asyncio.Task | None = None
-        self._instance_id = f"{os.getpid()}"
+        self._instance_id = str(uuid.uuid4())
 
     # ------------------------------------------------------------------
     # Redis Pub/Sub lifecycle

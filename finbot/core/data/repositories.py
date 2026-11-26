@@ -353,6 +353,11 @@ class VendorRepository(NamespacedRepository):
         if not vendor:
             return False
 
+        # Refuse deletion if vendor has related invoices (NOT NULL FK constraint)
+        invoice_count = self.db.query(Invoice).filter(Invoice.vendor_id == vendor_id).count()
+        if invoice_count > 0:
+            return False
+
         self.db.delete(vendor)
         self.db.commit()
 

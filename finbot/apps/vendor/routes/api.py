@@ -291,7 +291,10 @@ async def delete_vendor(
         success = vendor_repo.delete_vendor(vendor_id)
 
         if not success:
-            raise HTTPException(status_code=500, detail="Failed to delete vendor")
+            raise HTTPException(
+                status_code=409,
+                detail="Cannot delete vendor: related invoices or records exist",
+            )
 
         await event_bus.emit_business_event(
             event_type="vendor.deleted",
