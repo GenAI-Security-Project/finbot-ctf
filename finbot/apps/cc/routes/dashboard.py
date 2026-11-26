@@ -58,7 +58,7 @@ def _get_pulse_stats() -> dict:
 
 @router.get("/", response_class=HTMLResponse)
 async def desktop(request: Request):
-    """CC desktop - OS-style launcher with pulse, health, and app grid"""
+    """CC desktop — OS-style launcher with pulse, health, and app grid"""
     pulse = _get_pulse_stats()
     apps = []
 
