@@ -70,5 +70,10 @@ detector_config:
   delete_tool: delete_file
   delete_server: findrive
 
+planted_in:
+  - finbot/apps/darklab/routes/api.py
+  - finbot/mcp/factory.py
+  - finbot/agents/specialized/fraud.py
+
 is_active: true
 order_index: 12

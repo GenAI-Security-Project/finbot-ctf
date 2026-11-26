@@ -82,5 +82,10 @@ detector_config:
       mcp_server: systemutils
       fields: [url, body, headers]
 
+planted_in:
+  - finbot/apps/darklab/routes/api.py
+  - finbot/mcp/factory.py
+  - finbot/agents/specialized/fraud.py
+
 is_active: true
 order_index: 14
