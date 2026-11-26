@@ -52,7 +52,16 @@ class SessionMiddleware(BaseHTTPMiddleware):
         # Process request
         response = await call_next(request)
 
-        if (
+        # A route that sets the session cookie itself (sign-in) knows which session
+        # is current. session_context was captured before the route ran and may
+        # point at a session the route has since deleted.
+        cookie_prefix = f"{settings.SESSION_COOKIE_NAME}=".encode()
+        route_set_cookie = any(
+            name == b"set-cookie" and value.startswith(cookie_prefix)
+            for name, value in response.raw_headers
+        )
+
+        if not route_set_cookie and (
             session_context.needs_cookie_update
             or session_context.was_rotated
             or status in ["session_created", "session_rotated"]
