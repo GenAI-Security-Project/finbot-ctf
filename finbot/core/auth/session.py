@@ -539,6 +539,44 @@ class SessionManager:
             if own_db:
                 db.close()
 
+    def get_session_identity(self, session_id: str) -> tuple[str, str] | None:
+        """Resolve a session cookie to (namespace, user_id) without side effects.
+
+        For callers that can't set a cookie on the response (WebSocket
+        handshakes). Unlike get_session, this never rotates, deletes or
+        touches the session, so the browser's cookie stays valid.
+        """
+        if not session_id:
+            return None
+        db = SessionLocal()
+        try:
+            session = (
+                db.query(UserSession)
+                .filter(UserSession.session_id == session_id)
+                .first()
+            )
+            if not session or session.is_expired():
+                return None
+            if not self._verify_session_signature(
+                session.session_data, session.signature
+            ):
+                return None
+            max_age = (
+                settings.MAX_TEMP_SESSION_AGE
+                if session.is_temporary
+                else settings.MAX_PERM_SESSION_AGE
+            )
+            created_at = (
+                session.created_at
+                if session.created_at.tzinfo
+                else session.created_at.replace(tzinfo=UTC)
+            )
+            if (datetime.now(UTC) - created_at).total_seconds() > max_age:
+                return None
+            return session.namespace, session.user_id
+        finally:
+            db.close()
+
     def _rotate_session(
         self, old_context: SessionContext, db: Session
     ) -> SessionContext:

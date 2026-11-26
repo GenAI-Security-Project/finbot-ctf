@@ -3,10 +3,11 @@
 import json
 import logging
 
-from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, status
 from pydantic import BaseModel
 
 from finbot.config import settings
+from finbot.core.auth.session import session_manager
 from finbot.core.websocket.events import WSEvent, WSEventType
 from finbot.core.websocket.manager import get_ws_manager
 
@@ -55,23 +56,27 @@ async def push_test_event(req: TestEventRequest):
 
 
 @router.websocket("/connect")
-async def websocket_endpoint(
-    websocket: WebSocket,
-    namespace: str = Query(...),
-    user_id: str = Query(...),
-):
+async def websocket_endpoint(websocket: WebSocket):
     """
     WebSocket endpoint for real-time updates.
 
-    Query params:
-    - namespace: User's namespace
-    - user_id: User's ID
+    The user is identified from the session cookie sent on the handshake.
+    Connections without a valid session are closed with 1008.
 
     Message format (JSON):
-    - {"action": "subscribe", "topic": "..."}
+    - {"action": "subscribe", "topic": "..."}  (own activity topic only)
     - {"action": "unsubscribe", "topic": "..."}
     - {"action": "ping"}
     """
+    identity = session_manager.get_session_identity(
+        websocket.cookies.get(settings.SESSION_COOKIE_NAME)
+    )
+    if not identity:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+    namespace, user_id = identity
+    own_topic = f"activity:{namespace}:{user_id}"
+
     manager = get_ws_manager()
     connection_id = await manager.connect(websocket, user_id, namespace)
 
@@ -86,8 +91,16 @@ async def websocket_endpoint(
 
                 if action == "subscribe":
                     topic = message.get("topic")
-                    if topic:
+                    if topic == own_topic:
                         await manager.subscribe(connection_id, topic)
+                    elif topic:
+                        await manager.send_to_connection(
+                            connection_id,
+                            WSEvent(
+                                type=WSEventType.ERROR,
+                                data={"message": "Not allowed to subscribe to this topic"},
+                            ),
+                        )
 
                 elif action == "unsubscribe":
                     topic = message.get("topic")

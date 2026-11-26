@@ -276,12 +276,10 @@ class CTFSidecar {
 
     // WebSocket for live updates
     connectWebSocket() {
-        // Get namespace and user_id from session (you'll need to expose these)
-        const namespace = window.CTF_NAMESPACE || 'default';
-        const userId = window.CTF_USER_ID || 'anonymous';
-
+        // The server identifies the user from the session cookie and
+        // auto-subscribes the connection to its activity topic.
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${wsProtocol}//${window.location.host}/ws/connect?namespace=${namespace}&user_id=${userId}`;
+        const wsUrl = `${wsProtocol}//${window.location.host}/ws/connect`;
 
         try {
             this.ws = new WebSocket(wsUrl);
@@ -289,12 +287,6 @@ class CTFSidecar {
             this.ws.onopen = () => {
                 console.log('CTF Sidecar: WebSocket connected');
                 this.updateWsStatus('Connected', true);
-
-                // Subscribe to activity topic (server auto-subscribes, but explicit is fine)
-                this.ws.send(JSON.stringify({
-                    action: 'subscribe',
-                    topic: `activity:${namespace}:${userId}`
-                }));
             };
 
             this.ws.onmessage = (event) => {
