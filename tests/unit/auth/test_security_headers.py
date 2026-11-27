@@ -1,6 +1,9 @@
 """Unit tests for security response headers and /api/session/status."""
 
 import pytest
+from starlette.responses import Response
+
+from finbot.core.auth.middleware import SessionMiddleware
 
 
 @pytest.mark.unit
@@ -22,6 +25,21 @@ def test_security_headers_present_and_xss_protection_removed(fast_client):
     assert "https://fonts.gstatic.com" in csp
     assert "img-src 'self' data: https:" in csp
     assert "connect-src 'self' ws: wss:" in csp
+
+
+@pytest.mark.unit
+def test_session_middleware_add_security_headers_unit():
+    """Direct check of SessionMiddleware._add_security_headers."""
+    middleware = SessionMiddleware(app=lambda scope, receive, send: None)
+    resp = Response()
+
+    middleware._add_security_headers(resp)
+
+    assert resp.headers["X-Content-Type-Options"] == "nosniff"
+    assert resp.headers["X-Frame-Options"] == "DENY"
+    assert resp.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+    assert "X-XSS-Protection" not in resp.headers
+    assert "img-src 'self' data: https:" in resp.headers["Content-Security-Policy"]
 
 
 @pytest.mark.unit
