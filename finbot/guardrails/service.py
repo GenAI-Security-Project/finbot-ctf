@@ -7,6 +7,7 @@ execution on the verdict.
 
 import hashlib
 import hmac
+import json
 import logging
 import time
 from datetime import UTC, datetime
@@ -71,6 +72,112 @@ class GuardrailHookService:
         return hooks.get(kind.value, False)
 
     @staticmethod
+    def _truncate_str_field(
+        envelope: HookEnvelope,
+        envelope_data: dict[str, Any],
+        assign: Any,
+        value: str,
+        budget: int,
+    ) -> bytes:
+        """Binary-search the longest prefix of `value` whose serialized envelope fits `budget`."""
+        lo, hi = 0, len(value)
+        best: bytes | None = None
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            assign(value[:mid])
+            candidate = envelope.model_copy(update=envelope_data).model_dump_json().encode()
+            if len(candidate) <= budget:
+                best = candidate
+                lo = mid + 1
+            else:
+                hi = mid - 1
+        if best is not None:
+            assign(value[:hi])
+            return best
+        assign("")
+        return envelope.model_copy(update=envelope_data).model_dump_json().encode()
+
+    @classmethod
+    def _serialize_bounded_envelope(
+        cls, envelope: HookEnvelope, max_payload: int
+    ) -> tuple[bytes, bool, int]:
+        """Serialize `envelope` as valid JSON fitting within `max_payload` bytes."""
+        body_bytes = envelope.model_dump_json().encode()
+        original_size = len(body_bytes)
+        if original_size <= max_payload:
+            return body_bytes, False, original_size
+
+        envelope_data = envelope.model_dump()
+
+        # 1. Shrink large string fields (response / result / prompt).
+        for field in ("model_output", "tool_result", "user_message"):
+            val = envelope_data.get(field)
+            if isinstance(val, str) and val and len(body_bytes) > max_payload:
+                body_bytes = cls._truncate_str_field(
+                    envelope,
+                    envelope_data,
+                    lambda s, f=field: envelope_data.__setitem__(f, s),
+                    val,
+                    max_payload,
+                )
+
+        # 2. Shrink tool_arguments (before_tool / after_tool payloads).
+        tool_args = envelope_data.get("tool_arguments")
+        if isinstance(tool_args, dict) and tool_args and len(body_bytes) > max_payload:
+            args = dict(tool_args)
+            envelope_data["tool_arguments"] = args
+            # Trim largest string values first so small metadata keys stay intact.
+            str_keys = sorted(
+                (k for k, v in args.items() if isinstance(v, str) and v),
+                key=lambda k: len(args[k]),
+                reverse=True,
+            )
+            for key in str_keys:
+                if len(body_bytes) <= max_payload:
+                    break
+                body_bytes = cls._truncate_str_field(
+                    envelope,
+                    envelope_data,
+                    lambda s, k=key: args.__setitem__(k, s),
+                    args[key],
+                    max_payload,
+                )
+
+            if len(body_bytes) > max_payload:
+                for marker in ({"_truncated": True}, {}, None):
+                    envelope_data["tool_arguments"] = marker
+                    body_bytes = (
+                        envelope.model_copy(update=envelope_data).model_dump_json().encode()
+                    )
+                    if len(body_bytes) <= max_payload:
+                        break
+
+        # 3. Minimal valid JSON fallback if envelope metadata itself exceeds max_payload.
+        if len(body_bytes) > max_payload:
+            for field in (
+                "model_output",
+                "tool_result",
+                "user_message",
+                "tool_arguments",
+                "model",
+                "tool_source",
+                "tool_name",
+            ):
+                envelope_data[field] = None
+            body_bytes = envelope.model_copy(update=envelope_data).model_dump_json().encode()
+
+        if len(body_bytes) > max_payload:
+            minimal = json.dumps(
+                {"hook_kind": envelope.hook_kind.value, "truncated": True}
+            ).encode()
+            if len(minimal) <= max_payload:
+                body_bytes = minimal
+            else:
+                body_bytes = b'{"truncated":true}'
+
+        return body_bytes, True, original_size
+
+    @staticmethod
     def _sign_payload(body: bytes, secret: str, timestamp: str) -> str:
         """HMAC-SHA256 of 'timestamp.body' using the stored secret."""
         message = f"{timestamp}.".encode() + body
@@ -94,9 +201,7 @@ class GuardrailHookService:
         NOT branch on the outcome (execution always proceeds).
         """
         if not self._is_hook_enabled(kind):
-            return (
-                HookOutcome.no_config if not self._config else HookOutcome.hook_disabled
-            )
+            return HookOutcome.no_config if not self._config else HookOutcome.hook_disabled
 
         config = self._config
         assert config is not None  # _is_hook_enabled guarantees this
@@ -116,18 +221,18 @@ class GuardrailHookService:
             timestamp=timestamp,
         )
 
-        body_bytes = envelope.model_dump_json().encode()
-
         max_payload = settings.LABS_GUARDRAIL_MAX_PAYLOAD_BYTES
-        if len(body_bytes) > max_payload:
+        body_bytes, was_truncated, original_size = self._serialize_bounded_envelope(
+            envelope, max_payload
+        )
+        if was_truncated:
             logger.info(
-                "guardrail payload truncated: %d -> %d bytes, hook=%s tool=%s",
+                "guardrail payload truncated (field-level): %d -> %d bytes, hook=%s tool=%s",
+                original_size,
                 len(body_bytes),
-                max_payload,
                 kind.value,
                 tool_name,
             )
-            body_bytes = body_bytes[:max_payload]
 
         signature = self._sign_payload(body_bytes, config.signing_secret, timestamp)
 
@@ -136,6 +241,9 @@ class GuardrailHookService:
             "X-Guardrail-Signature": signature,
             "X-Guardrail-Timestamp": timestamp,
         }
+        if was_truncated:
+            headers["X-Guardrail-Truncated"] = "true"
+            headers["X-Guardrail-Full-Size"] = str(original_size)
 
         start = time.monotonic()
         outcome: HookOutcome
