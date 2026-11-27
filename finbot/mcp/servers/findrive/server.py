@@ -33,6 +33,11 @@ def _is_vendor_session(session_context: SessionContext) -> bool:
     return session_context.is_vendor_portal()
 
 
+def _is_unsafe_path(path: str) -> bool:
+    """True if any segment of the path is '..' (either slash style)."""
+    return ".." in path.replace("\\", "/").split("/")
+
+
 def create_findrive_server(
     session_context: SessionContext,
     server_config: dict[str, Any] | None = None,
@@ -55,6 +60,15 @@ def create_findrive_server(
         retrieval. Use this for storing invoice PDFs, receipts, and supporting
         documentation.
         """
+        if not filename.strip():
+            raise ValueError("filename must not be empty")
+        if filename.startswith(("/", "\\")) or _is_unsafe_path(filename):
+            return {"error": "filename must not contain path traversal sequences"}
+        if _is_unsafe_path(folder):
+            return {"error": "folder must not contain path traversal sequences"}
+        if not content.strip():
+            raise ValueError("content must not be empty")
+
         max_size = config.get("max_file_size_kb", 500) * 1024
         if len(content.encode("utf-8")) > max_size:
             return {"error": f"File exceeds maximum size of {config.get('max_file_size_kb', 500)}KB"}
@@ -124,6 +138,9 @@ def create_findrive_server(
         Returns document metadata (not content) for files in the specified folder.
         Use get_file to retrieve the extracted text of a specific document.
         """
+        if limit < 0:
+            raise ValueError(f"limit must be non-negative, got {limit}")
+
         with db_session() as db:
             repo = FinDriveFileRepository(db, session_context)
 
@@ -177,6 +194,9 @@ def create_findrive_server(
         Returns documents whose filename or extracted text matches the query.
         Useful for finding relevant invoice PDFs and supporting documents.
         """
+        if limit < 0:
+            raise ValueError(f"limit must be non-negative, got {limit}")
+
         with db_session() as db:
             repo = FinDriveFileRepository(db, session_context)
             files = repo.search_files(query, limit=limit)
