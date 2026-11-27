@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
 
 from finbot.agents.runner import run_orchestrator_agent
 from finbot.core.auth.middleware import get_session_context
@@ -22,6 +23,9 @@ from finbot.mcp.servers.finmail.repositories import EmailRepository
 
 # Create API router
 router = APIRouter(prefix="/api/v1", tags=["vendor-api"])
+
+# Approved and paid invoices are locked; rejected and held (processing) ones can be fixed
+EDITABLE_INVOICE_STATUSES = ("submitted", "processing", "rejected")
 
 
 class VendorRegistrationRequest(BaseModel):
@@ -288,7 +292,19 @@ async def delete_vendor(
             )
 
         company_name = vendor.company_name
-        success = vendor_repo.delete_vendor(vendor_id)
+        try:
+            success = vendor_repo.delete_vendor(vendor_id)
+        except IntegrityError as e:
+            # Invoices, files and emails still point at this vendor, so the
+            # database won't let the row go. Say so instead of a bare 500.
+            db.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "This vendor has invoices, files or messages linked to it "
+                    "and can't be deleted"
+                ),
+            ) from e
 
         if not success:
             raise HTTPException(status_code=500, detail="Failed to delete vendor")
@@ -654,6 +670,13 @@ async def update_invoice(
         # Verify invoice belongs to current vendor
         if invoice.vendor_id != session_context.current_vendor_id:
             raise HTTPException(status_code=403, detail="Access denied")
+
+        # Approved/paid invoices are locked so the amount can't change after review
+        if invoice.status not in EDITABLE_INVOICE_STATUSES:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Invoice can't be edited once it is {invoice.status}",
+            )
 
         # Build update dict from non-None values (status not editable by vendors)
         updates = {}
