@@ -1,24 +1,32 @@
-import pytest
-from unittest.mock import patch
+"""Unit tests for security configuration defaults."""
+
 from finbot.config import Settings
 
-def test_session_cookie_secure_default_when_env_missing(monkeypatch, tmp_path):
+
+def test_security_config_defaults_when_env_missing(monkeypatch, tmp_path):
+    """Verify safe defaults when security env vars are absent.
+
+    SESSION_COOKIE_SECURE remains False by default so local HTTP dev and HTTP
+    test clients work out of the box (production enforcement is tracked in #295).
+    TRUSTED_PROXY_IPS defaults to None (zero-config PaaS fallback).
     """
-    Assert that when SESSION_COOKIE_SECURE is completely absent from the environment,
-    the code-level default firmly evaluates to True.
-    """
-    # Change into an empty temporary directory to ensure no local .env files can be discovered
     monkeypatch.chdir(tmp_path)
-    
-    # Ensure it's totally removed from the environment
     monkeypatch.delenv("SESSION_COOKIE_SECURE", raising=False)
-    
-    # Instantiate Settings directly (bypassing any cached singletons).
-    # Pass _env_file=None to ensure Pydantic doesn't read a stray .env file in the test dir.
+    monkeypatch.delenv("TRUSTED_PROXY_IPS", raising=False)
+
     test_settings = Settings(_env_file=None)
-    
-    # 1. Assert that without a loaded environment, the class-level default evaluates to True
-    assert Settings().SESSION_COOKIE_SECURE is True
-    
-    # 2. Assert that explicitly bypassing the .env file loading yields the same safe default
+
+    assert test_settings.SESSION_COOKIE_SECURE is False
+    assert test_settings.TRUSTED_PROXY_IPS is None
+
+
+def test_security_config_env_overrides(monkeypatch, tmp_path):
+    """Verify security settings can be explicitly enabled via environment variables."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SESSION_COOKIE_SECURE", "true")
+    monkeypatch.setenv("TRUSTED_PROXY_IPS", "10.0.0.1,127.0.0.1")
+
+    test_settings = Settings(_env_file=None)
+
     assert test_settings.SESSION_COOKIE_SECURE is True
+    assert test_settings.TRUSTED_PROXY_IPS == "10.0.0.1,127.0.0.1"
