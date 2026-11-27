@@ -8,10 +8,16 @@ Covers the fix for #547:
   5. unknown tool name is handled gracefully (no crash)
 """
 
-import pytest
+import logging
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+from fastmcp import Client
+
+from finbot.core.auth.session import SessionContext
 from finbot.mcp.factory import _apply_tool_overrides
+from finbot.mcp.servers.finstripe.server import create_finstripe_server
 
 
 # ---------------------------------------------------------------------------
@@ -150,3 +156,101 @@ class TestApplyToolOverrides:
 
         # Description must remain untouched, no AttributeError raised
         assert tools["send_email"].description == "original"
+
+    @pytest.mark.asyncio
+    async def test_empty_parameters_dict_strips_schema(self):
+        """An explicit empty dict {} for parameters must clear the schema, not be ignored."""
+        original = {"properties": {"amount": {"type": "number"}}, "required": ["amount"]}
+        server, tools = _make_server({"send_email": {"inputSchema": original}})
+
+        await _apply_tool_overrides(
+            server,
+            {"send_email": {"parameters": {}}},
+        )
+
+        assert tools["send_email"].parameters == {}
+        assert tools["send_email"].inputSchema == {}
+
+    @pytest.mark.asyncio
+    async def test_empty_parameters_dict_does_not_fall_back_to_input_schema(self):
+        """Explicit parameters={} must take precedence over inputSchema."""
+        server, tools = _make_server({"send_email": {}})
+
+        await _apply_tool_overrides(
+            server,
+            {
+                "send_email": {
+                    "parameters": {},
+                    "inputSchema": {"properties": {"cc": {"type": "string"}}},
+                }
+            },
+        )
+
+        assert tools["send_email"].parameters == {}
+
+    @pytest.mark.asyncio
+    async def test_non_dict_parameters_is_skipped(self):
+        """A non-dict parameters value must be skipped without breaking the tool."""
+        original = {"properties": {"to": {"type": "string"}}, "required": ["to"]}
+        server, tools = _make_server({"send_email": {"inputSchema": original}})
+
+        await _apply_tool_overrides(
+            server,
+            {"send_email": {"parameters": "not-a-dict"}},
+        )
+
+        assert tools["send_email"].parameters == original
+
+    @pytest.mark.asyncio
+    async def test_apply_error_not_logged_as_tool_not_found(self, caplog):
+        """Errors while applying an override should not be reported as tool not found."""
+        tool = MagicMock()
+        type(tool).description = property(
+            fget=lambda self: "orig",
+            fset=lambda self, val: (_ for _ in ()).throw(ValueError("bad description")),
+        )
+        provider = MagicMock()
+        provider.get_tool = AsyncMock(return_value=tool)
+        server = MagicMock()
+        server.providers = [provider]
+
+        with caplog.at_level(logging.DEBUG, logger="finbot.mcp.factory"):
+            await _apply_tool_overrides(server, {"send_email": {"description": "x"}})
+
+        assert "not found" not in caplog.text.lower()
+        assert "failed to apply override" in caplog.text.lower()
+
+    @pytest.mark.asyncio
+    async def test_real_fastmcp_server_applies_parameters_and_empty_dict(self):
+        """Verify parameters and empty {} overrides reach FastMCP tools/list wire schema."""
+        now = datetime.now(UTC)
+        ctx = SessionContext(
+            session_id="s_override",
+            user_id="u_override",
+            is_temporary=True,
+            namespace="ns_override",
+            created_at=now,
+            expires_at=now + timedelta(hours=1),
+        )
+        server = create_finstripe_server(ctx)
+        custom_schema = {
+            "type": "object",
+            "properties": {"note": {"type": "string"}},
+            "required": ["note"],
+        }
+
+        await _apply_tool_overrides(
+            server,
+            {"create_transfer": {"parameters": custom_schema}},
+        )
+        async with Client(server) as mcp_client:
+            tools = {t.name: t.inputSchema for t in await mcp_client.list_tools()}
+        assert tools["create_transfer"] == custom_schema
+
+        await _apply_tool_overrides(
+            server,
+            {"create_transfer": {"parameters": {}}},
+        )
+        async with Client(server) as mcp_client:
+            tools = {t.name: t.inputSchema for t in await mcp_client.list_tools()}
+        assert tools["create_transfer"] == {}

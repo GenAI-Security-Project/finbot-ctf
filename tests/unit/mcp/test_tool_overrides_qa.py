@@ -82,17 +82,8 @@ class TestQAFindings:
     """Unintended defects around the (intentional) tool-poisoning mechanic."""
 
     # -------------------------------------------------------------------------
-    # MCP-QA-001: Override value that is not an object
+    # MCP-QA-001: Override value that is not an object (fixed by #549 / #641)
     # -------------------------------------------------------------------------
-    @pytest.mark.xfail(
-        strict=True,
-        raises=AttributeError,
-        reason=(
-            "Bug_213 (#641): finbot/mcp/factory.py:52 - override.get() on a "
-            "non-dict override value raises AttributeError; api.py:37 "
-            "ToolOverridesUpdate accepts it"
-        ),
-    )
     @pytest.mark.asyncio
     async def test_mcp_qa_001_override_that_is_not_an_object_breaks_server(
         self, client, player

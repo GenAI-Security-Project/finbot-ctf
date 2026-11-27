@@ -62,31 +62,54 @@ async def _apply_tool_overrides(server: FastMCP, overrides: dict) -> None:
             continue
 
         new_description = override.get("description")
-        new_parameters = override.get("parameters") or override.get("inputSchema")
+        new_parameters = override.get("parameters")
+        if new_parameters is None:
+            new_parameters = override.get("inputSchema")
 
         if new_description is None and new_parameters is None:
             continue
 
         try:
             tool = await provider.get_tool(tool_name)
-            if tool:
-                if new_description:
-                    tool.description = new_description
-                if new_parameters:
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            logger.debug("Failed to look up tool '%s' for override: %s", tool_name, exc)
+            continue
+
+        if not tool:
+            logger.debug("Tool '%s' not found for override", tool_name)
+            continue
+
+        applied = []
+        try:
+            if new_description is not None:
+                tool.description = new_description
+                applied.append("description")
+            if new_parameters is not None:
+                if not isinstance(new_parameters, dict):
+                    logger.warning(
+                        "Skipping invalid non-dict parameters override for '%s'",
+                        tool_name,
+                    )
+                else:
                     if hasattr(tool, "parameters"):
                         tool.parameters = new_parameters
                     if hasattr(tool, "inputSchema"):
                         tool.inputSchema = new_parameters
                     if not (hasattr(tool, "parameters") or hasattr(tool, "inputSchema")):
                         setattr(tool, "parameters", new_parameters)
-                applied = ", ".join(
-                    k for k, v in [("description", new_description), ("parameters", new_parameters)] if v
-                )
-                logger.debug(
-                    "Applied tool override for '%s': %s updated", tool_name, applied
-                )
-        except Exception:
-            logger.debug("Tool '%s' not found for override", tool_name)
+                    applied.append("parameters")
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            logger.warning(
+                "Failed to apply override for tool '%s': %s", tool_name, exc
+            )
+            continue
+
+        if applied:
+            logger.debug(
+                "Applied tool override for '%s': %s updated",
+                tool_name,
+                ", ".join(applied),
+            )
 
 
 async def create_mcp_server(
