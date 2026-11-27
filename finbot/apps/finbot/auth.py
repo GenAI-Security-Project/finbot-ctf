@@ -1,10 +1,14 @@
 """Authentication routes for magic link sign-in"""
 
 import secrets
+import time
+from collections import defaultdict
 from datetime import UTC, datetime, timedelta
+from threading import Lock
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+from pydantic import EmailStr, TypeAdapter, ValidationError
 
 from finbot.config import settings
 from finbot.core.auth.session import session_manager
@@ -16,6 +20,42 @@ from finbot.core.templates import TemplateResponse
 template_response = TemplateResponse("finbot/apps/finbot/templates")
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+email_adapter = TypeAdapter(EmailStr)
+
+# Per-IP rate limiter: 5 requests / 60 s on the magic-link endpoint.
+# Stdlib only; no new dependencies.
+# TODO: Replace with a Redis-backed limiter (e.g. slowapi + limits) for
+# multi-worker deployments where each worker keeps its own process memory.
+# Also relies on request.client.host: if TRUSTED_PROXY_IPS is unset, the edge
+# proxy must strip inbound X-Forwarded-For headers to prevent rate-limit bypass.
+_RATE_LIMIT_WINDOW = 60  # seconds
+_RATE_LIMIT_MAX = 5  # requests per window
+_MAX_STORE_SIZE = 10000  # Max IPs to track before eviction
+_rate_store: dict[str, list[float]] = defaultdict(list)
+_rate_lock = Lock()
+
+
+def _is_rate_limited(ip: str) -> bool:
+    """Return True if `ip` has exceeded the magic-link rate limit."""
+    now = time.monotonic()
+    cutoff = now - _RATE_LIMIT_WINDOW
+    with _rate_lock:
+        if len(_rate_store) >= _MAX_STORE_SIZE:
+            # Simple eviction: clear expired entries first
+            for k in list(_rate_store.keys()):
+                _rate_store[k] = [t for t in _rate_store[k] if t > cutoff]
+                if not _rate_store[k]:
+                    del _rate_store[k]
+            # If still full, clear the entire store to prevent unbounded growth
+            if len(_rate_store) >= _MAX_STORE_SIZE:
+                _rate_store.clear()
+
+        _rate_store[ip] = [t for t in _rate_store[ip] if t > cutoff]
+        if len(_rate_store[ip]) >= _RATE_LIMIT_MAX:
+            return True
+        _rate_store[ip].append(now)
+        return False
 
 
 def _is_authenticated(request: Request) -> bool:
@@ -34,6 +74,32 @@ async def request_magic_link(
         return RedirectResponse(url="/portals", status_code=303)
 
     email = email.lower().strip()
+
+    try:
+        email_adapter.validate_python(email)
+    except ValidationError:
+        return template_response(
+            request,
+            "auth-error.html",
+            {
+                "error": "Invalid email",
+                "message": "Please enter a valid email address.",
+            },
+            status_code=400,
+        )
+
+    client_ip = request.client.host if request.client else "unknown"
+    if _is_rate_limited(client_ip):
+        return template_response(
+            request,
+            "auth-error.html",
+            {
+                "error": "Too many requests",
+                "message": "Please wait a moment before requesting another sign-in link.",
+            },
+            status_code=429,
+        )
+
     db = SessionLocal()
     try:
         # Get current session to link with token
