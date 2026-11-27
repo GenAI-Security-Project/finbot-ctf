@@ -16,8 +16,8 @@ const InvoiceState = {
     driveFiles: [],
 };
 
-// Processing, approved, and paid invoices are locked; rejected ones can be fixed and re-processed
-const EDITABLE_INVOICE_STATUSES = ['submitted', 'rejected'];
+// Approved and paid invoices are locked; rejected and held (processing) ones can be fixed
+const EDITABLE_INVOICE_STATUSES = ['submitted', 'processing', 'rejected'];
 
 function canEditInvoice(invoice) {
     return EDITABLE_INVOICE_STATUSES.includes(invoice.status);

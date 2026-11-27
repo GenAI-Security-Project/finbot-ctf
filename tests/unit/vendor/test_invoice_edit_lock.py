@@ -33,7 +33,7 @@ def _put(client, session, invoice_id, payload):
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("status", ["submitted", "rejected"])
+@pytest.mark.parametrize("status", ["submitted", "processing", "rejected"])
 def test_open_invoice_can_be_edited(fast_client, vendor_pair_setup, status):
     s1, db = vendor_pair_setup["s1"], vendor_pair_setup["db"]
     invoice_id = _create_invoice(db, s1, status)
@@ -46,8 +46,8 @@ def test_open_invoice_can_be_edited(fast_client, vendor_pair_setup, status):
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("status", ["processing", "approved", "paid"])
-def test_locked_invoice_cannot_be_edited(fast_client, vendor_pair_setup, status):
+@pytest.mark.parametrize("status", ["approved", "paid"])
+def test_approved_or_paid_invoice_cannot_be_edited(fast_client, vendor_pair_setup, status):
     s1, db = vendor_pair_setup["s1"], vendor_pair_setup["db"]
     invoice_id = _create_invoice(db, s1, status)
 
