@@ -165,13 +165,6 @@ class BaseAgent(ABC):
                                         **tool_call["arguments"]
                                     )
                                     logger.debug("Function output: %s", function_output)
-                                    if tool_call_name == "complete_task":
-                                        # this will end the agent loop and
-                                        # return the task status and summary
-                                        await self.log_task_completion(
-                                            task_result=function_output
-                                        )
-                                        return function_output
                                 except Exception as e:  # pylint: disable=broad-exception-caught
                                     logger.error(
                                         "Tool call %s failed: %s", tool_call["name"], e
@@ -187,6 +180,13 @@ class BaseAgent(ABC):
                                     tool_arguments=tool_call.get("arguments"),
                                     tool_result=str(function_output),
                                 )
+                                if tool_call_name == "complete_task":
+                                    # this will end the agent loop and
+                                    # return the task status and summary
+                                    await self.log_task_completion(
+                                        task_result=function_output
+                                    )
+                                    return function_output
                             else:
                                 # Emit invalid tool call event
                                 await event_bus.emit_agent_event(

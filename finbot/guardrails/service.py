@@ -76,6 +76,58 @@ class GuardrailHookService:
         message = f"{timestamp}.".encode() + body
         return hmac.new(secret.encode(), message, hashlib.sha256).hexdigest()
 
+    @staticmethod
+    def _truncate_payload(envelope: HookEnvelope, max_bytes: int) -> bytes:
+        """Truncate envelope fields while preserving valid JSON output."""
+        body_bytes = envelope.model_dump_json().encode()
+        if len(body_bytes) <= max_bytes:
+            return body_bytes
+
+        # Truncate largest text fields first
+        for field in ("tool_result", "model_output", "user_message"):
+            val = getattr(envelope, field, None)
+            if val and isinstance(val, str):
+                excess = len(body_bytes) - max_bytes
+                suffix = "...[truncated]"
+                allowed = max(0, len(val) - excess - len(suffix) - 16)
+                setattr(envelope, field, val[:allowed] + suffix if allowed > 0 else suffix)
+                body_bytes = envelope.model_dump_json().encode()
+                if len(body_bytes) <= max_bytes:
+                    return body_bytes
+
+        # Truncate string values in tool_arguments if still over
+        if envelope.tool_arguments and isinstance(envelope.tool_arguments, dict):
+            excess = len(body_bytes) - max_bytes
+            truncated_args = {}
+            for k, v in envelope.tool_arguments.items():
+                if isinstance(v, str) and len(v) > 50:
+                    allowed = max(0, len(v) - excess - 20)
+                    truncated_args[k] = v[:allowed] + "...[truncated]"
+                else:
+                    truncated_args[k] = v
+            envelope.tool_arguments = truncated_args
+            body_bytes = envelope.model_dump_json().encode()
+            if len(body_bytes) <= max_bytes:
+                return body_bytes
+
+        # Fallback to minimal envelope if still over max_bytes
+        if len(body_bytes) > max_bytes:
+            fallback = HookEnvelope(
+                schema_version=envelope.schema_version,
+                hook_kind=envelope.hook_kind,
+                session_id=envelope.session_id,
+                workflow_id=envelope.workflow_id,
+                tool_name=envelope.tool_name,
+                tool_source=envelope.tool_source,
+                timestamp=envelope.timestamp,
+                tool_result="[truncated]" if envelope.tool_result else None,
+                model_output="[truncated]" if envelope.model_output else None,
+                user_message="[truncated]" if envelope.user_message else None,
+            )
+            return fallback.model_dump_json().encode()
+
+        return body_bytes
+
     async def invoke(
         self,
         kind: HookKind,
@@ -116,18 +168,19 @@ class GuardrailHookService:
             timestamp=timestamp,
         )
 
-        body_bytes = envelope.model_dump_json().encode()
-
         max_payload = settings.LABS_GUARDRAIL_MAX_PAYLOAD_BYTES
-        if len(body_bytes) > max_payload:
+        initial_bytes = envelope.model_dump_json().encode()
+        if len(initial_bytes) > max_payload:
+            body_bytes = self._truncate_payload(envelope, max_payload)
             logger.info(
                 "guardrail payload truncated: %d -> %d bytes, hook=%s tool=%s",
+                len(initial_bytes),
                 len(body_bytes),
-                max_payload,
                 kind.value,
                 tool_name,
             )
-            body_bytes = body_bytes[:max_payload]
+        else:
+            body_bytes = initial_bytes
 
         signature = self._sign_payload(body_bytes, config.signing_secret, timestamp)
 
