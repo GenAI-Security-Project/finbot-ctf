@@ -21,7 +21,6 @@ from finbot.config import settings
 from finbot.guardrails.schemas import HookKind, HookOutcome
 from finbot.guardrails.service import GuardrailHookService
 
-
 # =============================================================================
 # Fixtures
 # =============================================================================
@@ -70,9 +69,7 @@ class TestPayloadTruncation:
 
     @pytest.mark.asyncio
     @patch("finbot.guardrails.service.event_bus")
-    async def test_gwt_trn_001_large_payload_body_is_valid_json(
-        self, mock_bus, service
-    ):
+    async def test_gwt_trn_001_large_payload_body_is_valid_json(self, mock_bus, service):
         """GWT-TRN-001: Large payload truncated at field level — body is valid JSON.
 
         When the serialised envelope exceeds LABS_GUARDRAIL_MAX_PAYLOAD_BYTES,
@@ -110,9 +107,7 @@ class TestPayloadTruncation:
 
             # The model_output field must be present but shorter than the original
             assert "model_output" in parsed
-            assert len(parsed["model_output"]) < len(large_output), (
-                "model_output was not truncated"
-            )
+            assert len(parsed["model_output"]) < len(large_output), "model_output was not truncated"
 
         finally:
             settings.LABS_GUARDRAIL_MAX_PAYLOAD_BYTES = original_limit
@@ -142,9 +137,9 @@ class TestPayloadTruncation:
             call_kwargs = mock_post.call_args.kwargs
             headers = call_kwargs["headers"]
 
-            assert "X-Guardrail-Truncated" not in headers, (
-                "Truncation header present for a payload that did not need truncation"
-            )
+            assert (
+                "X-Guardrail-Truncated" not in headers
+            ), "Truncation header present for a payload that did not need truncation"
             assert "X-Guardrail-Full-Size" not in headers
 
         finally:
@@ -152,9 +147,7 @@ class TestPayloadTruncation:
 
     @pytest.mark.asyncio
     @patch("finbot.guardrails.service.event_bus")
-    async def test_gwt_trn_003_truncation_headers_present_when_truncated(
-        self, mock_bus, service
-    ):
+    async def test_gwt_trn_003_truncation_headers_present_when_truncated(self, mock_bus, service):
         """GWT-TRN-003: X-Guardrail-Truncated and X-Guardrail-Full-Size headers set on truncation."""
         mock_bus.emit_agent_event = AsyncMock()
 
@@ -181,18 +174,16 @@ class TestPayloadTruncation:
 
             assert "X-Guardrail-Full-Size" in headers, "Missing X-Guardrail-Full-Size"
             full_size = int(headers["X-Guardrail-Full-Size"])
-            assert full_size > len(body), (
-                "X-Guardrail-Full-Size should be larger than the truncated body length"
-            )
+            assert full_size > len(
+                body
+            ), "X-Guardrail-Full-Size should be larger than the truncated body length"
 
         finally:
             settings.LABS_GUARDRAIL_MAX_PAYLOAD_BYTES = original_limit
 
     @pytest.mark.asyncio
     @patch("finbot.guardrails.service.event_bus")
-    async def test_gwt_trn_004_hmac_computed_over_truncated_valid_json(
-        self, mock_bus, service
-    ):
+    async def test_gwt_trn_004_hmac_computed_over_truncated_valid_json(self, mock_bus, service):
         """GWT-TRN-004: HMAC signature is computed over the (valid-JSON) truncated body."""
         mock_bus.emit_agent_event = AsyncMock()
 
@@ -224,10 +215,77 @@ class TestPayloadTruncation:
                 config.signing_secret.encode(), expected_msg, hashlib.sha256
             ).hexdigest()
 
-            assert received_sig == expected_sig, (
-                "HMAC signature does not match signature over the truncated body"
-            )
+            assert (
+                received_sig == expected_sig
+            ), "HMAC signature does not match signature over the truncated body"
 
+        finally:
+            settings.LABS_GUARDRAIL_MAX_PAYLOAD_BYTES = original_limit
+
+    @pytest.mark.asyncio
+    @patch("finbot.guardrails.service.event_bus")
+    async def test_gwt_trn_005_before_tool_large_tool_arguments_truncated(self, mock_bus, service):
+        """GWT-TRN-005: Large tool_arguments in before_tool are shortened to fit max_payload."""
+        mock_bus.emit_agent_event = AsyncMock()
+
+        original_limit = settings.LABS_GUARDRAIL_MAX_PAYLOAD_BYTES
+        settings.LABS_GUARDRAIL_MAX_PAYLOAD_BYTES = 500
+
+        try:
+            resp = httpx.Response(200, json={"verdict": "allow"})
+            with patch(
+                "httpx.AsyncClient.post", new_callable=AsyncMock, return_value=resp
+            ) as mock_post:
+                outcome = await service.invoke(
+                    HookKind.before_tool,
+                    tool_name="network_request",
+                    tool_source="mcp",
+                    tool_arguments={
+                        "url": "https://example.com/collect",
+                        "body": "A" * 1000,
+                    },
+                )
+
+            assert outcome == HookOutcome.completed
+            body: bytes = mock_post.call_args.kwargs["content"]
+            headers = mock_post.call_args.kwargs["headers"]
+
+            assert len(body) <= 500
+            parsed = json.loads(body.decode())
+            assert parsed["tool_arguments"]["url"] == "https://example.com/collect"
+            assert len(parsed["tool_arguments"]["body"]) < 1000
+            assert headers["X-Guardrail-Truncated"] == "true"
+        finally:
+            settings.LABS_GUARDRAIL_MAX_PAYLOAD_BYTES = original_limit
+
+    @pytest.mark.asyncio
+    @patch("finbot.guardrails.service.event_bus")
+    async def test_gwt_trn_006_tiny_max_payload_uses_minimal_valid_json_fallback(
+        self, mock_bus, service
+    ):
+        """GWT-TRN-006: Even when envelope overhead exceeds max_payload, body is valid JSON within limit."""
+        mock_bus.emit_agent_event = AsyncMock()
+
+        original_limit = settings.LABS_GUARDRAIL_MAX_PAYLOAD_BYTES
+        settings.LABS_GUARDRAIL_MAX_PAYLOAD_BYTES = 100
+
+        try:
+            resp = httpx.Response(200, json={"verdict": "allow"})
+            with patch(
+                "httpx.AsyncClient.post", new_callable=AsyncMock, return_value=resp
+            ) as mock_post:
+                outcome = await service.invoke(
+                    HookKind.before_tool,
+                    tool_name="network_request",
+                    tool_source="mcp",
+                    tool_arguments={"nested": list(range(100))},
+                )
+
+            assert outcome == HookOutcome.completed
+            body: bytes = mock_post.call_args.kwargs["content"]
+            assert len(body) <= 100
+            parsed = json.loads(body.decode())
+            assert parsed["truncated"] is True
         finally:
             settings.LABS_GUARDRAIL_MAX_PAYLOAD_BYTES = original_limit
 
@@ -240,30 +298,10 @@ class TestPayloadTruncation:
 class TestAfterToolOnCompleteTask:
     """Tests that the after_tool guardrail hook is fired for complete_task."""
 
-    @pytest.mark.asyncio
-    @patch("finbot.guardrails.service.event_bus")
-    async def test_gwt_atl_001_after_tool_fires_for_complete_task(
-        self, mock_bus, session
-    ):
-        """GWT-ATL-001: after_tool hook fires for complete_task before the agent loop exits.
-
-        Before the fix, the agent returned immediately after complete_task
-        succeeded, skipping the after_tool invocation entirely and leaving
-        an unmatched before_tool event.
-        """
+    @staticmethod
+    def _make_agent(session, invoke_fn):
         from finbot.agents.base import BaseAgent
 
-        mock_bus.emit_agent_event = AsyncMock()
-        mock_bus.set_workflow_context = MagicMock()
-        mock_bus.clear_workflow_context = MagicMock()
-
-        hook_calls: list[tuple[HookKind, str | None]] = []
-
-        async def _mock_invoke(kind: HookKind, **kwargs):
-            hook_calls.append((kind, kwargs.get("tool_name")))
-            return HookOutcome.no_config
-
-        # Build a minimal concrete agent
         class MinimalAgent(BaseAgent):
             def _load_config(self):
                 return {}
@@ -284,14 +322,10 @@ class TestAfterToolOnCompleteTask:
                 return await self._run_agent_loop(task_data)
 
         agent = MinimalAgent(session_context=session)
-        # Patch the guardrail service on this instance
-        agent._guardrail_service.invoke = _mock_invoke
-
-        # Patch MCP server connection (no-op)
+        agent._guardrail_service.invoke = invoke_fn
         agent._connect_mcp_servers = AsyncMock()
         agent._disconnect_mcp_servers = AsyncMock()
 
-        # Simulate LLM returning a single complete_task tool call
         fake_tool_call = {
             "name": "complete_task",
             "call_id": "call_001",
@@ -307,31 +341,78 @@ class TestAfterToolOnCompleteTask:
 
         agent.llm_client = MagicMock()
         agent.llm_client.chat = AsyncMock(return_value=mock_response)
+        return agent
 
-        # Run the agent loop
+    @pytest.mark.asyncio
+    @patch("finbot.agents.base.event_bus")
+    @patch("finbot.guardrails.service.event_bus")
+    async def test_gwt_atl_001_after_tool_fires_for_complete_task(
+        self, mock_svc_bus, mock_agent_bus, session
+    ):
+        """GWT-ATL-001: after_tool hook fires for complete_task before the agent loop exits.
+
+        Before the fix, the agent returned immediately after complete_task
+        succeeded, skipping the after_tool invocation entirely and leaving
+        an unmatched before_tool event.
+        """
+        for bus in (mock_svc_bus, mock_agent_bus):
+            bus.emit_agent_event = AsyncMock()
+            bus.set_workflow_context = MagicMock()
+            bus.clear_workflow_context = MagicMock()
+
+        hook_calls: list[tuple[HookKind, str | None]] = []
+
+        async def _mock_invoke(kind: HookKind, **kwargs):
+            hook_calls.append((kind, kwargs.get("tool_name")))
+            return HookOutcome.no_config
+
+        agent = self._make_agent(session, _mock_invoke)
         result = await agent._run_agent_loop(task_data={})
 
         assert result["task_status"] == "success"
 
-        # Both before_tool and after_tool must have been called for complete_task
         before_calls = [
-            (k, t)
-            for k, t in hook_calls
-            if k == HookKind.before_tool and t == "complete_task"
+            (k, t) for k, t in hook_calls if k == HookKind.before_tool and t == "complete_task"
         ]
         after_calls = [
-            (k, t)
-            for k, t in hook_calls
-            if k == HookKind.after_tool and t == "complete_task"
+            (k, t) for k, t in hook_calls if k == HookKind.after_tool and t == "complete_task"
         ]
 
-        assert len(before_calls) >= 1, (
-            "before_tool was not called for complete_task"
-        )
-        assert len(after_calls) >= 1, (
-            "after_tool was never called for complete_task — hook is unpaired"
-        )
-        assert len(before_calls) == len(after_calls), (
-            f"Unmatched before_tool/after_tool pairs: "
-            f"{len(before_calls)} before vs {len(after_calls)} after"
+        assert len(before_calls) == 1
+        assert len(after_calls) == 1
+
+    @pytest.mark.asyncio
+    @patch("finbot.agents.base.event_bus")
+    @patch("finbot.guardrails.service.event_bus")
+    async def test_gwt_atl_002_after_tool_error_on_complete_task_not_treated_as_tool_failure(
+        self, mock_svc_bus, mock_agent_bus, session
+    ):
+        """GWT-ATL-002: An exception in after_tool must not be caught as a tool failure or fire twice."""
+        for bus in (mock_svc_bus, mock_agent_bus):
+            bus.emit_agent_event = AsyncMock()
+            bus.set_workflow_context = MagicMock()
+            bus.clear_workflow_context = MagicMock()
+
+        after_calls = 0
+
+        async def _failing_after_tool(kind: HookKind, **kwargs):
+            nonlocal after_calls
+            if kind == HookKind.after_tool:
+                after_calls += 1
+                raise RuntimeError("guardrail hook exploded")
+            return HookOutcome.no_config
+
+        agent = self._make_agent(session, _failing_after_tool)
+        result = await agent._run_agent_loop(task_data={})
+
+        assert result["task_status"] == "success"
+        assert after_calls == 1
+        mock_agent_bus.emit_agent_event.assert_any_await(
+            agent_name=agent.agent_name,
+            event_type="task_completion",
+            event_subtype="lifecycle",
+            event_data={"task_result": result, "log_data": {}},
+            session_context=session,
+            workflow_id=agent.workflow_id,
+            summary="Agent task completed: success",
         )

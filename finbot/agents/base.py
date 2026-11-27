@@ -155,6 +155,7 @@ class BaseAgent(ABC):
                                     tool_source=tool_source,
                                     tool_arguments=tool_call.get("arguments"),
                                 )
+                                completed = False
                                 try:
                                     logger.debug(
                                         "Calling callable %s with arguments %s",
@@ -165,22 +166,7 @@ class BaseAgent(ABC):
                                         **tool_call["arguments"]
                                     )
                                     logger.debug("Function output: %s", function_output)
-                                    if tool_call_name == "complete_task":
-                                        # Fire after_tool before returning so every
-                                        # before_tool invocation has a matching after_tool.
-                                        await self._guardrail_service.invoke(
-                                            HookKind.after_tool,
-                                            tool_name=tool_call_name,
-                                            tool_source=tool_source,
-                                            tool_arguments=tool_call.get("arguments"),
-                                            tool_result=str(function_output),
-                                        )
-                                        # this will end the agent loop and
-                                        # return the task status and summary
-                                        await self.log_task_completion(
-                                            task_result=function_output
-                                        )
-                                        return function_output
+                                    completed = tool_call_name == "complete_task"
                                 except Exception as e:  # pylint: disable=broad-exception-caught
                                     logger.error(
                                         "Tool call %s failed: %s", tool_call["name"], e
@@ -189,13 +175,26 @@ class BaseAgent(ABC):
                                         "error": f"Tool call {tool_call['name']} \
                                             failed: {str(e)}. Please try again.",
                                     }
-                                await self._guardrail_service.invoke(
-                                    HookKind.after_tool,
-                                    tool_name=tool_call_name,
-                                    tool_source=tool_source,
-                                    tool_arguments=tool_call.get("arguments"),
-                                    tool_result=str(function_output),
-                                )
+                                try:
+                                    await self._guardrail_service.invoke(
+                                        HookKind.after_tool,
+                                        tool_name=tool_call_name,
+                                        tool_source=tool_source,
+                                        tool_arguments=tool_call.get("arguments"),
+                                        tool_result=str(function_output),
+                                    )
+                                except Exception as hook_exc:  # pylint: disable=broad-exception-caught
+                                    logger.warning(
+                                        "Guardrail after_tool hook failed: %s",
+                                        hook_exc,
+                                    )
+                                if completed:
+                                    # this will end the agent loop and
+                                    # return the task status and summary
+                                    await self.log_task_completion(
+                                        task_result=function_output
+                                    )
+                                    return function_output
                             else:
                                 # Emit invalid tool call event
                                 await event_bus.emit_agent_event(
