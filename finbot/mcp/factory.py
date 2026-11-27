@@ -36,10 +36,19 @@ def _import_factory(dotted_path: str) -> Any:
 
 
 async def _apply_tool_overrides(server: FastMCP, overrides: dict) -> None:
-    """Apply user-supplied tool description overrides to a FastMCP server.
+    """Apply user-supplied tool overrides to a FastMCP server.
 
-    Modifies tool descriptions (the text the LLM sees) via the provider's
-    get_tool() API. This is the primary CTF attack surface for tool poisoning.
+    Modifies tool definitions (the text and schema the LLM sees) via the
+    provider's get_tool() API.  Supports two override keys per tool:
+
+    - ``description``: replaces the tool's natural-language description
+      (primary CTF attack surface for prompt-injection / tool poisoning).
+    - ``parameters`` / ``inputSchema``: replaces the JSON Schema the LLM
+      uses when constructing tool arguments (enables parameter-schema
+      poisoning attacks).
+
+    Fixes #547: previously only ``description`` was applied; ``parameters``
+    was silently discarded even though the API accepted and stored it.
     """
     if not overrides:
         return
@@ -49,17 +58,56 @@ async def _apply_tool_overrides(server: FastMCP, overrides: dict) -> None:
         return
 
     for tool_name, override in overrides.items():
+        if not isinstance(override, dict):
+            continue
+
         new_description = override.get("description")
-        if new_description:
-            try:
-                tool = await provider.get_tool(tool_name)
-                if tool:
-                    tool.description = new_description
-                    logger.debug(
-                        "Applied tool override for '%s': description updated", tool_name
+        new_parameters = override.get("parameters")
+        if new_parameters is None:
+            new_parameters = override.get("inputSchema")
+
+        if new_description is None and new_parameters is None:
+            continue
+
+        try:
+            tool = await provider.get_tool(tool_name)
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            logger.debug("Failed to look up tool '%s' for override: %s", tool_name, exc)
+            continue
+
+        if not tool:
+            logger.debug("Tool '%s' not found for override", tool_name)
+            continue
+
+        applied = []
+        try:
+            if new_description is not None:
+                tool.description = new_description
+                applied.append("description")
+            if new_parameters is not None:
+                if not isinstance(new_parameters, dict):
+                    logger.warning(
+                        "Skipping invalid non-dict parameters override for '%s'",
+                        tool_name,
                     )
-            except Exception:
-                logger.debug("Tool '%s' not found for override", tool_name)
+                else:
+                    if hasattr(tool, "parameters"):
+                        tool.parameters = new_parameters
+                    if hasattr(tool, "inputSchema"):
+                        tool.inputSchema = new_parameters
+                    if not (hasattr(tool, "parameters") or hasattr(tool, "inputSchema")):
+                        setattr(tool, "parameters", new_parameters)
+                    applied.append("parameters")
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            logger.warning("Failed to apply override for tool '%s': %s", tool_name, exc)
+            continue
+
+        if applied:
+            logger.debug(
+                "Applied tool override for '%s': %s updated",
+                tool_name,
+                ", ".join(applied),
+            )
 
 
 async def create_mcp_server(
