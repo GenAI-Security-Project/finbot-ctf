@@ -149,7 +149,9 @@ class ChallengeService:
                 status="available",
             )
             db.add(progress)
-            db.flush()
+            # Commit, not flush: a flushed row keeps SQLite's write lock, and the
+            # caller awaits the detector (for some, a model call) straight after.
+            db.commit()
 
         return progress
 
