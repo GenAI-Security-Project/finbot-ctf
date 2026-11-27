@@ -99,9 +99,7 @@ async def _apply_tool_overrides(server: FastMCP, overrides: dict) -> None:
                         setattr(tool, "parameters", new_parameters)
                     applied.append("parameters")
         except Exception as exc:  # pylint: disable=broad-exception-caught
-            logger.warning(
-                "Failed to apply override for tool '%s': %s", tool_name, exc
-            )
+            logger.warning("Failed to apply override for tool '%s': %s", tool_name, exc)
             continue
 
         if applied:

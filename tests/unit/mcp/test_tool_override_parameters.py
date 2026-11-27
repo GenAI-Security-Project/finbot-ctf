@@ -19,10 +19,10 @@ from finbot.core.auth.session import SessionContext
 from finbot.mcp.factory import _apply_tool_overrides
 from finbot.mcp.servers.finstripe.server import create_finstripe_server
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_server(tools: dict) -> tuple[MagicMock, dict[str, MagicMock]]:
     """Return a minimal FastMCP-like mock with a provider that exposes tools."""
