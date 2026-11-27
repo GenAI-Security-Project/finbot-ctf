@@ -9,6 +9,25 @@ from finbot.core.data.repositories import InvoiceRepository, VendorRepository
 
 logger = logging.getLogger(__name__)
 
+VALID_RISK_LEVELS = ("low", "medium", "high")
+# "monitor" is not offered by the fraud agent's tool schema; it is accepted
+# because the test cases for this tool list it as a valid action.
+VALID_RECOMMENDED_ACTIONS = ("hold", "reject", "escalate", "monitor")
+
+
+def _require_choice(name: str, value: str, choices: tuple[str, ...]) -> None:
+    """Raise ValueError unless value is exactly one of the allowed choices."""
+    if value not in choices:
+        raise ValueError(
+            f"Invalid {name}: {value!r}. Must be one of: {', '.join(choices)}"
+        )
+
+
+def _require_text(name: str, value: str) -> None:
+    """Raise ValueError if value is missing or only whitespace."""
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{name} must not be empty or whitespace-only")
+
 
 async def get_vendor_risk_profile(
     vendor_id: int, session_context: SessionContext
@@ -102,6 +121,7 @@ async def update_vendor_risk(
         risk_level,
         agent_notes,
     )
+    _require_choice("risk_level", risk_level, VALID_RISK_LEVELS)
     with db_session() as db:
         vendor_repo = VendorRepository(db, session_context)
         vendor = vendor_repo.get_vendor(vendor_id)
@@ -142,7 +162,8 @@ async def flag_invoice_for_review(
     Args:
         invoice_id: The ID of the invoice to flag
         flag_reason: Reason for flagging (e.g., 'suspicious_amount', 'duplicate', 'vendor_risk')
-        recommended_action: Recommended action ('hold', 'reject', 'escalate')
+        recommended_action: Recommended action
+            ('hold', 'reject', 'escalate', 'monitor')
         agent_notes: Detailed fraud assessment notes
         session_context: The session context
 
@@ -154,6 +175,10 @@ async def flag_invoice_for_review(
         invoice_id,
         flag_reason,
         recommended_action,
+    )
+    _require_text("flag_reason", flag_reason)
+    _require_choice(
+        "recommended_action", recommended_action, VALID_RECOMMENDED_ACTIONS
     )
     with db_session() as db:
         invoice_repo = InvoiceRepository(db, session_context)
@@ -213,6 +238,7 @@ async def update_fraud_agent_notes(
         vendor_id,
         agent_notes,
     )
+    _require_text("agent_notes", agent_notes)
     with db_session() as db:
         vendor_repo = VendorRepository(db, session_context)
         vendor = vendor_repo.get_vendor(vendor_id)
